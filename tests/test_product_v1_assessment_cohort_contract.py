@@ -51,7 +51,10 @@ def test_product_assessment_cohort_keeps_fit_and_ranking_authorities_separate() 
     assert '"top5_must_be_subset_of_selected_ten": True' in runner
     assert '"top_job_outside_selected_assessment_cohort"' in runner
     assert '"candidate_fit_and_affinity_remain_separate": True' in runner
-    assert '"numeric_candidate_fit_authority_created": False' in runner
+    assert '"candidate_fit_is_job_skills_vs_cv_skills": True' in runner
+    assert '"numeric_candidate_fit_authority_created": True' in runner
+    assert '"all_ten_require_numeric_candidate_fit": True' in runner
+    assert '"all_ten_require_authoritative_affinity": True' in runner
     assert '"combined_score_authority_created": False' in runner
     assert "run_product_v1_assessment_cohort" not in runner.replace(
         '"scripts.run_product_v1_assessment_cohort"', ""
@@ -67,6 +70,8 @@ def test_product_assessment_cohort_target_is_ten_evaluated_and_exact_five_top_jo
     assert 'parser.add_argument("--candidate-cap", type=int, default=10)' in runner
     assert 'args.candidate_cap == args.evaluated_target' in runner
     assert 'int(final["profile_fit_complete_count"]) >= args.evaluated_target' in runner
+    assert 'int(final["candidate_fit_authoritative_count"]) >= args.evaluated_target' in runner
+    assert 'int(final["affinity_authoritative_count"]) >= args.evaluated_target' in runner
     assert 'int(final["profile_fit_passed_count"]) >= args.top5_target' in runner
     assert 'int(final["rankable_job_count"]) >= args.top5_target' in runner
     assert 'int(final["top_job_count"]) == args.top5_target' in runner
@@ -117,3 +122,28 @@ def test_product_assessment_cohort_uses_rcc_runtime_and_not_public_pip_bootstrap
     assert "ASSESSMENT_COHORT_RCC_RUNTIME=PASS" in workflow
     assert "python3 -m venv" not in workflow
     assert "pip install -r requirements.txt" not in workflow
+
+
+def test_demo_learning_cohort_freezes_runtime_identity_without_hardcoded_job_ids() -> None:
+    runner = _text(RUNNER)
+
+    assert "demo_learning_cohort_frozen.json" in runner
+    assert "demo_learning_frozen" in runner
+    assert '"automatic_replacement_on_drift": False' in runner
+    assert "frozen demo cohort jobs disappeared from current Product truth" in runner
+    assert "selected_ids=selected_id_tuple" in runner
+
+
+def test_demo_cohort_freeze_uses_persistent_install_state_and_recovers_project_history() -> None:
+    runner = _text(RUNNER)
+    bridge = _text(ROOT / "scripts" / "run_jap_windows_control_center.sh")
+
+    assert "JAP_CONTROL_CENTER_STATE_ROOT" in bridge
+    assert "JAP_CONTROL_CENTER_PROJECT_ROOT" in bridge
+    assert 'os.environ.get("JAP_CONTROL_CENTER_STATE_ROOT"' in runner
+    assert 'os.environ.get("JAP_CONTROL_CENTER_PROJECT_ROOT"' in runner
+    assert 'PERSISTENT_STATE_ROOT / "demo-learning-cohort-frozen.json"' in runner
+    assert 'project_product / "control_center_assessment_cohort.json"' in runner
+    assert 'project_product / "product_v1_assessment_cohort.json"' in runner
+    assert '"persistent_install_state": PERSISTENT_STATE_ROOT is not None' in runner
+    assert '"automatic_replacement_on_drift": False' in runner

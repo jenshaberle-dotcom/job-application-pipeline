@@ -38,6 +38,13 @@ type Job = {
   };
   display_fit_score?: number | null;
   display_fit_scope?: string | null;
+  candidate_fit_score?: number | null;
+  candidate_fit_authority_status?: string | null;
+  candidate_fit_scope?: string | null;
+  candidate_fit_job_skill_evidence_status?: string | null;
+  candidate_fit_observed_job_skill_count?: number | null;
+  candidate_fit_exact_match_count?: number | null;
+  candidate_fit_unmatched_count?: number | null;
   profile_direction_score?: number | null;
   data_focus_score?: number | null;
   reliability_focus_score?: number | null;
@@ -147,6 +154,7 @@ type ProductPayload = {
     profile_fit_complete_count?: number;
     profile_fit_insufficient_evidence_count?: number;
     profile_fit_unclassified_count?: number;
+    candidate_fit_authoritative_count?: number;
     stale_job_count: number;
     inactive_confirmed_job_count: number;
     unverifiable_job_count: number;
@@ -320,13 +328,18 @@ function affinityDisplayTitle(job: Job): string {
 }
 
 function candidateFitText(job: Job) {
+  if (
+    job.candidate_fit_authority_status === "authoritative"
+    && typeof job.candidate_fit_score === "number"
+  ) {
+    return `${Math.round(job.candidate_fit_score)}% Candidate Fit`;
+  }
   const decision = normalize(job.profile_fit_decision);
-  if (decision === "passed") return "Fit confirmed";
   if (decision === "failed") return "Fit conflict";
   const missing = (job.profile_fit_missing_factors || [])
     .map((item) => fitFactorLabel[item] || label(item));
   if (missing.length) return `Needs ${missing.join(", ")}`;
-  return "More fit evidence needed";
+  return "Skill fit not assessed";
 }
 
 function top5ReadinessText(job: Job) {
@@ -543,7 +556,7 @@ function Overview({ payload, onNavigate }: { payload: ProductPayload; onNavigate
 
     <section className="ow-metrics">
       <Metric labelText="Current jobs" value={currentJobs.length} helper="currently active jobs from verified employer sources" />
-      <Metric labelText="Candidate Fit complete" value={payload.summary.profile_fit_complete_count ?? 0} helper="jobs with enough evidence for a fit decision" />
+      <Metric labelText="Candidate Fit scored" value={payload.summary.candidate_fit_authoritative_count ?? 0} helper="job-skill requirements compared with approved CV skills" />
       <Metric labelText="Needs fit evidence" value={payload.summary.profile_fit_insufficient_evidence_count ?? 0} helper="jobs still missing evidence for a fit decision" />
       <Metric labelText="Ready to rank" value={payload.summary.rankable_job_count} helper="jobs that passed all required checks" />
       <Metric labelText="Top 5" value={`${payload.summary.top_job_count}/5`} helper="current shortlist" />
@@ -938,6 +951,8 @@ type AssessmentCohortResponse = {
   summary?: {
     selected_count?: number;
     profile_fit_complete_count?: number;
+    candidate_fit_authoritative_count?: number;
+    affinity_authoritative_count?: number;
     profile_fit_passed_count?: number;
     rankable_job_count?: number;
     top_job_count?: number;
@@ -965,7 +980,7 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
   const runAssessment = async () => {
     setAssessmentState({
       status: "running",
-      message: "Evaluating current jobs with the existing Candidate Fit and ranking authorities…",
+      message: "Evaluating the frozen 10-job demo cohort: CV-skill Candidate Fit, Affinity and Top 5…",
     });
     try {
       const response = await fetch("/api/v1/product-v1/assessment-cohort", {
@@ -993,7 +1008,7 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
       if (result.target_met) {
         setAssessmentState({
           status: "complete",
-          message: "Candidate Fit is current and the authoritative Top 5 contains five qualified jobs.",
+          message: "Frozen demo cohort ready: 10/10 Candidate Fit scores, 10/10 Affinity scores and 5 authoritative Top-5 jobs.",
         });
         return;
       }
@@ -1006,8 +1021,10 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
         .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
         .map(([reason, count]) => `${fitBlockerReasonLabel[reason] || label(reason)}: ${count}`);
       const baseStatus = [
-        `${summary.profile_fit_complete_count ?? 0}/10 Candidate Fit complete`,
-        `${summary.profile_fit_passed_count ?? 0} Fit passed`,
+        `${summary.candidate_fit_authoritative_count ?? 0}/10 Candidate Fit scored`,
+        `${summary.affinity_authoritative_count ?? 0}/10 Affinity scored`,
+        `${summary.profile_fit_complete_count ?? 0}/10 gate evidence complete`,
+        `${summary.profile_fit_passed_count ?? 0} gates passed`,
         `${summary.rankable_job_count ?? 0} ready to rank`,
         `${summary.top_job_count ?? 0}/5 Top 5`,
       ].join(" · ");

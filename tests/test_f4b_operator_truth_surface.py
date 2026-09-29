@@ -14,15 +14,16 @@ def test_f4b_operator_surface_names_affinity_and_target_alignment_distinctly() -
     assert "Role affinity" not in source
 
 
-def test_f4b_operator_surface_exposes_unknown_fit_and_combined_without_inventing_scores() -> None:
+def test_f4b_operator_surface_exposes_numeric_skill_fit_but_no_combined_score() -> None:
     source = SURFACE.read_text(encoding="utf-8")
 
     assert "Affinity · Job Fit · Combined" in source
-    assert 'label="Job Fit"' in source
+    assert 'label="Candidate Fit"' in source
     assert 'label="Combined"' in source
-    assert 'const fitPrimary = fitDecision === "passed"' in source
+    assert 'candidate_fit_authority_status === "authoritative"' in source
+    assert "observed job skills are evidenced by approved CV/Candidate Facts" in source
+    assert "Geography, seniority and hard requirements are separate gates." in source
     assert 'fitDecision === "failed"\n      ? "blocked"\n      : "?"' in source
-    assert "numeric Candidate Fit is deferred to F4B-FOLLOWUP-001 / #891" in source
     assert "No Combined formula is authorized until numeric Fit is qualified" in source
 
 

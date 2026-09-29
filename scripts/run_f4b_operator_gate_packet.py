@@ -13,13 +13,17 @@ from datetime import date, datetime
 from decimal import Decimal
 import json
 from pathlib import Path
-import re
 from typing import Any, Mapping
 
 import psycopg
 from psycopg.rows import dict_row
 
 from src.config import get_database_config
+from src.search_intelligence.product_v1_candidate_fit import (
+    build_candidate_fit,
+    normalize_skill_label,
+    observed_job_skills,
+)
 
 CAPABILITY_EVIDENCE_CLASSES = (
     "professional_employment",
@@ -44,13 +48,6 @@ def _json_safe(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [_json_safe(v) for v in value]
     return value
-
-
-def _normalize_label(value: object) -> str:
-    text = str(value or "").strip().casefold()
-    text = text.replace("–", "-").replace("—", "-")
-    text = re.sub(r"\s+", " ", text)
-    return text
 
 
 def classify_geography_candidate(
@@ -80,25 +77,6 @@ def classify_geography_candidate(
     if commute_minutes <= 45:
         return "passed", "regional_commute_within_approved_45_minutes"
     return "failed", "regional_commute_exceeds_approved_45_minutes"
-
-
-def _job_skills(sidecar: object) -> tuple[str, tuple[str, ...]]:
-    if not isinstance(sidecar, Mapping):
-        return "missing", ()
-    fields = sidecar.get("fields")
-    if not isinstance(fields, Mapping):
-        return "invalid", ()
-    skills = fields.get("job_skills")
-    if not isinstance(skills, Mapping):
-        return "missing", ()
-    status = str(skills.get("status") or "missing")
-    values = skills.get("values")
-    if not isinstance(values, list):
-        return status, ()
-    normalized = tuple(
-        sorted({_normalize_label(item) for item in values if _normalize_label(item)})
-    )
-    return status, normalized
 
 
 def review_binding_status(
@@ -171,9 +149,13 @@ def build_packet(
             commute_minutes=row.get("commute_minutes"),
         )
         geography_counts[geography_status] += 1
-        skill_status, observed_skills = _job_skills(row.get("sidecar_payload"))
-        matched = sum(skill in candidate_capability_tags for skill in observed_skills)
-        bucket = _coverage_bucket(matched, len(observed_skills))
+        candidate_fit = build_candidate_fit(
+            sidecar_payload=row.get("sidecar_payload"),
+            candidate_capability_tags=candidate_capability_tags,
+        )
+        skill_status, observed_skills = observed_job_skills(row.get("sidecar_payload"))
+        matched = candidate_fit.exact_candidate_skill_match_count
+        bucket = candidate_fit.overlap_class
         skill_counts[bucket] += 1
         hard_reasons = row.get("hard_filter_reasons")
         hard_reasons = hard_reasons if isinstance(hard_reasons, Mapping) else {}
@@ -202,9 +184,10 @@ def build_packet(
                 "observed_job_skill_count": len(observed_skills),
                 "exact_candidate_skill_match_count": matched,
                 "exact_candidate_skill_unmatched_count": len(observed_skills) - matched,
-                "exact_candidate_skill_coverage": (
-                    round(matched / len(observed_skills), 4) if observed_skills else None
-                ),
+                "exact_candidate_skill_coverage": candidate_fit.exact_candidate_skill_coverage,
+                "candidate_fit_score": candidate_fit.score,
+                "candidate_fit_authority_status": candidate_fit.authority_status,
+                "candidate_fit_scope": candidate_fit.scope,
                 "capability_overlap_class": bucket,
                 "active_capability_review_decision": (
                     str(row.get("review_decision")) if row.get("review_decision") is not None else None
@@ -330,7 +313,9 @@ def _read_database() -> tuple[list[dict[str, object]], set[str], set[str], str, 
                 raw = row.get("capability_tags")
                 if isinstance(raw, list):
                     capability_tags.update(
-                        _normalize_label(value) for value in raw if _normalize_label(value)
+                        normalize_skill_label(value)
+                        for value in raw
+                        if normalize_skill_label(value)
                     )
 
             cur.execute(

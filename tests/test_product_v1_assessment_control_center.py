@@ -27,6 +27,8 @@ def _report(*, target_met: bool = True, combined_score: bool = False) -> dict[st
         "authority_pipeline_exit_code": 0,
         "final": {
             "profile_fit_complete_count": 10 if target_met else 6,
+            "candidate_fit_authoritative_count": 10 if target_met else 6,
+            "affinity_authoritative_count": 10 if target_met else 7,
             "profile_fit_passed_count": 6 if target_met else 4,
             "rankable_job_count": 5 if target_met else 4,
             "top_job_count": 5 if target_met else 4,
@@ -75,7 +77,11 @@ def _report(*, target_met: bool = True, combined_score: bool = False) -> dict[st
             "selection_requires_approved_candidate_fact_match": True,
             "top5_must_be_subset_of_selected_ten": True,
             "candidate_fit_and_affinity_remain_separate": True,
-            "numeric_candidate_fit_authority_created": False,
+            "candidate_fit_is_job_skills_vs_cv_skills": True,
+            "numeric_candidate_fit_authority_created": True,
+            "all_ten_require_numeric_candidate_fit": True,
+            "all_ten_require_authoritative_affinity": True,
+            "demo_cohort_frozen": True,
             "combined_score_authority_created": combined_score,
             "demo_learning_sample": True,
             "canonical_role_classifier_unchanged": True,
@@ -227,11 +233,13 @@ def test_local_assessment_reuses_existing_authorities_and_publishes_bounded_resu
     assert result["provider_requests"] == 0
     assert result["direct_rank_writes"] == 0
     assert result["direct_top5_writes"] == 0
-    assert result["candidate_fit_numeric_score_created"] is False
+    assert result["candidate_fit_numeric_score_created"] is True
     assert result["combined_score_created"] is False
     assert result["summary"] == {
         "selected_count": 10,
         "profile_fit_complete_count": 10,
+        "candidate_fit_authoritative_count": 10,
+        "affinity_authoritative_count": 10,
         "profile_fit_passed_count": 6,
         "rankable_job_count": 5,
         "top_job_count": 5,

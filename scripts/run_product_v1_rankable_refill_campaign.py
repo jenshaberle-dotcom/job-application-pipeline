@@ -21,6 +21,8 @@ import psycopg
 from psycopg.rows import dict_row
 
 from scripts import run_product_v1_assessment_detail_refresh as assessment_refresh
+from scripts import run_f4a_r3_silver_requirement_backfill as requirement_backfill
+from scripts import run_f4b_affinity_authority as affinity_authority
 from scripts.run_product_v1_rankable_refill_apply import (
     APPROVAL_TOKEN as REFILL_APPROVAL_TOKEN,
 )
@@ -48,6 +50,9 @@ APPROVAL_TOKEN = "PRODUCT-V1-RANKABLE-REFILL-CAMPAIGN-001"
 MATERIALIZATION_OUTPUT = Path(
     ".runtime/product/product_v1_rankable_refill_materialization.json"
 )
+AFFINITY_OUTPUT = Path(
+    ".runtime/product/product_v1_demo_cohort_affinity.json"
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,13 +60,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--candidate-cap", type=int, default=7)
     parser.add_argument("--target-rankable", type=int, default=5)
     parser.add_argument("--reviewed-by", default="jens")
+    parser.add_argument("--silver-job-id", type=int, action="append", default=[])
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
     parser.add_argument("--demo-learning-sample", action="store_true")
     return parser
 
 
-def _selected(candidate_cap: int, *, demo_learning_sample: bool) -> list[dict[str, object]]:
+def _selected(
+    candidate_cap: int,
+    *,
+    demo_learning_sample: bool,
+    explicit_ids: tuple[int, ...] = (),
+) -> list[dict[str, object]]:
     authorized = sorted(
         authorized_recurring_employer_origin_sources(JobIngestionRepository())
     )
@@ -77,6 +88,26 @@ def _selected(candidate_cap: int, *, demo_learning_sample: bool) -> list[dict[st
         )
         conn.rollback()
     scouted = scout(rows=rows, facts=facts)
+    if explicit_ids:
+        if len(explicit_ids) != candidate_cap:
+            raise SystemExit("explicit cohort cardinality must equal candidate-cap")
+        by_id = {int(row["silver_job_id"]): row for row in scouted}
+        missing = sorted(set(explicit_ids) - set(by_id))
+        if missing:
+            raise SystemExit(
+                "explicit cohort jobs missing from current scout: "
+                + ",".join(str(value) for value in missing)
+            )
+        selected = [dict(by_id[value]) for value in explicit_ids]
+        for row in selected:
+            if row.get("live_outcome") != "seen_active":
+                raise SystemExit(f"explicit cohort job not live: {row['silver_job_id']}")
+            if row.get("geography_eligible") is not True:
+                raise SystemExit(f"explicit cohort job outside demo geography: {row['silver_job_id']}")
+            matches = row.get("candidate_fact_matches")
+            if not isinstance(matches, list) or not matches:
+                raise SystemExit(f"explicit cohort job lacks Candidate Fact match: {row['silver_job_id']}")
+        return selected
     if demo_learning_sample:
         return select_demo_learning_sample(
             scouted,
@@ -160,6 +191,63 @@ def _materialize_missing(
     return proposals, inserted
 
 
+def _materialize_requirement_sidecars(
+    selected: list[dict[str, object]],
+    *,
+    apply: bool,
+) -> tuple[int, int, list[int]]:
+    """Ensure the selected demo cohort has public job-skill evidence."""
+
+    selected_ids = {int(row["silver_job_id"]) for row in selected}
+    with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+        rows = requirement_backfill._load_rows(conn, selected_ids)
+        conn.rollback()
+        if len(rows) != len(selected_ids):
+            raise SystemExit(
+                "requirement sidecar source cardinality mismatch: "
+                f"expected={len(selected_ids)} rows={len(rows)}"
+            )
+        report = requirement_backfill.build_plan(rows)
+        if int(report.get("blocked_count") or 0) != 0:
+            raise SystemExit(
+                "requirement sidecar backfill blocked: "
+                + json.dumps(report.get("blocked"), sort_keys=True, default=str)
+            )
+
+        missing_skill_ids: list[int] = []
+        for proposal in report.get("proposals") or []:
+            if not isinstance(proposal, dict):
+                continue
+            payload = proposal.get("payload")
+            fields = payload.get("fields") if isinstance(payload, dict) else None
+            skills = fields.get("job_skills") if isinstance(fields, dict) else None
+            values = skills.get("values") if isinstance(skills, dict) else None
+            if not isinstance(values, list) or not [
+                value for value in values if str(value).strip()
+            ]:
+                missing_skill_ids.append(int(proposal["silver_job_id"]))
+
+        if missing_skill_ids:
+            raise SystemExit(
+                "demo cohort lacks observed job skills for Candidate Fit: "
+                + ",".join(str(value) for value in sorted(missing_skill_ids))
+            )
+
+        applied = 0
+        if apply:
+            applied = requirement_backfill.apply_plan(conn, report)
+            conn.commit()
+        else:
+            conn.rollback()
+
+    print(
+        "REQUIREMENT_SIDECAR="
+        f"{'APPLY' if apply else 'PLAN'}|candidates={len(selected_ids)}|"
+        f"would_change={int(report.get('would_change_count') or 0)}|applied={applied}"
+    )
+    return int(report.get("proposal_count") or 0), applied, missing_skill_ids
+
+
 def _refresh_selected(
     selected: list[dict[str, object]],
     *,
@@ -212,6 +300,66 @@ def _refresh_selected(
     return planned, changed
 
 
+def _run_selected_affinity(
+    selected: list[dict[str, object]],
+    *,
+    apply: bool,
+    reviewed_by: str,
+) -> None:
+    command = [
+        sys.executable,
+        "-m",
+        "scripts.run_f4b_affinity_authority",
+        "--reviewed-by",
+        reviewed_by,
+        "--output",
+        str(AFFINITY_OUTPUT),
+    ]
+    for row in selected:
+        command.extend(["--silver-job-id", str(int(row["silver_job_id"]))])
+    if apply:
+        command.extend(
+            [
+                "--apply",
+                "--approval-token",
+                affinity_authority.APPROVAL_TOKEN,
+            ]
+        )
+    subprocess.run(command, check=True)
+    report = json.loads(AFFINITY_OUTPUT.read_text(encoding="utf-8"))
+    expected = {int(row["silver_job_id"]) for row in selected}
+    exact = {
+        int(item["silver_job_id"])
+        for item in report.get("items") or []
+        if isinstance(item, dict)
+    }
+    skipped = {
+        int(item["silver_job_id"])
+        for item in report.get("skipped") or []
+        if isinstance(item, dict)
+    }
+    if exact | skipped != expected:
+        raise SystemExit(
+            "demo affinity cohort identity drift: "
+            f"expected={sorted(expected)} exact={sorted(exact)} skipped={sorted(skipped)}"
+        )
+    if skipped:
+        raise SystemExit(
+            "demo cohort affinity is not exact-authoritative for jobs: "
+            + ",".join(str(value) for value in sorted(skipped))
+        )
+    if apply and int(report.get("changed_count") or 0) + sum(
+        1 for item in report.get("items") or []
+        if isinstance(item, dict) and not bool(item.get("would_change"))
+    ) != len(expected):
+        raise SystemExit("demo cohort affinity apply cardinality mismatch")
+    print(
+        "DEMO_AFFINITY="
+        f"{'APPLY' if apply else 'PLAN'}|exact={len(exact)}|skipped={len(skipped)}|"
+        f"changed={int(report.get('changed_count') or 0)}"
+    )
+
+
 def _run_refill(args: argparse.Namespace) -> None:
     command = [
         sys.executable,
@@ -226,6 +374,8 @@ def _run_refill(args: argparse.Namespace) -> None:
     ]
     if args.demo_learning_sample:
         command.append("--demo-learning-sample")
+    for job_id in tuple(dict.fromkeys(args.silver_job_id)):
+        command.extend(["--silver-job-id", str(job_id)])
     if args.apply:
         command.extend(
             [
@@ -249,9 +399,15 @@ def main() -> int:
     if args.apply and args.approval_token != APPROVAL_TOKEN:
         raise SystemExit("invalid Product V1 rankable-refill campaign approval token")
 
+    explicit_ids = tuple(dict.fromkeys(args.silver_job_id))
+    if any(value <= 0 for value in explicit_ids):
+        raise SystemExit("--silver-job-id values must be positive")
+    if explicit_ids and len(explicit_ids) != args.candidate_cap:
+        raise SystemExit("explicit cohort cardinality must equal candidate-cap")
     selected = _selected(
         args.candidate_cap,
         demo_learning_sample=args.demo_learning_sample,
+        explicit_ids=explicit_ids,
     )
     if not selected:
         raise SystemExit("no live Candidate-Fact-backed refill candidates")
@@ -266,6 +422,13 @@ def main() -> int:
     )
     print(f"ASSESSMENT_MATERIALIZATION_PLANNED={materialization_planned}")
     print(f"ASSESSMENT_MATERIALIZED={materialized}")
+
+    sidecar_planned, sidecar_applied, _missing_skills = _materialize_requirement_sidecars(
+        selected,
+        apply=args.apply,
+    )
+    print(f"REQUIREMENT_SIDECAR_PLANNED={sidecar_planned}")
+    print(f"REQUIREMENT_SIDECAR_APPLIED={sidecar_applied}")
 
     if not args.apply and materialization_planned:
         print("REFILL_DEFERRED=assessment_materialization_apply_required")
@@ -291,6 +454,12 @@ def main() -> int:
         return 0
 
     _run_refill(args)
+    if args.demo_learning_sample:
+        _run_selected_affinity(
+            selected,
+            apply=args.apply,
+            reviewed_by=reviewed_by,
+        )
     print("PRODUCT_V1_RANKABLE_REFILL_CAMPAIGN=COMPLETE")
     return 0
 

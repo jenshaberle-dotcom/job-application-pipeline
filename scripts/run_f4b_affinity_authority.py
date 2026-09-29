@@ -13,7 +13,7 @@ from datetime import date, datetime
 from decimal import Decimal
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 import psycopg
 from psycopg.rows import dict_row
@@ -82,10 +82,16 @@ def _load_policy(conn: psycopg.Connection[Any]):
     return policy
 
 
-def _load_rows(conn: psycopg.Connection[Any]) -> list[dict[str, object]]:
+def _load_rows(
+    conn: psycopg.Connection[Any],
+    silver_job_ids: Sequence[int] | None = None,
+) -> list[dict[str, object]]:
+    ids = tuple(dict.fromkeys(int(value) for value in (silver_job_ids or ()) if int(value) > 0))
+    id_clause = " AND readiness.silver_job_id = ANY(%s)" if ids else ""
+    params: tuple[object, ...] = (list(ids),) if ids else ()
     with conn.cursor() as cur:
         cur.execute(
-            """
+            f"""
             SELECT readiness.silver_job_id, readiness.company_name,
                    readiness.title, readiness.source_name, readiness.source_url,
                    assessment.origin_validation_status,
@@ -114,8 +120,10 @@ def _load_rows(conn: psycopg.Connection[Any]) -> list[dict[str, object]]:
              AND review.status = 'active'
             WHERE readiness.lifecycle_status = 'active_confirmed'
               AND assessment.origin_validation_status = 'validated'
+              {id_clause}
             ORDER BY readiness.silver_job_id
-            """
+            """,
+            params,
         )
         return [dict(row) for row in cur.fetchall()]
 
@@ -155,9 +163,12 @@ def _review_exact(row: Mapping[str, object], candidate: Mapping[str, object], po
     )
 
 
-def _plan(conn: psycopg.Connection[Any]) -> tuple[object, list[dict[str, object]], list[dict[str, object]]]:
+def _plan(
+    conn: psycopg.Connection[Any],
+    silver_job_ids: Sequence[int] | None = None,
+) -> tuple[object, list[dict[str, object]], list[dict[str, object]]]:
     policy = _load_policy(conn)
-    rows = _load_rows(conn)
+    rows = _load_rows(conn, silver_job_ids)
     exact: list[dict[str, object]] = []
     skipped: list[dict[str, object]] = []
     for row in rows:
@@ -314,6 +325,7 @@ def main() -> int:
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
     parser.add_argument("--reviewed-by", default="jens")
+    parser.add_argument("--silver-job-id", type=int, action="append", default=[])
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.apply:
@@ -321,8 +333,22 @@ def main() -> int:
     reviewed_by = str(args.reviewed_by or "").strip()
     _require(bool(reviewed_by), "reviewed_by must not be blank")
 
+    selected_ids = tuple(dict.fromkeys(args.silver_job_id))
+    _require(
+        all(value > 0 for value in selected_ids),
+        "--silver-job-id values must be positive",
+    )
     with connect() as conn:
-        policy, exact, skipped = _plan(conn)
+        policy, exact, skipped = _plan(conn, selected_ids or None)
+        if selected_ids:
+            planned_ids = {int(item["silver_job_id"]) for item in exact}
+            skipped_ids = {int(item["silver_job_id"]) for item in skipped}
+            missing_ids = sorted(set(selected_ids) - planned_ids - skipped_ids)
+            _require(
+                not missing_ids,
+                "requested affinity jobs are not current validated Product rows: "
+                + ",".join(str(value) for value in missing_ids),
+            )
         changed = 0
         if args.apply:
             for candidate in exact:
