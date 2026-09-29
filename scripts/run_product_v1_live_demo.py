@@ -28,6 +28,7 @@ build matching the current installed revision.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -51,6 +52,17 @@ DESKTOP_VERSION_FILE = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "VERSION
 UPDATE_COMPATIBILITY_FILE = (
     ROOT / "windows" / "JAP.ControlCenter.Desktop" / "UPDATE_COMPATIBILITY.json"
 )
+RUNTIME_FEATURE_CONTRACT_FILE = ROOT / "runtime-feature-contract.json"
+RUNTIME_FEATURE_CONTRACT_SCHEMA = "job_application_pipeline.runtime_feature_contract.v1"
+REQUIRED_INSTALLED_FEATURES = {
+    "candidate_fit_scope": "job_skills_vs_cv_skills",
+    "demo_cohort_policy": "frozen_runtime_identity",
+    "candidate_fit_required_count": 10,
+    "affinity_required_count": 10,
+    "combined_score_authority": False,
+    "static_cache_control": "no-store,max-age=0",
+    "frontend_generation_binding": "source_sha",
+}
 DEMO_ARTIFACT_ROOT = (ROOT / ".runtime" / "demo").resolve()
 DEFAULT_PREFLIGHT = DEMO_ARTIFACT_ROOT / "product_v1_demo_preflight.json"
 DEFAULT_WORKSPACE_PROBE = DEMO_ARTIFACT_ROOT / "product_v1_demo_workspace_probe.json"
@@ -113,6 +125,74 @@ def _installed_source_revision() -> str | None:
     if len(raw) == 40 and all(character in "0123456789abcdef" for character in raw):
         return raw
     return None
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _verify_installed_runtime_feature_contract(frontend_dist: Path) -> dict[str, object]:
+    expected_source = _installed_source_revision()
+    if expected_source is None:
+        raise RuntimeError("installed runtime source revision is unavailable")
+    if not RUNTIME_FEATURE_CONTRACT_FILE.is_file():
+        raise RuntimeError("runtime feature contract is missing")
+
+    raw = json.loads(RUNTIME_FEATURE_CONTRACT_FILE.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise RuntimeError("runtime feature contract root is not an object")
+    if raw.get("schema") != RUNTIME_FEATURE_CONTRACT_SCHEMA:
+        raise RuntimeError("runtime feature contract schema mismatch")
+    if str(raw.get("source_sha") or "").strip().lower() != expected_source:
+        raise RuntimeError("runtime feature contract source mismatch")
+
+    version = DESKTOP_VERSION_FILE.read_text(encoding="utf-8").strip()
+    if str(raw.get("version") or "").strip() != version:
+        raise RuntimeError("runtime feature contract version mismatch")
+
+    features = raw.get("features")
+    if not isinstance(features, dict):
+        raise RuntimeError("runtime feature contract features are missing")
+    drift = {
+        key: {"expected": value, "actual": features.get(key)}
+        for key, value in REQUIRED_INSTALLED_FEATURES.items()
+        if features.get(key) != value
+    }
+    if drift:
+        raise RuntimeError(
+            "runtime feature contract drift: "
+            + json.dumps(drift, sort_keys=True, ensure_ascii=False)
+        )
+
+    critical_files = raw.get("critical_files")
+    if not isinstance(critical_files, dict) or not critical_files:
+        raise RuntimeError("runtime feature contract critical files are missing")
+    for relative, expected_hash in sorted(critical_files.items()):
+        relative_text = str(relative or "").replace("\\", "/").strip("/")
+        if not relative_text or relative_text.startswith("../") or "/../" in relative_text:
+            raise RuntimeError(f"invalid critical runtime path: {relative!r}")
+        target = (ROOT / relative_text).resolve()
+        if ROOT.resolve() not in {target, *target.parents}:
+            raise RuntimeError(f"critical runtime path escaped runtime root: {relative_text}")
+        if not target.is_file():
+            raise RuntimeError(f"critical runtime file is missing: {relative_text}")
+        actual_hash = _file_sha256(target)
+        if actual_hash != str(expected_hash or "").strip().lower():
+            raise RuntimeError(f"critical runtime file hash mismatch: {relative_text}")
+
+    marker = _source_marker_path(frontend_dist)
+    if not marker.is_file() or marker.read_text(encoding="utf-8").strip().lower() != expected_source:
+        raise RuntimeError("installed frontend source marker mismatch")
+
+    print(
+        "JAP_RUNTIME_FEATURE_CONTRACT=PASS "
+        f"version={version} source={expected_source} files={len(critical_files)}"
+    )
+    return raw
 
 
 def _source_marker_path(frontend_dist: Path) -> Path:
@@ -361,6 +441,11 @@ def main() -> int:
         print(f"JAP_APP_INFO=UNAVAILABLE reason={exc}", file=sys.stderr)
 
     if args.installed_runtime:
+        try:
+            _verify_installed_runtime_feature_contract(frontend_dist)
+        except (OSError, RuntimeError, json.JSONDecodeError) as exc:
+            print(f"DEMO_START_BLOCKED=runtime_feature_contract:{exc}", file=sys.stderr)
+            return 2
         _prepare_installed_demo_connectors()
         print("JAP_INSTALLED_RUNTIME=READY_TO_SERVE")
         print("JAP_INSTALLED_RUNTIME_NETWORK=startup_local_only")
