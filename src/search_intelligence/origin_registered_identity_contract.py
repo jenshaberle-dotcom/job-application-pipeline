@@ -38,6 +38,7 @@ REGISTERED_ORIGIN_IDENTITY_ALIASES: dict[str, tuple[str, ...]] = {
         "eon digital technology",
         "e.on digital technology",
     ),
+    "ivv": ("ivv",),
     "ratbacher": ("ratbacher", "ratbacher karriere"),
     "x1f": ("x1f",),
 }
