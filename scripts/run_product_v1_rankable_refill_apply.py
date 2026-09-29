@@ -45,11 +45,6 @@ from src.job_lifecycle_health import OUTCOME_SEEN_ACTIVE
 from src.search_intelligence.product_v1_downstream_preview import (
     fetch_public_https_detail_text,
 )
-from src.search_intelligence.product_v1_demo_learning_sample import (
-    DEMO_REQUIRED_EMPLOYERS,
-    select_demo_learning_sample,
-)
-
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / ".runtime" / "product" / "product_v1_rankable_refill_apply.json"
@@ -249,7 +244,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--silver-job-id", type=int, action="append", default=[])
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
-    parser.add_argument("--demo-learning-sample", action="store_true")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     return parser
 
@@ -273,8 +267,7 @@ def main() -> int:
         rows = _load_rows(
             conn,
             authorized_sources=authorized,
-            limit=100 if args.demo_learning_sample else max(30, args.candidate_cap * 4),
-            demo_learning_sample=args.demo_learning_sample,
+            limit=max(30, args.candidate_cap * 4),
         )
         profile_sha256 = _load_profile_sha256(conn)
         conn.rollback()
@@ -300,21 +293,16 @@ def main() -> int:
         selected = [dict(by_id[value]) for value in explicit_ids]
         for row in selected:
             _require(row.get("live_outcome") == OUTCOME_SEEN_ACTIVE, "explicit cohort job is not live")
-            _require(row.get("geography_eligible") is True, "explicit cohort job is outside demo geography")
+            _require(row.get("geography_eligible") is True, "explicit cohort job is outside approved geography")
             matches = row.get("candidate_fact_matches")
             _require(
                 isinstance(matches, list) and bool(matches),
                 "explicit cohort job has no approved Candidate Fact capability match",
             )
     else:
-        selected = (
-            select_demo_learning_sample(
-                live_rows,
-                candidate_cap=args.candidate_cap,
-                required_employers=DEMO_REQUIRED_EMPLOYERS,
-            )
-            if args.demo_learning_sample
-            else _selected_candidates(live_rows, candidate_cap=args.candidate_cap)
+        selected = _selected_candidates(
+            live_rows,
+            candidate_cap=args.candidate_cap,
         )
     _require(bool(selected), "no live Candidate-Fact-backed refill candidates")
     selected_ids = [int(row["silver_job_id"]) for row in selected]
@@ -362,7 +350,6 @@ def main() -> int:
             "ranking_only_after_canonical_hard_filter_passed": True,
             "direct_rank_or_top5_writes": False,
             "application_or_submission_actions": False,
-            "demo_learning_sample": bool(args.demo_learning_sample),
             "canonical_role_classifier_unchanged": True,
         },
     }
