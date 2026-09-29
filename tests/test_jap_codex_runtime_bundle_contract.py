@@ -8,7 +8,7 @@ RUNNER = ROOT / "scripts" / "run_jap_windows_control_center.sh"
 AGENT = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "ProductUpdateAgent.cs"
 APPLIER = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "ProductUpdateApplier.cs"
 INSTALLER = ROOT / "install-jap-control-center.ps1"
-SERVER = ROOT / "scripts" / "run_product_v1_demo_control_center.py"
+SERVER = ROOT / "scripts" / "run_product_v1_operator_control_center.py"
 
 
 def _text(path: Path) -> str:
