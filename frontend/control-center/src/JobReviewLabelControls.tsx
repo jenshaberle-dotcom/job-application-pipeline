@@ -42,6 +42,7 @@ type JobRequirementTruth = {
   overall_quality_score?: number | null;
   product_overall_quality_score?: number | null;
   affinity_score?: number | null;
+  affinity_preview_score?: number | null;
   affinity_authority_status?: string | null;
   affinity_components?: AffinityComponents | null;
   display_fit_score?: number | null;
@@ -346,11 +347,13 @@ export default function JobReviewLabelControls({
   const skills = job?.job_skills || [];
   const skillsPrimary = skills.length ? skills.join(", ") : "No explicit skills list detected";
 
-  const affinity = typeof job?.affinity_score === "number"
+  const authoritativeAffinity = typeof job?.affinity_score === "number"
     ? job.affinity_score
     : typeof job?.product_overall_quality_score === "number"
       ? job.product_overall_quality_score
       : null;
+  const affinity = authoritativeAffinity
+    ?? (typeof job?.affinity_preview_score === "number" ? job.affinity_preview_score : null);
   const affinityComponents = job?.affinity_components || {};
   const scoreCandidates: Array<[string, number | null | undefined]> = [
     ["Affinity", affinity],
@@ -457,9 +460,11 @@ export default function JobReviewLabelControls({
           <div><span className="eyebrow">Decision truth</span><h3>Affinity · Job Fit · Combined</h3></div>
         </header>
         <EvidenceRow
-          label="Affinity"
+          label={authoritativeAffinity == null && typeof affinity === "number" ? "Affinity preview" : "Affinity"}
           primary={typeof affinity === "number" ? `${Math.round(affinity)}%` : "?"}
-          secondary="Will ich diesen Job? Independent of Candidate Fit and hard-filter completion."
+          secondary={authoritativeAffinity == null && typeof affinity === "number"
+            ? "PD-052 preview from the current assessment; not ranking authority."
+            : "Will ich diesen Job? Independent of Candidate Fit and hard-filter completion."}
         />
         <EvidenceRow
           label="Job Fit"
