@@ -49,8 +49,8 @@ from scripts.product_v1_job_review_actions import (
     parse_job_review_label_action_payload,
 )
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
-from src.search_intelligence.product_v1_demo_origin_projection import (
-    project_demo_origin_truth,
+from src.search_intelligence.product_v1_origin_projection import (
+    project_origin_truth,
 )
 from src.search_intelligence.product_v1_downstream_preview import DownstreamPreviewStop
 
@@ -228,7 +228,7 @@ def _merge_job_review_labels(
     return result
 
 
-def _merge_demo_origin_projection(payload: dict[str, object]) -> dict[str, object]:
+def _merge_origin_projection(payload: dict[str, object]) -> dict[str, object]:
     """Separate discovery provenance from persisted Product lifecycle truth.
 
     A fixed wall-clock freshness window is not Product cadence authority. Current
@@ -242,12 +242,12 @@ def _merge_demo_origin_projection(payload: dict[str, object]) -> dict[str, objec
         raw = result.get(collection_name)
         if isinstance(raw, list):
             rows = [item for item in raw if isinstance(item, dict)]
-            result[collection_name] = project_demo_origin_truth(rows)
+            result[collection_name] = project_origin_truth(rows)
 
     job_rows = result.get("job_readiness")
     actionable_count = (
         sum(
-            bool(item.get("demo_actionable"))
+            bool(item.get("product_actionable"))
             for item in job_rows
             if isinstance(item, dict)
         )
@@ -255,13 +255,13 @@ def _merge_demo_origin_projection(payload: dict[str, object]) -> dict[str, objec
         else 0
     )
     summary = dict(result.get("summary") or {})
-    summary["demo_actionable_job_count"] = actionable_count
+    summary["product_actionable_job_count"] = actionable_count
     result["summary"] = summary
     boundaries = dict(result.get("boundaries") or {})
     boundaries.update(
         {
             "discovery_url_is_not_product_action_url": True,
-            "employer_origin_required_for_demo_action": True,
+            "employer_origin_required_for_product_action": True,
             "fixed_wall_clock_age_is_not_product_cadence_authority": True,
             "exact_live_revalidation_occurs_at_f6_action_boundary": True,
         }
@@ -388,7 +388,7 @@ def load_product_v1_payload() -> dict[str, object]:
         label_rows,
         capture_available=label_capture_available,
     )
-    return _merge_demo_origin_projection(enriched)
+    return _merge_origin_projection(enriched)
 
 
 class ProductV1Handler(_base.ProductV1Handler):
@@ -640,7 +640,7 @@ def run_server(args: argparse.Namespace) -> None:
     server.frontend_dist = args.frontend_dist  # type: ignore[attr-defined]
     print(f"Deep Ocean Product V1 Control Center: http://{args.host}:{args.port}/")
     print(
-        "Boundary: read models + observed opportunities + deterministic evidence preview + reviewed final-approval/review-label actions + explicit local 10-to-5 assessment refresh; "
+        "Boundary: read models + observed opportunities + deterministic evidence preview + reviewed final-approval/review-label actions + explicit local assessment refresh; "
         "no provider call, runner selection, direct rank/Top-5 write, combined fit score, model training or application submission."
     )
     try:
