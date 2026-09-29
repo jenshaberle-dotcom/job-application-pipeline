@@ -1,7 +1,24 @@
+from src.search_intelligence.origin_host_identity_contract import (
+    install_origin_host_identity_contract,
+)
+from src.search_intelligence.origin_quality_contract import install_origin_quality_contract
+from src.search_intelligence.origin_registered_identity_contract import (
+    install_origin_registered_identity_contract,
+)
+from src.search_intelligence.origin_registered_short_alias_live_evidence_contract import (
+    install_origin_registered_short_alias_live_evidence_contract,
+)
 from src.search_intelligence.origin_source_discovery_agent import (
     OriginDiscoveryProbeResult,
     discover_origin_source,
 )
+
+
+def install_production_origin_contracts() -> None:
+    install_origin_quality_contract()
+    install_origin_host_identity_contract()
+    install_origin_registered_identity_contract()
+    install_origin_registered_short_alias_live_evidence_contract()
 
 
 def fake_probe(url: str) -> OriginDiscoveryProbeResult:
@@ -70,6 +87,7 @@ def test_ranking_prefers_stronger_corporate_identity_over_workwise() -> None:
 
 
 def test_ranking_rejects_static_asset_even_when_context_and_probe_look_career_like() -> None:
+    install_production_origin_contracts()
     result = discover_origin_source(
         company_key="ivv",
         company_name="ivv GmbH",

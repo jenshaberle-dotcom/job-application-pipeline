@@ -121,7 +121,7 @@ def _materialize_missing(
     selected: list[dict[str, object]],
     *,
     apply: bool,
-    demo_learning_sample: bool,
+    demo_learning_sample: bool = False,
 ) -> tuple[int, int]:
     missing_ids = [
         int(row["silver_job_id"])

@@ -35,7 +35,7 @@ def _write_fixture(tmp_path: Path, catalog: dict, capabilities: dict[str, dict])
 
 
 def test_repository_backlog_catalog_contract() -> None:
-    assert validate_backlog_catalog() == (10, 67)
+    assert validate_backlog_catalog() == (10, 69)
 
 
 def test_canonical_target_profile_contract() -> None:

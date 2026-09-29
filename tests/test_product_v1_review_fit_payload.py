@@ -17,7 +17,7 @@ def _payload(job: dict[str, object]) -> dict[str, object]:
     )
 
 
-def test_unranked_job_gets_review_fit_without_affinity_authority() -> None:
+def test_unranked_job_keeps_review_preview_separate_from_candidate_fit() -> None:
     payload = _payload(
         {
             "silver_job_id": 1,
@@ -33,15 +33,20 @@ def test_unranked_job_gets_review_fit_without_affinity_authority() -> None:
     )
     job = payload["job_readiness"][0]
 
-    assert job["overall_quality_score"] == job["review_fit_score"]
+    assert isinstance(job["review_fit_score"], float)
+    assert job["candidate_fit_score"] is None
+    assert job["candidate_fit_authority_status"] == "insufficient_evidence"
+    assert job["display_fit_score"] is None
+    assert job["display_fit_scope"] is None
+    assert job["overall_quality_score"] is None
     assert job["product_overall_quality_score"] is None
     assert job["affinity_score"] is None
-    assert job["display_fit_scope"] == "review_preview"
     assert job["combined_score"] is None
     assert payload["boundaries"]["review_fit_preview_is_not_ranking_authority"] is True
+    assert payload["boundaries"]["candidate_fit_is_job_skills_vs_cv_skills"] is True
 
 
-def test_authoritative_affinity_does_not_replace_review_fit() -> None:
+def test_authoritative_affinity_does_not_create_candidate_fit() -> None:
     payload = _payload(
         {
             "silver_job_id": 2,
@@ -64,9 +69,46 @@ def test_authoritative_affinity_does_not_replace_review_fit() -> None:
     assert job["product_overall_quality_score"] == 70.4
     assert job["affinity_authority"] == "pd-052"
     assert job["affinity_authority_status"] == "authoritative"
-    assert job["overall_quality_score"] == job["review_fit_score"]
-    assert job["display_fit_scope"] == "review_preview"
+    assert isinstance(job["review_fit_score"], float)
+    assert job["candidate_fit_score"] is None
+    assert job["display_fit_score"] is None
+    assert job["overall_quality_score"] is None
     assert job["combined_score"] is None
     assert payload["summary"]["affinity_authoritative_count"] == 1
+    assert payload["summary"]["candidate_fit_authoritative_count"] == 0
     assert payload["summary"]["combined_score_count"] == 0
     assert payload["boundaries"]["affinity_is_not_candidate_fit"] is True
+
+
+def test_authoritative_cv_skill_fit_is_the_candidate_fit_display_score() -> None:
+    payload = _payload(
+        {
+            "silver_job_id": 3,
+            "title": "ML Platform Engineer",
+            "city": "Hannover",
+            "country": "Germany",
+            "work_model": "hybrid",
+            "commute_minutes": 25,
+            "lifecycle_status": "active_confirmed",
+            "product_readiness_status": "hard_filter_evidence_required",
+            "candidate_fit_score": 75.0,
+            "candidate_fit_authority": "candidate-facts-exact-skill-coverage-v1",
+            "candidate_fit_authority_status": "authoritative",
+            "candidate_fit_scope": "job_skills_vs_cv_skills",
+            "candidate_fit_observed_job_skill_count": 8,
+            "candidate_fit_exact_match_count": 6,
+            "candidate_fit_unmatched_count": 2,
+            "candidate_fit_exact_coverage": 0.75,
+        }
+    )
+    job = payload["job_readiness"][0]
+
+    assert job["candidate_fit_score"] == 75.0
+    assert job["candidate_fit_authority_status"] == "authoritative"
+    assert job["candidate_fit_scope"] == "job_skills_vs_cv_skills"
+    assert job["display_fit_score"] == 75.0
+    assert job["display_fit_scope"] == "candidate_skill_fit"
+    assert job["overall_quality_score"] == 75.0
+    assert job["affinity_score"] is None
+    assert job["combined_score"] is None
+    assert payload["summary"]["candidate_fit_authoritative_count"] == 1

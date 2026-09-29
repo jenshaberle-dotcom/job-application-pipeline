@@ -4,7 +4,8 @@ The reviewed alias registry may contain short market brands such as ``CGM`` or
 ``EON``. Safety wrappers deliberately downgrade short pure-letter hosts when the
 long employer identity is not sufficiently repeated. Real career pages may expose
 generic or client-rendered titles, so this outer contract accepts two stronger
-alternatives while preserving the TIB/IVV collision guards:
+alternatives while preserving short-brand collision guards unless an exact host identity has
+been explicitly audited:
 
 - an explicitly audited exact-host identity alias;
 - a registered short host alias plus a distinctive employer token in the origin
@@ -38,6 +39,10 @@ REGISTERED_EXACT_HOST_IDENTITY_ALIASES: dict[str, tuple[str, ...]] = {
     "compugroup_medical": ("cgm",),
 }
 
+REGISTERED_EXACT_ORIGIN_HOSTS: dict[str, tuple[str, ...]] = {
+    "ivv": ("jobs.ivv.de", "www.jobs.ivv.de"),
+}
+
 
 def _compact(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
@@ -61,7 +66,14 @@ def _is_audited_exact_host_identity(
     *,
     company_key: str,
     alias: str,
+    hostname: str,
 ) -> bool:
+    exact_hosts = {
+        str(item).lower().strip(".")
+        for item in REGISTERED_EXACT_ORIGIN_HOSTS.get(company_key, ())
+    }
+    if hostname.lower().strip(".") in exact_hosts:
+        return True
     compact = _compact(alias)
     return compact in {
         _compact(item)
@@ -137,6 +149,7 @@ def install_origin_registered_short_alias_live_evidence_contract() -> None:
         exact_identity = _is_audited_exact_host_identity(
             company_key=company_key,
             alias=alias,
+            hostname=hostname,
         )
         path_identity = _path_anchors_company_entity(final_url, company_name)
         if not exact_identity and not path_identity:
@@ -162,5 +175,6 @@ def install_origin_registered_short_alias_live_evidence_contract() -> None:
 
 __all__ = [
     "REGISTERED_EXACT_HOST_IDENTITY_ALIASES",
+    "REGISTERED_EXACT_ORIGIN_HOSTS",
     "install_origin_registered_short_alias_live_evidence_contract",
 ]
