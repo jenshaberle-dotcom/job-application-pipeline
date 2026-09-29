@@ -62,4 +62,4 @@ def test_local_frontend_is_generation_bound_and_never_cache_persistent() -> None
 
 
 def test_release_version_is_1_2_5() -> None:
-    assert VERSION.read_text(encoding="utf-8").strip() == "1.2.5"
+    assert VERSION.read_text(encoding="utf-8").strip() == "1.2.6"
