@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -53,8 +54,21 @@ from src.search_intelligence.product_v1_demo_learning_sample import (
 SCHEMA = "job_application_pipeline.product_v1_assessment_cohort.v1"
 APPROVAL_TOKEN = "PRODUCT-V1-ASSESSMENT-COHORT-001"
 DEFAULT_OUTPUT = Path(".runtime/product/product_v1_assessment_cohort.json")
-FROZEN_DEMO_COHORT = Path(".runtime/product/demo_learning_cohort_frozen.json")
 CONTROL_CENTER_REPORT = Path(".runtime/product/control_center_assessment_cohort.json")
+
+_PERSISTENT_STATE_RAW = os.environ.get("JAP_CONTROL_CENTER_STATE_ROOT", "").strip()
+_PROJECT_ROOT_RAW = os.environ.get("JAP_CONTROL_CENTER_PROJECT_ROOT", "").strip()
+PERSISTENT_STATE_ROOT = (
+    Path(_PERSISTENT_STATE_RAW).resolve() if _PERSISTENT_STATE_RAW else None
+)
+CANONICAL_PROJECT_ROOT = (
+    Path(_PROJECT_ROOT_RAW).resolve() if _PROJECT_ROOT_RAW else None
+)
+FROZEN_DEMO_COHORT = (
+    PERSISTENT_STATE_ROOT / "demo-learning-cohort-frozen.json"
+    if PERSISTENT_STATE_ROOT is not None
+    else Path(".runtime/product/demo_learning_cohort_frozen.json")
+)
 
 
 class ProductAssessmentCohortStop(RuntimeError):
@@ -98,7 +112,23 @@ def _report_selection_ids(path: Path, candidate_cap: int) -> tuple[int, ...]:
 
 
 def _load_frozen_demo_ids(candidate_cap: int) -> tuple[tuple[int, ...], str | None]:
-    for path in (FROZEN_DEMO_COHORT, CONTROL_CENTER_REPORT, DEFAULT_OUTPUT):
+    candidates: list[Path] = [FROZEN_DEMO_COHORT]
+    if CANONICAL_PROJECT_ROOT is not None:
+        project_product = CANONICAL_PROJECT_ROOT / ".runtime" / "product"
+        candidates.extend(
+            [
+                project_product / "demo_learning_cohort_frozen.json",
+                project_product / "control_center_assessment_cohort.json",
+                project_product / "product_v1_assessment_cohort.json",
+            ]
+        )
+    candidates.extend([CONTROL_CENTER_REPORT, DEFAULT_OUTPUT])
+    seen: set[Path] = set()
+    for path in candidates:
+        resolved = path.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
         ids = _report_selection_ids(path, candidate_cap)
         if ids:
             return ids, str(path)
@@ -124,7 +154,8 @@ def _write_frozen_demo_cohort(
         ],
         "recovered_from": recovered_from,
         "boundaries": {
-            "runtime_demo_state_only": True,
+            "persistent_install_state": PERSISTENT_STATE_ROOT is not None,
+            "immutable_runtime_payload_mutation": False,
             "job_ids_hard_coded_in_source": False,
             "automatic_replacement_on_drift": False,
         },
