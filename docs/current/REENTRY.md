@@ -1,46 +1,42 @@
 # JAP Classic re-entry
 
-Updated for the 1.2.2 runner hard cut.
+Updated after the 1.2.6 release and Product authority hard cut.
 
 ## Current product target
 
-JAP Classic 1.2.2 is the current live-inspection/demo candidate. Publishing it does not itself prove the 10-to-5 Product target.
+JAP Classic continues as the local review-first product. Presentation-specific
+cohorts, source exceptions and compatibility entrypoints are no longer Product
+authority.
 
-Required product proof before claiming the 1.2.2 Product target complete:
-
-1. all seven market sensors visible in Sources with verified discovery evidence;
-2. at least 10 current Employer-Origin jobs with complete Candidate Fit decisions;
-3. at least 5 Fit-passed jobs satisfying normal hard-filter/ranking authority;
-4. authoritative Top 5 contains exactly 5 jobs;
-5. no job IDs, employers, direct rank writes or demo-only promotion bypasses.
-
-The RCC workload targets are `.github/workflows/pr-validation.yml` for exact-PR repository validation and `.github/workflows/product-v1-assessment-cohort.yml` for the Product 10→5 assessment. Both declare only workload demand; RCC owns allocation, reservation, facade selection and ephemeral assignment.
-The separate `.github/workflows/jap-windows-desktop-host-release.yml` is product packaging/publication infrastructure only; it runs on GitHub-hosted `windows-latest` and owns no Warm-Pool allocation, facade or physical-runner authority.
-
-Canonical Product 10→5 implementation:
+Canonical assessment chain:
 
 ```text
 run_product_v1_assessment_cohort
-→ select exactly 10 current Employer-Origin jobs
+→ select a bounded set of current jobs from active recurring Employer-Origin sources
 → run_product_v1_rankable_refill_campaign
    → generic scout / exact-detail refresh
    → run_product_v1_rankable_refill_apply
       → Candidate-Fact-backed capability review
       → run_product_v1_hard_filter_evidence_close
       → canonical ranking-score review
-→ verify 10 complete Candidate Fit decisions
-→ verify at least 5 Fit-passed + rankable jobs
-→ verify exact Top 5 is a subset of the selected 10
+→ require Candidate Fit and Affinity authority for every selected job
+→ apply normal hard-filter and ranking policy
+→ project Top 5 as at most five qualifying jobs; never fill with weaker jobs
 ```
+
+The default cohort size remains an operational batch size, not a product truth
+boundary. No fixed employer list, frozen job set, presentation-only connector
+activation, direct rank write or quota-fill path may bypass current source,
+lifecycle, Candidate Fit, Affinity or hard-filter authority.
 
 Candidate geography/work-model preferences come first from approved private
 `operator_preference` Candidate Facts. If none exist, the tracked approved
 `config/product_v1_candidate_fit_policy.json` supplies the reusable product
 boundary (regional anchor/commute plus country-wide remote).
 
-The old `run_demo_001_rankable_refill_*` names are compatibility entrypoints only.
-The old job-specific DEMO-001 hard-filter closer is physically removed. Demo
-entrypoints must not regain Product logic or become dependencies of the canonical chain.
+Retired presentation-era refill aliases, source-profile exceptions and job-specific
+hard-filter shortcuts are physically absent. The permanent Product-authority
+hardcut test prevents those paths from becoming active authority again.
 
 ## Runner authority hard cut
 
