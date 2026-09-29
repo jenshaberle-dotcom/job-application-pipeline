@@ -30,7 +30,9 @@ import re
 from typing import Iterable, Mapping
 
 
-PROFILE_FIT_VERSION = "product-v1-profile-fit-coverage/v1"
+PROFILE_FIT_VERSION = "product-v1-profile-fit-coverage/v2"
+MINIMUM_KNOWN_FACTORS_FOR_POSITIVE = 3
+TOTAL_PROFILE_FIT_FACTORS = 4
 PROFILE_FIT_COMPLETE = "profile_fit_complete"
 INSUFFICIENT_EVIDENCE = "insufficient_evidence"
 PASSED = "passed"
@@ -280,7 +282,12 @@ def build_profile_fit_coverage(
     """Return one conclusive F4A status or explicit insufficient evidence.
 
     A deterministic negative factor is conclusive even if another factor is
-    unknown. A positive fit requires every required factor to be evidence-backed.
+    unknown. Missing job-side evidence is neutral rather than negative: a positive
+    fit may be concluded when the approved candidate geography policy exists,
+    exact-current capability evidence passes, and at least three of the four
+    independent fit factors are evidence-backed. The remaining unknown factor is
+    retained explicitly as uncertainty. Downstream hard-filter/ranking authorities
+    remain separate and may still require additional evidence.
     """
 
     policy = parse_candidate_geography_policy(candidate_preference_tags)
@@ -297,19 +304,33 @@ def build_profile_fit_coverage(
 
     failed = tuple(name for name, factor in factors.items() if factor.status == FAILED)
     missing = tuple(name for name, factor in factors.items() if factor.status == UNKNOWN)
+    known_count = sum(factor.status != UNKNOWN for factor in factors.values())
+    evidence_coverage = known_count / TOTAL_PROFILE_FIT_FACTORS
+    positive_threshold_met = (
+        policy.valid
+        and capability.status == PASSED
+        and known_count >= MINIMUM_KNOWN_FACTORS_FOR_POSITIVE
+    )
 
     if failed:
         coverage_status = PROFILE_FIT_COMPLETE
         decision = FAILED
         reason = "conclusive_negative_evidence"
-    elif not missing and all(factor.status == PASSED for factor in factors.values()):
+        confidence = "high" if known_count == TOTAL_PROFILE_FIT_FACTORS else "bounded"
+    elif positive_threshold_met:
         coverage_status = PROFILE_FIT_COMPLETE
         decision = PASSED
-        reason = "all_required_factors_evidence_backed"
+        reason = (
+            "all_fit_factors_evidence_backed"
+            if not missing
+            else "minimum_evidence_threshold_met_with_explicit_uncertainty"
+        )
+        confidence = "high" if not missing else "bounded"
     else:
         coverage_status = INSUFFICIENT_EVIDENCE
         decision = UNKNOWN
-        reason = "required_factor_evidence_missing"
+        reason = "minimum_evidence_threshold_not_met"
+        confidence = "insufficient"
 
     return {
         "profile_fit_coverage_status": coverage_status,
@@ -320,6 +341,11 @@ def build_profile_fit_coverage(
             name: factor.payload() for name, factor in factors.items()
         },
         "profile_fit_missing_factors": list(missing),
+        "profile_fit_known_factor_count": known_count,
+        "profile_fit_total_factor_count": TOTAL_PROFILE_FIT_FACTORS,
+        "profile_fit_minimum_known_factor_count": MINIMUM_KNOWN_FACTORS_FOR_POSITIVE,
+        "profile_fit_evidence_coverage": round(evidence_coverage, 2),
+        "profile_fit_confidence": confidence,
         "profile_fit_failed_factors": list(failed),
         "profile_fit_candidate_preference_dimensions": list(policy.configured_dimensions),
         "profile_fit_ranking_authority": False,
@@ -347,6 +373,7 @@ __all__ = [
     "FAILED",
     "INSUFFICIENT_EVIDENCE",
     "PASSED",
+    "MINIMUM_KNOWN_FACTORS_FOR_POSITIVE",
     "PROFILE_FIT_COMPLETE",
     "PROFILE_FIT_VERSION",
     "build_profile_fit_coverage",
