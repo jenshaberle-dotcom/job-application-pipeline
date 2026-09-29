@@ -669,20 +669,20 @@ internal static class ProductUpdateApplier
         using var document = JsonDocument.Parse(File.ReadAllText(contractPath));
         var root = document.RootElement;
         Require(
-            GetString(root, "schema") == "job_application_pipeline.runtime_feature_contract.v1",
+            Get(root, "schema") == "job_application_pipeline.runtime_feature_contract.v1",
             "Staged runtime feature contract schema mismatch.");
         Require(
-            GetString(root, "source_sha").Equals(sourceSha, StringComparison.OrdinalIgnoreCase),
+            Get(root, "source_sha").Equals(sourceSha, StringComparison.OrdinalIgnoreCase),
             "Staged runtime feature contract source mismatch.");
-        Require(GetString(root, "version") == version, "Staged runtime feature contract version mismatch.");
+        Require(Get(root, "version") == version, "Staged runtime feature contract version mismatch.");
         Require(root.TryGetProperty("features", out var features), "Staged runtime feature contract features are missing.");
-        Require(GetString(features, "candidate_fit_scope") == "job_skills_vs_cv_skills", "Staged Candidate Fit scope mismatch.");
-        Require(GetString(features, "demo_cohort_policy") == "frozen_runtime_identity", "Staged demo cohort policy mismatch.");
+        Require(Get(features, "candidate_fit_scope") == "job_skills_vs_cv_skills", "Staged Candidate Fit scope mismatch.");
+        Require(Get(features, "demo_cohort_policy") == "frozen_runtime_identity", "Staged demo cohort policy mismatch.");
         Require(features.TryGetProperty("candidate_fit_required_count", out var fitCount) && fitCount.GetInt32() == 10, "Staged Candidate Fit cohort count mismatch.");
         Require(features.TryGetProperty("affinity_required_count", out var affinityCount) && affinityCount.GetInt32() == 10, "Staged Affinity cohort count mismatch.");
         Require(features.TryGetProperty("combined_score_authority", out var combined) && combined.ValueKind == JsonValueKind.False, "Staged Combined-score authority drift.");
-        Require(GetString(features, "static_cache_control") == "no-store,max-age=0", "Staged cache-control contract mismatch.");
-        Require(GetString(features, "frontend_generation_binding") == "source_sha", "Staged frontend generation binding mismatch.");
+        Require(Get(features, "static_cache_control") == "no-store,max-age=0", "Staged cache-control contract mismatch.");
+        Require(Get(features, "frontend_generation_binding") == "source_sha", "Staged frontend generation binding mismatch.");
         Require(root.TryGetProperty("critical_files", out var criticalFiles) && criticalFiles.ValueKind == JsonValueKind.Object, "Staged critical-file contract is missing.");
 
         foreach (var property in criticalFiles.EnumerateObject())
