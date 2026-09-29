@@ -53,6 +53,8 @@ def test_structured_approved_preference_and_current_evidence_can_complete_positi
     assert result["profile_fit_decision"] == PASSED
     assert result["profile_fit_missing_factors"] == []
     assert result["profile_fit_failed_factors"] == []
+    assert result["profile_fit_evidence_coverage"] == 1.0
+    assert result["profile_fit_confidence"] == "high"
 
 
 def test_remote_job_can_match_country_while_regional_cities_remain_configured() -> None:
@@ -157,7 +159,7 @@ def test_non_anchor_city_can_pass_with_authoritative_commute_inside_country() ->
     assert result["profile_fit_decision"] == PASSED
 
 
-def test_non_anchor_city_without_commute_evidence_remains_unknown() -> None:
+def test_one_missing_job_side_factor_can_still_complete_bounded_positive_fit() -> None:
     result = build_profile_fit_coverage(
         _row(
             city="Braunschweig",
@@ -173,9 +175,13 @@ def test_non_anchor_city_without_commute_evidence_remains_unknown() -> None:
         ],
     )
 
-    assert result["profile_fit_coverage_status"] == INSUFFICIENT_EVIDENCE
-    assert result["profile_fit_decision"] == "unknown"
+    assert result["profile_fit_coverage_status"] == PROFILE_FIT_COMPLETE
+    assert result["profile_fit_decision"] == PASSED
     assert result["profile_fit_factors"]["geography_work_model_commute"]["status"] == "unknown"
+    assert result["profile_fit_missing_factors"] == ["geography_work_model_commute"]
+    assert result["profile_fit_known_factor_count"] == 3
+    assert result["profile_fit_evidence_coverage"] == 0.75
+    assert result["profile_fit_confidence"] == "bounded"
 
 
 def test_non_anchor_city_beyond_commute_limit_fails() -> None:
@@ -229,7 +235,7 @@ def test_negative_geography_is_conclusive_and_not_misreported_as_missing() -> No
     assert "geography_work_model_commute" in result["profile_fit_failed_factors"]
 
 
-def test_missing_job_evidence_under_configured_preference_remains_insufficient() -> None:
+def test_missing_single_configured_job_dimension_is_neutral_with_bounded_confidence() -> None:
     result = build_profile_fit_coverage(
         _row(work_model="unknown", commute_minutes=None),
         candidate_preference_tags=[
@@ -238,10 +244,67 @@ def test_missing_job_evidence_under_configured_preference_remains_insufficient()
         ],
     )
 
+    assert result["profile_fit_coverage_status"] == PROFILE_FIT_COMPLETE
+    assert result["profile_fit_decision"] == PASSED
+    assert result["profile_fit_factors"]["geography_work_model_commute"]["status"] == "unknown"
+    assert result["profile_fit_confidence"] == "bounded"
+
+
+
+def test_one_missing_hard_requirement_factor_is_neutral_for_fit_but_stays_explicit() -> None:
+    result = build_profile_fit_coverage(
+        _row(
+            hard_filter_status="unknown",
+            hard_filter_reasons={
+                "employment": "passed",
+                "languages": "manual_review_required",
+                "weekly_hours": "manual_review_required",
+                "seniority_and_capability_fit": "passed",
+            },
+        ),
+        candidate_preference_tags=[
+            "profile-fit.city.hannover",
+            "profile-fit.country.de",
+            "profile-fit.work-model.remote",
+            "profile-fit.commute.max-45",
+        ],
+    )
+
+    assert result["profile_fit_coverage_status"] == PROFILE_FIT_COMPLETE
+    assert result["profile_fit_decision"] == PASSED
+    assert result["profile_fit_missing_factors"] == ["hard_requirements"]
+    assert result["profile_fit_evidence_coverage"] == 0.75
+    assert result["profile_fit_confidence"] == "bounded"
+
+
+def test_two_missing_fit_factors_remain_insufficient() -> None:
+    result = build_profile_fit_coverage(
+        _row(
+            hard_filter_status="unknown",
+            hard_filter_reasons={
+                "employment": "manual_review_required",
+                "languages": "manual_review_required",
+                "weekly_hours": "manual_review_required",
+                "seniority_and_capability_fit": "manual_review_required",
+            },
+        ),
+        candidate_preference_tags=[
+            "profile-fit.city.hannover",
+            "profile-fit.country.de",
+            "profile-fit.work-model.hybrid",
+            "profile-fit.commute.max-45",
+        ],
+    )
+
     assert result["profile_fit_coverage_status"] == INSUFFICIENT_EVIDENCE
     assert result["profile_fit_decision"] == "unknown"
-    assert result["profile_fit_factors"]["geography_work_model_commute"]["status"] == "unknown"
-
+    assert set(result["profile_fit_missing_factors"]) == {
+        "seniority",
+        "hard_requirements",
+    }
+    assert result["profile_fit_known_factor_count"] == 2
+    assert result["profile_fit_evidence_coverage"] == 0.5
+    assert result["profile_fit_confidence"] == "insufficient"
 
 def test_stale_or_missing_capability_review_never_becomes_positive_fit() -> None:
     result = build_profile_fit_coverage(
