@@ -132,3 +132,18 @@ def test_demo_learning_cohort_freezes_runtime_identity_without_hardcoded_job_ids
     assert '"automatic_replacement_on_drift": False' in runner
     assert "frozen demo cohort jobs disappeared from current Product truth" in runner
     assert "selected_ids=selected_id_tuple" in runner
+
+
+def test_demo_cohort_freeze_uses_persistent_install_state_and_recovers_project_history() -> None:
+    runner = _text(RUNNER)
+    bridge = _text(ROOT / "scripts" / "run_jap_windows_control_center.sh")
+
+    assert "JAP_CONTROL_CENTER_STATE_ROOT" in bridge
+    assert "JAP_CONTROL_CENTER_PROJECT_ROOT" in bridge
+    assert 'os.environ.get("JAP_CONTROL_CENTER_STATE_ROOT"' in runner
+    assert 'os.environ.get("JAP_CONTROL_CENTER_PROJECT_ROOT"' in runner
+    assert 'PERSISTENT_STATE_ROOT / "demo-learning-cohort-frozen.json"' in runner
+    assert 'project_product / "control_center_assessment_cohort.json"' in runner
+    assert 'project_product / "product_v1_assessment_cohort.json"' in runner
+    assert '"persistent_install_state": PERSISTENT_STATE_ROOT is not None' in runner
+    assert '"automatic_replacement_on_drift": False' in runner
