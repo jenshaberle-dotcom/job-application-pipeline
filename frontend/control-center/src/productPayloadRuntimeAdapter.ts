@@ -78,7 +78,7 @@ function normalizeRepositoryShape(value: JsonRecord): JsonRecord {
 }
 
 function demoActionable(job: JsonRecord): boolean {
-  return job.demo_actionable === true && typeof job.employer_origin_url === "string";
+  return job.product_actionable === true && typeof job.employer_origin_url === "string";
 }
 
 function isCurrentProductJob(job: JsonRecord): boolean {
@@ -103,7 +103,7 @@ export function normalizeProductV1Payload(value: unknown): unknown {
   return {
     ...normalized,
     // Product V1 job_readiness is the canonical operator review truth. A legacy
-    // demo_actionable flag is diagnostic metadata only and must never hide a
+    // product_actionable flag is diagnostic metadata only and must never hide a
     // persisted Product job that still needs assessment, hard-filter evidence,
     // lifecycle review or another operator-visible gate decision.
     discovery_job_readiness: allJobs,
@@ -111,7 +111,7 @@ export function normalizeProductV1Payload(value: unknown): unknown {
     top_jobs: allTopJobs,
     summary: {
       ...summary,
-      demo_actionable_job_count: actionableJobs.length,
+      product_actionable_job_count: actionableJobs.length,
       review_scope_current_active_job_count: currentJobs.length,
       rankable_job_count: rankableJobs.length,
       top_job_count: allTopJobs.length,
