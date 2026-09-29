@@ -57,6 +57,10 @@ def test_affinity_candidate_does_not_require_fit_or_hard_filter_state() -> None:
     assert item["components"]["profile_direction_score"] > 0
     assert item["revision_binding"] == "exact_persisted_revision"
     assert item["authority"] == "read_only_affinity_calibration_only"
+    assert item["source_field_resolved_count"] == 0
+    assert item["source_field_total_count"] == 5
+    assert item["source_field_coverage"] == 0.0
+    assert item["partial_source_fields_do_not_block_affinity"] is True
 
 
 def test_reconciliation_retains_changed_same_origin_revision_as_read_only_candidate() -> None:
