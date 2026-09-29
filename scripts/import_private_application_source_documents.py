@@ -21,7 +21,7 @@ from src.search_intelligence.private_application_source_text import (
 
 
 APPROVAL_TOKEN = "PRODUCT-V1-APPLICATION-SOURCE-IMPORT-001"
-LOCK_KEY = "DEMO-001:private_application_source_documents"
+LOCK_KEY = "PRODUCT-V1:private_application_source_documents"
 DOCUMENT_TYPES = ("base_cv", "base_application_letter")
 
 
