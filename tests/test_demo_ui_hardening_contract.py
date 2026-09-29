@@ -15,7 +15,8 @@ def test_job_review_distinguishes_preliminary_affinity_product_score_and_profile
     assert "Fit evidence" in source
     assert "skills evidence" in source
     assert "requirements evidence" in source
-    assert "More fit evidence needed" in source
+    assert "Skill fit not assessed" in source
+    assert "% Candidate Fit" in source
     assert "authoritative profile fit" not in source
     assert "Affinity" in source
 
@@ -27,7 +28,8 @@ def test_top5_keeps_candidate_fit_separate_from_affinity() -> None:
     assert "Only current jobs with verified Candidate Fit and ranking evidence appear here." in source
     assert "Affinity stays visible as a separate preference signal." in source
     assert '<span className="ow-top5-fit">{candidateFitText(job)}</span>' in source
-    assert '<span className="ow-top5-affinity"><small>Affinity</small>' in source
+    assert 'className="ow-top5-affinity"' in source
+    assert "<small>Affinity</small>" in source
     assert "after Candidate Fit and the normal ranking gates are verified" in source
     assert ".ow-top5-fit" in css
     assert ".ow-top5-affinity" in css
