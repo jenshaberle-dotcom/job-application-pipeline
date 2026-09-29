@@ -21,6 +21,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from scripts import run_product_v1_assessment_detail_refresh as assessment_refresh
+from scripts import run_f4a_r3_silver_requirement_backfill as requirement_backfill
 from scripts.run_product_v1_rankable_refill_apply import (
     APPROVAL_TOKEN as REFILL_APPROVAL_TOKEN,
 )
@@ -160,6 +161,63 @@ def _materialize_missing(
     return proposals, inserted
 
 
+def _materialize_requirement_sidecars(
+    selected: list[dict[str, object]],
+    *,
+    apply: bool,
+) -> tuple[int, int, list[int]]:
+    """Ensure the selected demo cohort has public job-skill evidence."""
+
+    selected_ids = {int(row["silver_job_id"]) for row in selected}
+    with psycopg.connect(**get_database_config(), row_factory=dict_row) as conn:
+        rows = requirement_backfill._load_rows(conn, selected_ids)
+        conn.rollback()
+        if len(rows) != len(selected_ids):
+            raise SystemExit(
+                "requirement sidecar source cardinality mismatch: "
+                f"expected={len(selected_ids)} rows={len(rows)}"
+            )
+        report = requirement_backfill.build_plan(rows)
+        if int(report.get("blocked_count") or 0) != 0:
+            raise SystemExit(
+                "requirement sidecar backfill blocked: "
+                + json.dumps(report.get("blocked"), sort_keys=True, default=str)
+            )
+
+        missing_skill_ids: list[int] = []
+        for proposal in report.get("proposals") or []:
+            if not isinstance(proposal, dict):
+                continue
+            payload = proposal.get("payload")
+            fields = payload.get("fields") if isinstance(payload, dict) else None
+            skills = fields.get("job_skills") if isinstance(fields, dict) else None
+            values = skills.get("values") if isinstance(skills, dict) else None
+            if not isinstance(values, list) or not [
+                value for value in values if str(value).strip()
+            ]:
+                missing_skill_ids.append(int(proposal["silver_job_id"]))
+
+        if missing_skill_ids:
+            raise SystemExit(
+                "demo cohort lacks observed job skills for Candidate Fit: "
+                + ",".join(str(value) for value in sorted(missing_skill_ids))
+            )
+
+        applied = 0
+        if apply:
+            applied = requirement_backfill.apply_plan(conn, report)
+            conn.commit()
+        else:
+            conn.rollback()
+
+    print(
+        "REQUIREMENT_SIDECAR="
+        f"{'APPLY' if apply else 'PLAN'}|candidates={len(selected_ids)}|"
+        f"would_change={int(report.get('would_change_count') or 0)}|applied={applied}"
+    )
+    return int(report.get("proposal_count") or 0), applied, missing_skill_ids
+
+
 def _refresh_selected(
     selected: list[dict[str, object]],
     *,
@@ -266,6 +324,13 @@ def main() -> int:
     )
     print(f"ASSESSMENT_MATERIALIZATION_PLANNED={materialization_planned}")
     print(f"ASSESSMENT_MATERIALIZED={materialized}")
+
+    sidecar_planned, sidecar_applied, _missing_skills = _materialize_requirement_sidecars(
+        selected,
+        apply=args.apply,
+    )
+    print(f"REQUIREMENT_SIDECAR_PLANNED={sidecar_planned}")
+    print(f"REQUIREMENT_SIDECAR_APPLIED={sidecar_applied}")
 
     if not args.apply and materialization_planned:
         print("REFILL_DEFERRED=assessment_materialization_apply_required")
