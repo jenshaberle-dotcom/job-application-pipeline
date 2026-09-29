@@ -37,7 +37,10 @@ _HARD_MANUAL_REVIEW_REASONS = {
 
 REGISTERED_EXACT_HOST_IDENTITY_ALIASES: dict[str, tuple[str, ...]] = {
     "compugroup_medical": ("cgm",),
-    "ivv": ("ivv",),
+}
+
+REGISTERED_EXACT_ORIGIN_HOSTS: dict[str, tuple[str, ...]] = {
+    "ivv": ("jobs.ivv.de", "www.jobs.ivv.de"),
 }
 
 
@@ -63,7 +66,14 @@ def _is_audited_exact_host_identity(
     *,
     company_key: str,
     alias: str,
+    hostname: str,
 ) -> bool:
+    exact_hosts = {
+        str(item).lower().strip(".")
+        for item in REGISTERED_EXACT_ORIGIN_HOSTS.get(company_key, ())
+    }
+    if hostname.lower().strip(".") in exact_hosts:
+        return True
     compact = _compact(alias)
     return compact in {
         _compact(item)
@@ -139,6 +149,7 @@ def install_origin_registered_short_alias_live_evidence_contract() -> None:
         exact_identity = _is_audited_exact_host_identity(
             company_key=company_key,
             alias=alias,
+            hostname=hostname,
         )
         path_identity = _path_anchors_company_entity(final_url, company_name)
         if not exact_identity and not path_identity:
@@ -164,5 +175,6 @@ def install_origin_registered_short_alias_live_evidence_contract() -> None:
 
 __all__ = [
     "REGISTERED_EXACT_HOST_IDENTITY_ALIASES",
+    "REGISTERED_EXACT_ORIGIN_HOSTS",
     "install_origin_registered_short_alias_live_evidence_contract",
 ]
