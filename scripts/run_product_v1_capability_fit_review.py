@@ -18,7 +18,7 @@ from src.config import get_database_config
 INPUT_SCHEMA = "job_application_pipeline.product_v1_capability_fit_review_input.v1"
 REPORT_SCHEMA = "job_application_pipeline.product_v1_capability_fit_review.v1"
 APPROVAL_TOKEN = "PRODUCT-V1-CAPABILITY-FIT-REVIEW-001"
-LOCK_KEY = "DEMO-001:product_v1_capability_fit_review"
+LOCK_KEY = "PRODUCT-V1:product_v1_capability_fit_review"
 CAPABILITY_EVIDENCE_CLASSES = frozenset(
     {
         "professional_employment",
