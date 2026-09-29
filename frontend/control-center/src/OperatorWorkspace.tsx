@@ -60,8 +60,6 @@ type Job = {
   profile_fit_missing_factors?: string[];
   profile_fit_failed_factors?: string[];
   review_label?: JobReviewLabelState | null;
-  product_live_verified?: boolean;
-  product_live_reason?: string | null;
   last_health_checked_at?: string | null;
   latest_health_observed_at?: string | null;
 };
