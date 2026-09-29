@@ -7,7 +7,7 @@ ORIGIN_PROJECTION = (
     ROOT
     / "src"
     / "search_intelligence"
-    / "product_v1_demo_origin_projection.py"
+    / "product_v1_origin_projection.py"
 )
 
 
