@@ -39,9 +39,9 @@ jobs:
       - name: Prove demo release regression contracts
         shell: powershell
         run: |
-          python -m py_compile scripts/product_v1_control_center_base.py scripts/run_product_v1_live_demo.py src/search_intelligence/product_v1_service.py
+          python -m py_compile scripts/product_v1_control_center_base.py scripts/run_product_v1_live_demo.py scripts/run_product_v1_assessment_cohort.py scripts/product_v1_assessment_actions.py src/search_intelligence/product_v1_service.py src/search_intelligence/product_v1_candidate_fit.py
           python -m pip install --disable-pip-version-check --quiet pytest
-          python -m pytest -q tests/test_demo_release_1_2_4_contract.py tests/test_affinity_surface_consistency.py tests/test_generic_origin_demo_profile.py
+          python -m pytest -q tests/test_demo_release_1_2_4_contract.py tests/test_affinity_surface_consistency.py tests/test_generic_origin_demo_profile.py tests/test_product_v1_candidate_fit.py tests/test_product_v1_assessment_control_center.py tests/test_product_v1_assessment_cohort_contract.py tests/test_f4b_operator_truth_surface.py
 
       - name: Resolve immutable product version
         shell: powershell
@@ -222,8 +222,83 @@ jobs:
               auth_mode = "chatgpt_cli_login"
             }
           } | ConvertTo-Json -Depth 4 | Set-Content -Encoding UTF8 (Join-Path $Runtime "runtime-info.json")
+
+          # PASS 1: prove the assembled runtime is an exact copy of the intended
+          # Candidate Fit/Affinity source and frontend build before ZIP creation.
+          $CriticalSourceFiles = @(
+            "src/search_intelligence/product_v1_candidate_fit.py",
+            "src/search_intelligence/product_v1_service.py",
+            "scripts/product_v1_control_center_base.py",
+            "scripts/run_product_v1_assessment_cohort.py",
+            "scripts/product_v1_assessment_actions.py",
+            "scripts/run_product_v1_live_demo.py"
+          )
+          foreach ($Relative in $CriticalSourceFiles) {
+            $SourceHash = (Get-FileHash $Relative -Algorithm SHA256).Hash.ToLowerInvariant()
+            $RuntimePath = Join-Path $Runtime $Relative
+            if (-not (Test-Path $RuntimePath)) {
+              throw "Runtime feature payload is missing $Relative"
+            }
+            $RuntimeFileHash = (Get-FileHash $RuntimePath -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($SourceHash -ne $RuntimeFileHash) {
+              throw "Runtime feature payload differs from checked-out source: $Relative"
+            }
+          }
+
+          $SourceDist = (Resolve-Path "frontend/control-center/dist").Path
+          $RuntimeDist = (Resolve-Path $Frontend).Path
+          $SourceDistFiles = @(Get-ChildItem -Path $SourceDist -Recurse -File)
+          $RuntimeDistFiles = @(Get-ChildItem -Path $RuntimeDist -Recurse -File)
+          if ($SourceDistFiles.Count -ne $RuntimeDistFiles.Count) {
+            throw "Runtime frontend file cardinality differs from built frontend."
+          }
+          foreach ($SourceFile in $SourceDistFiles) {
+            $Relative = $SourceFile.FullName.Substring($SourceDist.Length).TrimStart("\", "/")
+            $RuntimeFile = Join-Path $RuntimeDist $Relative
+            if (-not (Test-Path $RuntimeFile)) {
+              throw "Runtime frontend is missing built file: $Relative"
+            }
+            $SourceHash = (Get-FileHash $SourceFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            $RuntimeFileHash = (Get-FileHash $RuntimeFile -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($SourceHash -ne $RuntimeFileHash) {
+              throw "Runtime frontend differs from built frontend: $Relative"
+            }
+          }
+
+          $CriticalHashes = [ordered]@{}
+          foreach ($Relative in $CriticalSourceFiles) {
+            $Normalized = $Relative.Replace("\", "/")
+            $CriticalHashes[$Normalized] = (Get-FileHash (Join-Path $Runtime $Relative) -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+          foreach ($RuntimeFrontendFile in $RuntimeDistFiles) {
+            $RelativeDist = $RuntimeFrontendFile.FullName.Substring($Runtime.Length).TrimStart("\", "/").Replace("\", "/")
+            $CriticalHashes[$RelativeDist] = (Get-FileHash $RuntimeFrontendFile.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          }
+          @{
+            schema = "job_application_pipeline.runtime_feature_contract.v1"
+            version = $env:PRODUCT_VERSION
+            source_sha = $env:GITHUB_SHA
+            features = [ordered]@{
+              candidate_fit_scope = "job_skills_vs_cv_skills"
+              demo_cohort_policy = "frozen_runtime_identity"
+              candidate_fit_required_count = 10
+              affinity_required_count = 10
+              combined_score_authority = $false
+              static_cache_control = "no-store,max-age=0"
+              frontend_generation_binding = "source_sha"
+            }
+            critical_files = $CriticalHashes
+          } | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 (Join-Path $Runtime "runtime-feature-contract.json")
+          Write-Host "JAP_RUNTIME_FEATURE_PAYLOAD_PASS1=PASS files=$($CriticalHashes.Count)"
+
           foreach ($Required in @(
             "scripts\run_product_v1_live_demo.py",
+            "scripts\run_product_v1_assessment_cohort.py",
+            "scripts\product_v1_assessment_actions.py",
+            "scripts\product_v1_control_center_base.py",
+            "src\search_intelligence\product_v1_candidate_fit.py",
+            "src\search_intelligence\product_v1_service.py",
+            "runtime-feature-contract.json",
             "scripts\run_jap_windows_control_center.sh",
             "scripts\ensure_pinned_local_oss_runtime.sh",
             "vendor\codex\codex",
@@ -270,7 +345,13 @@ jobs:
             $EntryNames = @($RuntimeZip.Entries | ForEach-Object { $_.FullName.Replace("\", "/") })
             foreach ($RequiredEntry in @(
               "runtime-info.json",
+              "runtime-feature-contract.json",
               "scripts/run_product_v1_live_demo.py",
+              "scripts/run_product_v1_assessment_cohort.py",
+              "scripts/product_v1_assessment_actions.py",
+              "scripts/product_v1_control_center_base.py",
+              "src/search_intelligence/product_v1_candidate_fit.py",
+              "src/search_intelligence/product_v1_service.py",
               "vendor/codex/codex",
               "vendor/codex/codex-info.json",
               "frontend/control-center/dist/index.html",
@@ -280,6 +361,57 @@ jobs:
                 throw "Runtime release ZIP is missing required entry: $RequiredEntry"
               }
             }
+            # PASS 2: independently re-open the final ZIP and verify the feature
+            # contract plus every contracted payload hash inside the actual release asset.
+            $FeatureEntry = $RuntimeZip.GetEntry("runtime-feature-contract.json")
+            if ($null -eq $FeatureEntry) {
+              throw "Runtime release ZIP has no runtime feature contract."
+            }
+            $FeatureReader = [System.IO.StreamReader]::new($FeatureEntry.Open(), [System.Text.Encoding]::UTF8, $true)
+            try {
+              $FeatureContract = $FeatureReader.ReadToEnd() | ConvertFrom-Json
+            }
+            finally {
+              $FeatureReader.Dispose()
+            }
+            if ($FeatureContract.schema -ne "job_application_pipeline.runtime_feature_contract.v1") {
+              throw "Runtime release feature contract schema mismatch."
+            }
+            if ($FeatureContract.version -ne $env:PRODUCT_VERSION -or $FeatureContract.source_sha -ne $env:GITHUB_SHA) {
+              throw "Runtime release feature contract identity mismatch."
+            }
+            if ($FeatureContract.features.candidate_fit_scope -ne "job_skills_vs_cv_skills" -or
+                $FeatureContract.features.demo_cohort_policy -ne "frozen_runtime_identity" -or
+                [int]$FeatureContract.features.candidate_fit_required_count -ne 10 -or
+                [int]$FeatureContract.features.affinity_required_count -ne 10 -or
+                [bool]$FeatureContract.features.combined_score_authority -ne $false -or
+                $FeatureContract.features.static_cache_control -ne "no-store,max-age=0" -or
+                $FeatureContract.features.frontend_generation_binding -ne "source_sha") {
+              throw "Runtime release feature contract semantics mismatch."
+            }
+            foreach ($Property in $FeatureContract.critical_files.PSObject.Properties) {
+              $EntryName = $Property.Name.Replace("\", "/")
+              $ExpectedHash = [string]$Property.Value
+              $PayloadEntry = $RuntimeZip.GetEntry($EntryName)
+              if ($null -eq $PayloadEntry) {
+                throw "Runtime release ZIP is missing contracted payload: $EntryName"
+              }
+              $PayloadStream = $PayloadEntry.Open()
+              $Sha = [System.Security.Cryptography.SHA256]::Create()
+              try {
+                $HashBytes = $Sha.ComputeHash($PayloadStream)
+                $ActualHash = ([System.BitConverter]::ToString($HashBytes)).Replace("-", "").ToLowerInvariant()
+              }
+              finally {
+                $Sha.Dispose()
+                $PayloadStream.Dispose()
+              }
+              if ($ActualHash -ne $ExpectedHash.ToLowerInvariant()) {
+                throw "Runtime release ZIP payload hash mismatch: $EntryName"
+              }
+            }
+            Write-Host "JAP_RUNTIME_FEATURE_PAYLOAD_PASS2=PASS files=$($FeatureContract.critical_files.PSObject.Properties.Count)"
+
             $ShellEntries = @($RuntimeZip.Entries | Where-Object { $_.FullName.Replace("\", "/") -like "scripts/*.sh" })
             if ($ShellEntries.Count -eq 0) {
               throw "Runtime release ZIP contains no shell scripts."
@@ -300,6 +432,31 @@ jobs:
           finally {
             $RuntimeZip.Dispose()
           }
+          $DesktopZip = [System.IO.Compression.ZipFile]::OpenRead($DesktopAssetPath)
+          try {
+            $DesktopEntries = @($DesktopZip.Entries | ForEach-Object { $_.FullName.Replace("\", "/") })
+            foreach ($RequiredDesktopEntry in @("JAP.ControlCenter.Desktop.exe", "build-info.json")) {
+              if ($DesktopEntries -notcontains $RequiredDesktopEntry) {
+                throw "Desktop release ZIP is missing required entry: $RequiredDesktopEntry"
+              }
+            }
+            $BuildInfoEntry = $DesktopZip.GetEntry("build-info.json")
+            $BuildInfoReader = [System.IO.StreamReader]::new($BuildInfoEntry.Open(), [System.Text.Encoding]::UTF8, $true)
+            try {
+              $BuildInfo = $BuildInfoReader.ReadToEnd() | ConvertFrom-Json
+            }
+            finally {
+              $BuildInfoReader.Dispose()
+            }
+            if ($BuildInfo.source_sha -ne $env:GITHUB_SHA -or $BuildInfo.version -ne $env:PRODUCT_VERSION) {
+              throw "Desktop release ZIP build identity mismatch."
+            }
+          }
+          finally {
+            $DesktopZip.Dispose()
+          }
+          Write-Host "JAP_DESKTOP_PAYLOAD_PASS2=PASS"
+
           $DesktopHash = (Get-FileHash $DesktopAssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
           $RuntimeHash = (Get-FileHash $RuntimeAssetPath -Algorithm SHA256).Hash.ToLowerInvariant()
           "$DesktopHash  $DesktopAsset" | Set-Content -Encoding ASCII "$DesktopAsset.sha256"
