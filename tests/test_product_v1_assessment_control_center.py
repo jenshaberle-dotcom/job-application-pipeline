@@ -77,6 +77,8 @@ def _report(*, target_met: bool = True, combined_score: bool = False) -> dict[st
             "candidate_fit_and_affinity_remain_separate": True,
             "numeric_candidate_fit_authority_created": False,
             "combined_score_authority_created": combined_score,
+            "demo_learning_sample": True,
+            "canonical_role_classifier_unchanged": True,
         },
     }
 
@@ -131,6 +133,7 @@ def test_child_command_is_fixed_to_generic_10_to_5_apply_contract(
     assert command[command.index("--evaluated-target") + 1] == "10"
     assert command[command.index("--top5-target") + 1] == "5"
     assert command[command.index("--candidate-cap") + 1] == "10"
+    assert "--demo-learning-sample" in command
     assert "--apply" in command
     assert "--approval-token" in command
     assert command[command.index("--output") + 1] == str(output)
