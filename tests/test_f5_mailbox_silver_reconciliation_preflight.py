@@ -159,11 +159,35 @@ def test_tracking_projection_surfaces_only_automatic_exact_matches() -> None:
             "application_id": 5,
             "silver_job_id": 2,
             "effective_stage": "closed",
+            "observed_event_class": None,
             "linkage_status": "exact_projected",
             "linkage_basis": "exact_company_title",
             "database_link_persisted": False,
         }
     ]
+
+
+
+def test_exact_projected_linkage_preserves_existing_rejection_event_class() -> None:
+    tracking = [
+        {
+            "application_id": 9,
+            "silver_job_id": None,
+            "company_name": "Example GmbH",
+            "display_company_name": "Example GmbH",
+            "title": "Data Engineer (m/w/d)",
+            "source_url": None,
+            "effective_stage": "closed",
+            "observed_event_class": "rejection",
+        }
+    ]
+
+    linkage = build_tracking_job_linkage(tracking, [_job(42)])
+
+    assert linkage["exact_matches"][0]["effective_stage"] == "closed"
+    assert linkage["exact_matches"][0]["observed_event_class"] == "rejection"
+    assert linkage["database_writes"] == 0
+    assert linkage["authoritative_lifecycle_mutations"] == 0
 
 
 def test_specific_title_family_allows_embedded_location_suffix_but_short_generic_title_does_not() -> None:
@@ -215,6 +239,7 @@ def test_finanz_informatik_mailbox_domain_plus_exact_vacancy_title_links_safely(
             "application_id": 18,
             "silver_job_id": 630,
             "effective_stage": "interview",
+            "observed_event_class": None,
             "linkage_status": "exact_projected",
             "linkage_basis": "exact_counterparty_domain_title",
             "database_link_persisted": False,
