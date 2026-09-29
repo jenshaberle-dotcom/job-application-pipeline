@@ -348,7 +348,9 @@ export default function JobReviewLabelControls({
 
   const affinity = typeof job?.affinity_score === "number"
     ? job.affinity_score
-    : job?.overall_quality_score;
+    : typeof job?.product_overall_quality_score === "number"
+      ? job.product_overall_quality_score
+      : null;
   const affinityComponents = job?.affinity_components || {};
   const scoreCandidates: Array<[string, number | null | undefined]> = [
     ["Affinity", affinity],

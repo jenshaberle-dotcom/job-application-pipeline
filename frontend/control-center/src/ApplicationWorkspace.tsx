@@ -10,6 +10,8 @@ type TopJob = {
   company_name?: string | null;
   city?: string | null;
   overall_quality_score?: number | null;
+  product_overall_quality_score?: number | null;
+  affinity_score?: number | null;
   product_readiness_status?: string | null;
   lifecycle_status?: string | null;
   origin_validation_status?: string | null;
@@ -205,6 +207,11 @@ type DraftPayload = {
 
 const normalized = (value: string | undefined | null) => (value || "").replaceAll("_", " ");
 const percent = (value: number | undefined | null) => value == null ? "—" : `${Math.round(value)}`;
+const affinityScore = (job: TopJob) => typeof job.affinity_score === "number"
+  ? job.affinity_score
+  : typeof job.product_overall_quality_score === "number"
+    ? job.product_overall_quality_score
+    : null;
 
 async function readJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -305,7 +312,7 @@ export default function ApplicationWorkspace() {
         canPrepareApplication(applicationStages.get(job.silver_job_id))
       )
       .sort((left, right) => (
-        Number(right.overall_quality_score ?? -1) - Number(left.overall_quality_score ?? -1)
+        Number(affinityScore(right) ?? -1) - Number(affinityScore(left) ?? -1)
       ));
   }, [applicationStages, productTruth?.job_readiness, topJobs]);
   const sourceReadiness = productTruth?.application_sources_ready || {};
@@ -630,8 +637,8 @@ export default function ApplicationWorkspace() {
               >
                 Change job
               </button>
-              <div className="demo-score-ring" aria-label={`${percent(selectedJob.overall_quality_score)} ${selectedJob.product_rank ? "Product score" : "Affinity"}`}>
-                <strong>{percent(selectedJob.overall_quality_score)}</strong>
+              <div className="demo-score-ring" aria-label={`${percent(affinityScore(selectedJob))} ${selectedJob.product_rank ? "Product score" : "Affinity"}`}>
+                <strong>{percent(affinityScore(selectedJob))}</strong>
                 <span>{selectedJob.product_rank ? "Product score" : "Affinity"}</span>
               </div>
             </div>
@@ -665,7 +672,7 @@ export default function ApplicationWorkspace() {
                   <b>{job.title || "Untitled job"}</b>
                   <small>{job.company_name || "Unknown employer"} · {job.city || "Location unconfirmed"}</small>
                 </span>
-                <strong>{percent(job.overall_quality_score)}<small>{job.product_rank ? "Product" : "Affinity"}</small></strong>
+                <strong>{percent(affinityScore(job))}<small>{job.product_rank ? "Product" : "Affinity"}</small></strong>
               </button>)}
               {chooserJobs.length === 0 && <p>No matching current job.</p>}
             </div>

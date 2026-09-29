@@ -45,6 +45,7 @@ from scripts.product_v1_job_presentation_runtime import (
     is_employer_origin_review_source,
 )
 from src.search_intelligence.product_v1_demo_learning_sample import (
+    DEMO_REQUIRED_EMPLOYERS,
     select_demo_learning_sample,
 )
 
@@ -79,12 +80,17 @@ def _selection(
             conn,
             authorized_sources=authorized,
             limit=100 if demo_learning_sample else max(60, candidate_cap * 5),
+            demo_learning_sample=demo_learning_sample,
         )
         conn.rollback()
 
     scouted = scout(rows=rows, facts=facts)
     selected = (
-        select_demo_learning_sample(scouted, candidate_cap=candidate_cap)
+        select_demo_learning_sample(
+            scouted,
+            candidate_cap=candidate_cap,
+            required_employers=DEMO_REQUIRED_EMPLOYERS,
+        )
         if demo_learning_sample
         else _selected_candidates(scouted, candidate_cap=candidate_cap)
     )

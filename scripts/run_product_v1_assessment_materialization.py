@@ -7,8 +7,9 @@ approval-token gated, insert-only, and never creates capability-fit or ranking
 truth.
 
 Authority composition required before materialization:
-- an existing active recurring search profile classifies the source as
-  ``employer_origin``;
+- canonical mode requires an existing active recurring employer-origin profile;
+- demo learning mode requires exact requested job IDs already classified as
+  employer-origin in current Product truth;
 - Product V1 lifecycle truth is ``active_confirmed`` from an authoritative
   employer-origin observation path;
 - the latest persisted per-sighting normalized evidence is bound to the exact
@@ -173,6 +174,7 @@ def _row_binding_payload(row: Mapping[str, object]) -> dict[str, object]:
         "silver_job_id": row.get("silver_job_id"),
         "raw_job_id": row.get("raw_job_id"),
         "source_name": row.get("source_name"),
+        "canonical_source_type": row.get("canonical_source_type"),
         "source_url": row.get("source_url"),
         "title": row.get("title"),
         "lifecycle_status": row.get("lifecycle_status"),
@@ -218,6 +220,8 @@ def validate_materialization_authority(
         raise MaterializationStop(
             "source lacks active recurring employer-origin profile authority"
         )
+    if str(row.get("canonical_source_type") or "") not in EMPLOYER_ORIGIN_SOURCE_TYPES:
+        raise MaterializationStop("current Product source type is not employer-origin")
     if row.get("origin_validation_status") is not None:
         raise MaterializationStop("initial assessment already has origin state")
     if str(row.get("product_readiness_status") or "") != "assessment_required":
@@ -796,6 +800,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-name", action="append", default=[])
     parser.add_argument("--silver-job-id", action="append", type=int, default=[])
     parser.add_argument("--role-relevant-only", action="store_true")
+    parser.add_argument("--demo-learning-sample", action="store_true")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
@@ -810,6 +815,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit("at least one --source-name or --silver-job-id is required")
     if any(value <= 0 for value in silver_job_ids):
         raise SystemExit("--silver-job-id values must be positive")
+    if args.demo_learning_sample and (not silver_job_ids or source_names):
+        raise SystemExit(
+            "--demo-learning-sample requires exact --silver-job-id values and no --source-name"
+        )
     if args.apply and args.approval_token != APPROVAL_TOKEN:
         raise SystemExit(f"--apply requires --approval-token {APPROVAL_TOKEN}")
     if not args.apply and args.approval_token:
@@ -838,6 +847,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             role_relevant_only=args.role_relevant_only,
         )
         conn.rollback()
+
+    if args.demo_learning_sample:
+        if len(rows) != len(silver_job_ids):
+            raise SystemExit("demo learning sample job set changed before materialization")
+        if any(
+            str(row.get("canonical_source_type") or "") not in EMPLOYER_ORIGIN_SOURCE_TYPES
+            for row in rows
+        ):
+            raise SystemExit("demo learning sample contains a non-employer-origin job")
+        authorized_sources = {str(row["source_name"]) for row in rows}
 
     plan = build_plan(
         rows=rows,

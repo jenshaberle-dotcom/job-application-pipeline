@@ -46,6 +46,7 @@ from src.search_intelligence.product_v1_downstream_preview import (
     fetch_public_https_detail_text,
 )
 from src.search_intelligence.product_v1_demo_learning_sample import (
+    DEMO_REQUIRED_EMPLOYERS,
     select_demo_learning_sample,
 )
 
@@ -272,13 +273,18 @@ def main() -> int:
             conn,
             authorized_sources=authorized,
             limit=100 if args.demo_learning_sample else max(30, args.candidate_cap * 4),
+            demo_learning_sample=args.demo_learning_sample,
         )
         profile_sha256 = _load_profile_sha256(conn)
         conn.rollback()
 
     live_rows = scout(rows=rows, facts=facts)
     selected = (
-        select_demo_learning_sample(live_rows, candidate_cap=args.candidate_cap)
+        select_demo_learning_sample(
+            live_rows,
+            candidate_cap=args.candidate_cap,
+            required_employers=DEMO_REQUIRED_EMPLOYERS,
+        )
         if args.demo_learning_sample
         else _selected_candidates(live_rows, candidate_cap=args.candidate_cap)
     )

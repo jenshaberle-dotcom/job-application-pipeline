@@ -79,7 +79,11 @@ def test_five_top_rows_are_insufficient_without_valid_authority(monkeypatch, def
 def test_plan_authority_failure_is_reported_and_stops_before_apply(monkeypatch, tmp_path):
     output = tmp_path / "plan.json"
     monkeypatch.setattr(sys, "argv", ["cohort", "--output", str(output)])
-    monkeypatch.setattr(cohort, "_selection", lambda cap: ([job(i) for i in range(1, 11)], {}))
+    monkeypatch.setattr(
+        cohort,
+        "_selection",
+        lambda cap, **_kwargs: ([job(i) for i in range(1, 11)], {}),
+    )
     monkeypatch.setattr(cohort, "_run_existing_authorities", lambda **kwargs: 7)
     monkeypatch.setattr(cohort, "load_product_v1_payload", lambda **kwargs: {
         "job_readiness": [job(i) for i in range(1, 11)],
