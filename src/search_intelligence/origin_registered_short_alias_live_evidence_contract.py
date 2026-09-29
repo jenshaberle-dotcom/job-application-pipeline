@@ -4,7 +4,8 @@ The reviewed alias registry may contain short market brands such as ``CGM`` or
 ``EON``. Safety wrappers deliberately downgrade short pure-letter hosts when the
 long employer identity is not sufficiently repeated. Real career pages may expose
 generic or client-rendered titles, so this outer contract accepts two stronger
-alternatives while preserving the TIB/IVV collision guards:
+alternatives while preserving short-brand collision guards unless an exact host identity has
+been explicitly audited:
 
 - an explicitly audited exact-host identity alias;
 - a registered short host alias plus a distinctive employer token in the origin
@@ -36,6 +37,7 @@ _HARD_MANUAL_REVIEW_REASONS = {
 
 REGISTERED_EXACT_HOST_IDENTITY_ALIASES: dict[str, tuple[str, ...]] = {
     "compugroup_medical": ("cgm",),
+    "ivv": ("ivv",),
 }
 
 
