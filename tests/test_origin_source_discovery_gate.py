@@ -51,6 +51,32 @@ def test_decision_requires_manual_review_for_homepage_only() -> None:
     assert decision.selected_origin_url is None
 
 
+def test_employer_key_matched_jobs_portal_root_is_origin_candidate() -> None:
+    decision = decide_origin_source(
+        company_key="ivv",
+        company_name="ivv GmbH",
+        url_evidence=[
+            CandidateUrlEvidence(
+                "https://www.jobs.ivv.de/",
+                "manual_origin_url_review_override",
+                1,
+            )
+        ],
+    )
+
+    assert decision.discovery_status == "selected"
+    assert decision.selected_origin_url == "https://www.jobs.ivv.de/"
+    assert decision.selected_source_type == "employer_origin_career_site"
+    assert decision.candidate_url_auto_assignment_allowed is True
+
+    unrelated = decide_origin_source(
+        company_key="other",
+        company_name="Other GmbH",
+        url_evidence=[CandidateUrlEvidence("https://jobs.ivv.de/", "candidate")],
+    )
+    assert unrelated.discovery_status == "manual_review_required"
+
+
 def test_decision_blocks_when_only_unsafe_urls_exist() -> None:
     decision = decide_origin_source(
         company_key="demo",

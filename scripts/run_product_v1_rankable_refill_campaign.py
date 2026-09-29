@@ -40,6 +40,7 @@ from src.search_intelligence.product_v1_downstream_preview import (
     fetch_public_https_detail_text,
 )
 from src.search_intelligence.product_v1_demo_learning_sample import (
+    DEMO_REQUIRED_EMPLOYERS,
     select_demo_learning_sample,
 )
 
@@ -72,11 +73,16 @@ def _selected(candidate_cap: int, *, demo_learning_sample: bool) -> list[dict[st
             conn,
             authorized_sources=authorized,
             limit=100 if demo_learning_sample else max(30, candidate_cap * 4),
+            demo_learning_sample=demo_learning_sample,
         )
         conn.rollback()
     scouted = scout(rows=rows, facts=facts)
     if demo_learning_sample:
-        return select_demo_learning_sample(scouted, candidate_cap=candidate_cap)
+        return select_demo_learning_sample(
+            scouted,
+            candidate_cap=candidate_cap,
+            required_employers=DEMO_REQUIRED_EMPLOYERS,
+        )
     return _selected_candidates(scouted, candidate_cap=candidate_cap)
 
 
@@ -104,6 +110,8 @@ def _materialize_missing(
         command.extend(["--silver-job-id", str(job_id)])
     if not demo_learning_sample:
         command.append("--role-relevant-only")
+    else:
+        command.append("--demo-learning-sample")
     command.extend(
         [
             "--output",
@@ -157,9 +165,12 @@ def _refresh_selected(
     *,
     apply: bool,
     applied_by: str,
+    demo_learning_sample: bool,
 ) -> tuple[int, int]:
-    authorized = sorted(
-        authorized_recurring_employer_origin_sources(JobIngestionRepository())
+    authorized = (
+        sorted({str(row["source_name"]) for row in selected})
+        if demo_learning_sample
+        else sorted(authorized_recurring_employer_origin_sources(JobIngestionRepository()))
     )
     planned = 0
     changed = 0
@@ -267,6 +278,7 @@ def main() -> int:
         selected,
         apply=args.apply,
         applied_by=reviewed_by,
+        demo_learning_sample=args.demo_learning_sample,
     )
     print(f"ASSESSMENT_REFRESH_PLANNED={planned}")
     print(f"ASSESSMENT_REFRESH_CHANGED={changed}")

@@ -1,8 +1,10 @@
 """Read-only Product V1 scout for real, current employer-origin rankable refill candidates.
 
-The scout never creates Product authority. It reads current Product V1 rows from
-active recurring employer-origin sources, probes each exact vacancy URL live and
-compares the returned detail text with approved Candidate Fact capability tags.
+The scout never creates Product authority. Canonical mode reads current Product
+V1 rows from active recurring employer-origin sources. Demo learning mode reads
+current Product employer-origin rows independently of recurring ingestion. Both
+probe each exact vacancy URL live and compare the returned detail text with
+approved Candidate Fact capability tags.
 The output is an evidence shortlist for the existing guarded Assessment ->
 Capability Fit -> Hard Filter -> Ranking writers.
 """
@@ -19,6 +21,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from scripts.run_product_v1_assessment_materialization import (
+    EMPLOYER_ORIGIN_SOURCE_TYPES,
     authorized_recurring_employer_origin_sources,
 )
 from src.config import get_database_config
@@ -179,10 +182,21 @@ def _load_rows(
     *,
     authorized_sources: Sequence[str],
     limit: int,
+    demo_learning_sample: bool = False,
 ) -> list[dict[str, object]]:
+    source_clause = (
+        "readiness.canonical_source_type = ANY(%s)"
+        if demo_learning_sample
+        else "readiness.source_name = ANY(%s)"
+    )
+    source_values = (
+        sorted(EMPLOYER_ORIGIN_SOURCE_TYPES)
+        if demo_learning_sample
+        else list(authorized_sources)
+    )
     with conn.cursor() as cur:
         cur.execute(
-            """
+            f"""
             SELECT
                 readiness.silver_job_id,
                 readiness.company_name,
@@ -221,7 +235,7 @@ def _load_rows(
             LEFT JOIN job_product_assessments assessment
               ON assessment.silver_job_id = readiness.silver_job_id
             WHERE readiness.lifecycle_status = 'active_confirmed'
-              AND readiness.source_name = ANY(%s)
+              AND {source_clause}
               AND readiness.product_readiness_status IN (
                     'assessment_required',
                     'hard_filter_evidence_required',
@@ -241,7 +255,7 @@ def _load_rows(
                 readiness.silver_job_id DESC
             LIMIT %s
             """,
-            (list(authorized_sources), limit),
+            (source_values, limit),
         )
         return [dict(row) for row in cur.fetchall()]
 

@@ -166,7 +166,9 @@ def is_known_aggregator_domain(hostname: str | None) -> bool:
     return any(host == domain or host.endswith("." + domain) for domain in KNOWN_AGGREGATOR_DOMAINS)
 
 
-def classify_source_type(url: str) -> tuple[str, float, tuple[str, ...]]:
+def classify_source_type(
+    url: str, *, company_key: str | None = None
+) -> tuple[str, float, tuple[str, ...]]:
     """Classify URL concreteness without fetching the page."""
 
     parsed = urlparse(url)
@@ -176,13 +178,25 @@ def classify_source_type(url: str) -> tuple[str, float, tuple[str, ...]]:
         reasons.append("career-like path marker found")
         return "employer_origin_career_site", 0.80, tuple(reasons)
     if parsed.path in ("", "/"):
+        host = (parsed.hostname or "").casefold().removeprefix("www.")
+        labels = host.split(".")
+        if (
+            company_key
+            and len(labels) == 3
+            and labels[0] in {"jobs", "karriere", "careers"}
+            and labels[1] == company_key.casefold()
+        ):
+            reasons.append("dedicated jobs host matches the employer key")
+            return "employer_origin_career_site", 0.85, tuple(reasons)
         reasons.append("homepage only; origin page must be confirmed")
         return "unknown_company_homepage", 0.45, tuple(reasons)
     reasons.append("non-career path; manual verification recommended")
     return "unknown_candidate_page", 0.55, tuple(reasons)
 
 
-def assess_url(evidence: CandidateUrlEvidence) -> SourceUrlAssessment:
+def assess_url(
+    evidence: CandidateUrlEvidence, *, company_key: str | None = None
+) -> SourceUrlAssessment:
     """Assess one persisted URL evidence item."""
 
     normalized = normalize_url(evidence.url)
@@ -247,7 +261,9 @@ def assess_url(evidence: CandidateUrlEvidence) -> SourceUrlAssessment:
             evidence_source=evidence.evidence_source,
             source_priority=evidence.source_priority,
         )
-    source_type, confidence, type_reasons = classify_source_type(normalized)
+    source_type, confidence, type_reasons = classify_source_type(
+        normalized, company_key=company_key
+    )
     reasons.extend(type_reasons)
     safe = source_type in SAFE_SOURCE_TYPES
     return SourceUrlAssessment(
@@ -294,7 +310,7 @@ def decide_origin_source(
 
     assessments_by_url: dict[str, SourceUrlAssessment] = {}
     for item in url_evidence:
-        assessed = assess_url(item)
+        assessed = assess_url(item, company_key=company_key)
         dedupe_key = assessed.normalized_url or item.url
         existing = assessments_by_url.get(dedupe_key)
         if existing is None or item.source_priority < existing.source_priority:

@@ -10,8 +10,8 @@ filters and ranking can be exercised on a broader real Employer-Origin cohort:
 
 That yields ten real jobs across seven real Employer-Origin sources.
 
-No company key or job id is embedded here. One operator-selected demo vacancy
-title may be preferred explicitly; it still has to satisfy the same live,
+No job id is embedded here. Operator-selected employers and one vacancy title
+are required or preferred explicitly; they still have to satisfy the same live,
 geography and Candidate-Fact gates. The downstream Product authorities remain
 unchanged and decide fit/rankability.
 """
@@ -30,6 +30,10 @@ ANCHOR_JOB_COUNT = 4
 PEER_EMPLOYER_COUNT = 6
 DEMO_PREFERRED_TITLES = (
     "E362/B - AI Engineer / KI-Entwickler (m/w/d)",
+)
+DEMO_REQUIRED_EMPLOYERS = (
+    "Finanz Informatik GmbH & Co. KG",
+    "ivv GmbH",
 )
 INTEREST_PHRASES = (
     "machine learning",
@@ -88,6 +92,7 @@ def select_demo_learning_sample(
     rows: Sequence[Mapping[str, object]],
     *,
     candidate_cap: int = DEMO_SAMPLE_SIZE,
+    required_employers: Sequence[str] = (),
 ) -> list[dict[str, object]]:
     if candidate_cap != DEMO_SAMPLE_SIZE:
         raise DemoLearningSampleStop(
@@ -106,6 +111,14 @@ def select_demo_learning_sample(
     if len(grouped) < PEER_EMPLOYER_COUNT + 1:
         raise DemoLearningSampleStop(
             "demo learning sample needs at least seven eligible employers"
+        )
+    missing_required = [
+        name for name in required_employers if name not in grouped
+    ]
+    if missing_required:
+        raise DemoLearningSampleStop(
+            "demo learning sample lacks eligible required employers: "
+            + ", ".join(missing_required)
         )
 
     anchor_company, anchor_rows = sorted(
@@ -143,8 +156,18 @@ def select_demo_learning_sample(
     preferred_peers: list[Mapping[str, object]] = []
     preferred_companies: set[str] = set()
     preferred_titles = {_normalized_demo_title(title) for title in DEMO_PREFERRED_TITLES}
-    for company, company_rows in grouped.items():
+    for company in required_employers:
         if company == anchor_company:
+            continue
+        company_rows = grouped[company]
+        titled = [
+            row for row in company_rows
+            if _normalized_demo_title(row.get("title")) in preferred_titles
+        ]
+        preferred_peers.append(sorted(titled or company_rows, key=_job_sort_key)[0])
+        preferred_companies.add(company)
+    for company, company_rows in grouped.items():
+        if company == anchor_company or company in preferred_companies:
             continue
         preferred = [
             row
@@ -179,6 +202,7 @@ __all__ = [
     "ANCHOR_JOB_COUNT",
     "DEMO_SAMPLE_SIZE",
     "DEMO_PREFERRED_TITLES",
+    "DEMO_REQUIRED_EMPLOYERS",
     "DemoLearningSampleStop",
     "PEER_EMPLOYER_COUNT",
     "_normalized_demo_title",
