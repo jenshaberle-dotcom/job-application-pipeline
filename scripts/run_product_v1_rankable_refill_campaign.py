@@ -71,7 +71,7 @@ def _selected(candidate_cap: int, *, demo_learning_sample: bool) -> list[dict[st
         rows = _load_rows(
             conn,
             authorized_sources=authorized,
-            limit=max(30, candidate_cap * 4),
+            limit=100 if demo_learning_sample else max(30, candidate_cap * 4),
         )
         conn.rollback()
     scouted = scout(rows=rows, facts=facts)
