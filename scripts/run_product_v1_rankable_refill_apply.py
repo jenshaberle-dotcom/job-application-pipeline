@@ -246,6 +246,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--target-rankable", type=int, default=DEFAULT_TARGET_RANKABLE)
     parser.add_argument("--candidate-cap", type=int, default=DEFAULT_CANDIDATE_CAP)
     parser.add_argument("--reviewed-by", default="jens")
+    parser.add_argument("--silver-job-id", type=int, action="append", default=[])
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
     parser.add_argument("--demo-learning-sample", action="store_true")
@@ -279,15 +280,42 @@ def main() -> int:
         conn.rollback()
 
     live_rows = scout(rows=rows, facts=facts)
-    selected = (
-        select_demo_learning_sample(
-            live_rows,
-            candidate_cap=args.candidate_cap,
-            required_employers=DEMO_REQUIRED_EMPLOYERS,
-        )
-        if args.demo_learning_sample
-        else _selected_candidates(live_rows, candidate_cap=args.candidate_cap)
+    explicit_ids = tuple(dict.fromkeys(args.silver_job_id))
+    _require(
+        all(value > 0 for value in explicit_ids),
+        "--silver-job-id values must be positive",
     )
+    if explicit_ids:
+        _require(
+            len(explicit_ids) == args.candidate_cap,
+            "explicit cohort cardinality must equal --candidate-cap",
+        )
+        by_id = {int(row["silver_job_id"]): row for row in live_rows}
+        missing = sorted(set(explicit_ids) - set(by_id))
+        _require(
+            not missing,
+            "explicit cohort jobs are not in current Product scout: "
+            + ",".join(str(value) for value in missing),
+        )
+        selected = [dict(by_id[value]) for value in explicit_ids]
+        for row in selected:
+            _require(row.get("live_outcome") == OUTCOME_SEEN_ACTIVE, "explicit cohort job is not live")
+            _require(row.get("geography_eligible") is True, "explicit cohort job is outside demo geography")
+            matches = row.get("candidate_fact_matches")
+            _require(
+                isinstance(matches, list) and bool(matches),
+                "explicit cohort job has no approved Candidate Fact capability match",
+            )
+    else:
+        selected = (
+            select_demo_learning_sample(
+                live_rows,
+                candidate_cap=args.candidate_cap,
+                required_employers=DEMO_REQUIRED_EMPLOYERS,
+            )
+            if args.demo_learning_sample
+            else _selected_candidates(live_rows, candidate_cap=args.candidate_cap)
+        )
     _require(bool(selected), "no live Candidate-Fact-backed refill candidates")
     selected_ids = [int(row["silver_job_id"]) for row in selected]
     cap_requests = _capability_requests(selected)
