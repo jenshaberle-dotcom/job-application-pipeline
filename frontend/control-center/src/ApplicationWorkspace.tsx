@@ -16,8 +16,6 @@ type TopJob = {
   lifecycle_status?: string | null;
   origin_validation_status?: string | null;
   hard_filter_status?: string | null;
-  product_live_verified?: boolean;
-  product_live_reason?: string | null;
 };
 
 type ApplicationStage = "prepared" | "applied" | "reply" | "interview" | "offer" | "closed";
