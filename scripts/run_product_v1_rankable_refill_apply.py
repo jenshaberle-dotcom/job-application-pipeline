@@ -45,6 +45,9 @@ from src.job_lifecycle_health import OUTCOME_SEEN_ACTIVE
 from src.search_intelligence.product_v1_downstream_preview import (
     fetch_public_https_detail_text,
 )
+from src.search_intelligence.product_v1_demo_learning_sample import (
+    select_demo_learning_sample,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -244,6 +247,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reviewed-by", default="jens")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
+    parser.add_argument("--demo-learning-sample", action="store_true")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     return parser
 
@@ -269,7 +273,11 @@ def main() -> int:
         conn.rollback()
 
     live_rows = scout(rows=rows, facts=facts)
-    selected = _selected_candidates(live_rows, candidate_cap=args.candidate_cap)
+    selected = (
+        select_demo_learning_sample(live_rows, candidate_cap=args.candidate_cap)
+        if args.demo_learning_sample
+        else _selected_candidates(live_rows, candidate_cap=args.candidate_cap)
+    )
     _require(bool(selected), "no live Candidate-Fact-backed refill candidates")
     selected_ids = [int(row["silver_job_id"]) for row in selected]
     cap_requests = _capability_requests(selected)
@@ -316,6 +324,8 @@ def main() -> int:
             "ranking_only_after_canonical_hard_filter_passed": True,
             "direct_rank_or_top5_writes": False,
             "application_or_submission_actions": False,
+            "demo_learning_sample": bool(args.demo_learning_sample),
+            "canonical_role_classifier_unchanged": True,
         },
     }
 
