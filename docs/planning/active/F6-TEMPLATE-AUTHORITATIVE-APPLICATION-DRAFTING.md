@@ -364,10 +364,10 @@ The planned accompio #626 drafting gate is superseded because the vacancy disapp
 
 ### Candidate 1.1.2 — fresh-vacancy action authority
 
-JAP already had a deterministic `product_v1_demo_live_scope` contract with a 30-minute maximum health-evidence age, but it was audit-only. Candidate **1.1.2** makes that contract executable Product authority:
+JAP already had a deterministic the retired fixed-age live-scope helper contract with a 30-minute maximum health-evidence age, but it was audit-only. Candidate **1.1.2** makes that contract executable Product authority:
 
 - Control Center projects origin truth first and then live-scope freshness for every job-readiness and Top-5 row;
-- `demo_live_verified=true` is required for anything presented as a **current** Product action;
+- a fixed-age live-scope flag is required for anything presented as a **current** Product action;
 - stale active evidence becomes an explicit `live_health_refresh_required` projection rather than silently remaining current;
 - Overview current counts, Top-5 actions, the Application target and the Application Workspace selector all require fresh live truth;
 - the F6 backend independently rechecks the same freshness contract before persisted vacancy-detail reuse, so a stale row cannot bypass the UI through a direct API call;
@@ -402,12 +402,12 @@ This explicitly freezes the 1.0.79 application-navigation UX as a regression con
 
 The next operator run showed that 1.1.3 restored the buttons but the Product truth surface itself was still inconsistent: All jobs contained the persisted current cohort while the sidebar and `Current` filter rendered zero, and a genuinely interesting replacement target failed F6 only because its last health timestamp was older than 30 minutes.
 
-That exposed the actual authority mistake. `product_v1_demo_live_scope` was created as a bounded demo/audit freshness helper. F4C later made the stronger rule explicit: recurring-ingestion eligibility is **not cadence authority**, and a successful historical run without an explicit cadence must not be labeled stale merely because a fixed wall-clock interval elapsed.
+That exposed the actual authority mistake. the retired fixed-age live-scope helper was created as a bounded presentation/audit freshness helper. F4C later made the stronger rule explicit: recurring-ingestion eligibility is **not cadence authority**, and a successful historical run without an explicit cadence must not be labeled stale merely because a fixed wall-clock interval elapsed.
 
 Candidate **1.1.4** therefore changes the boundary rather than tuning the number:
 
 - All jobs/current counts return to persisted evidence-driven lifecycle truth (`active_confirmed`);
-- the 30-minute demo-live helper is removed from the served Product action projection;
+- the 30-minute fixed-age helper is removed from the served Product action projection;
 - F6 does not trust age alone. When the operator explicitly chooses **Prepare application**, JAP probes exactly that Silver job's employer-origin URL once;
 - exact URL + expected title => current vacancy confirmed; no lifecycle write is needed and the already-bound persisted vacancy observation remains the drafting-detail source;
 - explicit vacancy-unavailable content => append one lifecycle-health `closed/exact_detail` observation, block drafting, and refresh Product truth so the dead job leaves the current cohort;
