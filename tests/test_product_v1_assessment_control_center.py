@@ -75,15 +75,13 @@ def _report(*, target_met: bool = True, combined_score: bool = False) -> dict[st
             "selection_requires_current_employer_origin": True,
             "selection_requires_exact_live_vacancy": True,
             "selection_requires_approved_candidate_fact_match": True,
-            "top5_must_be_subset_of_selected_ten": True,
+            "top5_must_be_subset_of_selected_cohort": True,
             "candidate_fit_and_affinity_remain_separate": True,
             "candidate_fit_is_job_skills_vs_cv_skills": True,
             "numeric_candidate_fit_authority_created": True,
-            "all_ten_require_numeric_candidate_fit": True,
-            "all_ten_require_authoritative_affinity": True,
-            "demo_cohort_frozen": True,
+            "all_selected_require_numeric_candidate_fit": True,
+            "all_selected_require_authoritative_affinity": True,
             "combined_score_authority_created": combined_score,
-            "demo_learning_sample": True,
             "canonical_role_classifier_unchanged": True,
         },
     }
@@ -114,7 +112,7 @@ def test_assessment_payload_is_exact_and_never_accepts_authority_tokens() -> Non
         )
 
 
-def test_child_command_is_fixed_to_generic_10_to_5_apply_contract(
+def test_child_command_uses_configured_bounded_apply_contract(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -136,10 +134,10 @@ def test_child_command_is_fixed_to_generic_10_to_5_apply_contract(
         "-m",
         "scripts.run_product_v1_assessment_cohort",
     ]
-    assert command[command.index("--evaluated-target") + 1] == "10"
-    assert command[command.index("--top5-target") + 1] == "5"
-    assert command[command.index("--candidate-cap") + 1] == "10"
-    assert "--demo-learning-sample" in command
+    assert command[command.index("--evaluated-target") + 1] == str(actions.DEFAULT_EVALUATED_TARGET)
+    assert command[command.index("--top5-target") + 1] == str(actions.DEFAULT_TOP5_TARGET)
+    assert command[command.index("--candidate-cap") + 1] == str(actions.DEFAULT_CANDIDATE_CAP)
+    assert "--demo-learning-sample" not in command
     assert "--apply" in command
     assert "--approval-token" in command
     assert command[command.index("--output") + 1] == str(output)
