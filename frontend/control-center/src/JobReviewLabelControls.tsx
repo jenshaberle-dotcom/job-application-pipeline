@@ -395,7 +395,7 @@ export default function JobReviewLabelControls({
     ? "Authoritative Combined score."
     : fitDecision === "failed"
       ? "Combined remains blocked by the Fit conflict."
-      : "No Combined formula is authorized until numeric Fit is qualified in the next freeze campaign.";
+      : "No Combined formula is authorized. Candidate Fit and Affinity remain separate decision signals.";
 
   return (
     <div className="r4-review-stack">
@@ -468,7 +468,7 @@ export default function JobReviewLabelControls({
 
       <section className="r4-requirement-fit" aria-label="Affinity Fit and Combined truth">
         <header>
-          <div><span className="eyebrow">Decision truth</span><h3>Affinity · Job Fit · Combined</h3></div>
+          <div><span className="eyebrow">Decision truth</span><h3>Affinity · Candidate Fit · Combined</h3></div>
         </header>
         <EvidenceRow
           label={authoritativeAffinity == null && typeof affinity === "number" ? "Affinity preview" : "Affinity"}
