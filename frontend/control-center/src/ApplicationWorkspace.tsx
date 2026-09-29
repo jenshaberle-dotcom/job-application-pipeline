@@ -621,7 +621,7 @@ export default function ApplicationWorkspace() {
         <span>Nothing is submitted or sent automatically.</span>
       </div>
 
-      <div className="application-application-shell demo-application-shell-direct">
+      <div className="application-application-shell application-application-shell-direct">
         <main className="application-application-main">
           {selectedJob && <section className="application-selected-job">
             <div className="application-selected-copy">
@@ -685,7 +685,7 @@ export default function ApplicationWorkspace() {
           {error && <div className="application-error"><b>Cannot continue safely</b><span>{error}</span></div>}
 
           {!loading && workspace && <div className="application-application-grid">
-            <article className="application-workspace-card demo-context-card">
+            <article className="application-workspace-card application-context-card">
               <header>
                 <span className="application-eyebrow">Verified context</span>
                 <h3>{generationReady ? "Ready for drafting" : "Context blocked"}</h3>
@@ -764,7 +764,7 @@ export default function ApplicationWorkspace() {
               </button>
             </article>
 
-            <article className="application-workspace-card demo-draft-card">
+            <article className="application-workspace-card application-draft-card">
               <header>
                 <span className="application-eyebrow">Prepared application</span>
                 <h3>{drafting
@@ -852,7 +852,7 @@ export default function ApplicationWorkspace() {
                   manualEditingRequired={draft.draft_mode === "local_private_edit"}
                 />}
 
-                <details className="application-evidence-details demo-audit-details">
+                <details className="application-evidence-details application-audit-details">
                   <summary>Audit details</summary>
                   {draft.draft_mode === "codex_embedded_v1"
                     ? <div className="application-claim-plan"><div><b>Embedded Codex</b><small>{draft.codex_model || "configured model"} · reasoning {draft.codex_reasoning_effort || codexStatus?.reasoning_effort || "configured"} · {draft.codex_version || "version unavailable"} · current CV + current letter + vacancy</small></div></div>
