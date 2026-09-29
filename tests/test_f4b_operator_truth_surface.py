@@ -7,7 +7,7 @@ SURFACE = Path("frontend/control-center/src/JobReviewLabelControls.tsx")
 def test_f4b_operator_surface_names_affinity_and_target_alignment_distinctly() -> None:
     source = SURFACE.read_text(encoding="utf-8")
 
-    assert 'label="Affinity"' in source
+    assert '? "Affinity preview" : "Affinity"' in source
     assert '["Target-role alignment"' in source
     assert "Affinity components" in source
     assert "Target-role alignment is one weighted component" in source
