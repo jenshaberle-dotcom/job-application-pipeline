@@ -8,7 +8,7 @@ from src.search_intelligence.market_discovery_snapshot import discovery_evidence
 from src.search_intelligence.market_sensor_catalog import CORE_SENSOR_CATALOG_BY_NAME
 
 
-SCHEMA_VERSION = "pipeline.source_connector_overview.v5"
+SCHEMA_VERSION = "pipeline.source_connector_overview.v6"
 GENERIC_SOURCE_PREFIX = "generic_origin:"
 
 
