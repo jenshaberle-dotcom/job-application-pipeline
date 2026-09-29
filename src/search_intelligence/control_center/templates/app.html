@@ -56,8 +56,8 @@
       {% include "gap_analysis.html" %}
     {% elif is_jobs %}
       {% include "jobs.html" %}
-    {% elif is_demo_chain %}
-      {% include "demo_chain.html" %}
+    {% elif is_connector_chain %}
+      {% include "connector_chain.html" %}
     {% else %}
       <section class="legacy-shell">
         {{ legacy_view_html | safe }}
