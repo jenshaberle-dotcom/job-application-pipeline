@@ -142,7 +142,7 @@ def _verify_installed_runtime_feature_contract(frontend_dist: Path) -> dict[str,
     if not RUNTIME_FEATURE_CONTRACT_FILE.is_file():
         raise RuntimeError("runtime feature contract is missing")
 
-    raw = json.loads(RUNTIME_FEATURE_CONTRACT_FILE.read_text(encoding="utf-8"))
+    raw = json.loads(RUNTIME_FEATURE_CONTRACT_FILE.read_text(encoding="utf-8-sig"))
     if not isinstance(raw, dict):
         raise RuntimeError("runtime feature contract root is not an object")
     if raw.get("schema") != RUNTIME_FEATURE_CONTRACT_SCHEMA:
