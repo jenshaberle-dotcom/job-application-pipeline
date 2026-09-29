@@ -1027,7 +1027,7 @@ def run_server(args: argparse.Namespace) -> None:
     server.frontend_dist = args.frontend_dist  # type: ignore[attr-defined]
     mailbox_scheduler = MailboxSyncScheduler()
     mailbox_scheduler.start()
-    print(f"Deep Ocean Product V1 DEMO-001: http://{args.host}:{args.port}/")
+    print(f"Deep Ocean Product V1 Control Center: http://{args.host}:{args.port}/")
     print(f"Private application documents: {private_root}")
     print(
         "Boundary: real Product V1 truth + read-only Bronze/Silver/Gold observability + "
@@ -1038,7 +1038,7 @@ def run_server(args: argparse.Namespace) -> None:
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nProduct V1 DEMO-001 stopped by operator.")
+        print("\nProduct V1 Control Center stopped by operator.")
     finally:
         mailbox_scheduler.stop()
         server.server_close()
