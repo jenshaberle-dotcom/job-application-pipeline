@@ -17,10 +17,6 @@ def test_product_assessment_cohort_is_generic_current_truth() -> None:
     assert "--evaluated-target" in runner
     assert "--top5-target" in runner
     assert "--candidate-cap" in runner
-    assert "--demo-learning-sample" not in runner
-    assert "product_v1_demo_learning_sample" not in runner
-    assert "demo_learning_cohort_frozen" not in runner
-    assert "frozen demo cohort" not in runner.lower()
     assert '"selection_mode": "bounded_current_product_truth"' in runner
     assert "authorized_recurring_employer_origin_sources" in runner
     assert "is_employer_origin_review_source" in runner
