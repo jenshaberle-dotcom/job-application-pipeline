@@ -26,7 +26,7 @@ def row(
     }
 
 
-def test_demo_learning_sample_is_generic_five_plus_five() -> None:
+def test_demo_learning_sample_is_generic_four_plus_six() -> None:
     rows = [
         row(1, "Anchor Corp", "Actuarial Engineer", facts=3, role=False),
         row(2, "Anchor Corp", "Cloud Engineer", facts=3, role=False),
@@ -40,6 +40,7 @@ def test_demo_learning_sample_is_generic_five_plus_five() -> None:
         row(30, "Analytics Co", "Analytics Engineering Lead", facts=5, role=True),
         row(40, "AI Co", "AI Consultant", facts=2, role=False),
         row(50, "Reliability Co", "ML Reliability Engineer", facts=2, role=True),
+        row(60, "Platform Co", "Data Platform Engineer", facts=2, role=True),
     ]
 
     selected = select_demo_learning_sample(rows)
@@ -47,9 +48,9 @@ def test_demo_learning_sample_is_generic_five_plus_five() -> None:
     assert len(selected) == 10
     anchor = [item for item in selected if item["company_name"] == "Anchor Corp"]
     peers = [item for item in selected if item["company_name"] != "Anchor Corp"]
-    assert len(anchor) == 5
-    assert len({item["company_name"] for item in peers}) == 5
-    assert {item["silver_job_id"] for item in peers} == {10, 20, 30, 40, 50}
+    assert len(anchor) == 4
+    assert len({item["company_name"] for item in peers}) == 6
+    assert {item["silver_job_id"] for item in peers} == {10, 20, 30, 40, 50, 60}
     assert all(item["silver_job_id"] != 11 for item in selected)
 
 
@@ -67,10 +68,11 @@ def test_demo_learning_sample_prefers_operator_selected_fi_vacancy_without_job_i
         row(30, "Analytics Co", "Analytics Engineering Lead", facts=5, role=True),
         row(40, "Reliability Co", "ML Reliability Engineer", facts=4, role=True),
         row(50, "Other AI Co", "AI Consultant", facts=4, role=True),
+        row(60, "Platform Co", "Data Platform Engineer", facts=4, role=True),
         row(
             630,
             "Finanz Informatik GmbH & Co. KG",
-            "E362/B - AI Engineer / KI-Entwickler (m/w/d)",
+            "AI Engineer / KI-Entwickler (m/w/d)",
             facts=1,
             role=True,
         ),
@@ -79,26 +81,26 @@ def test_demo_learning_sample_prefers_operator_selected_fi_vacancy_without_job_i
     selected = select_demo_learning_sample(rows)
     peers = [item for item in selected if item["company_name"] != "Anchor Corp"]
 
-    assert len(peers) == 5
+    assert len(peers) == 6
     assert any(item["silver_job_id"] == 630 for item in peers)
     assert any(
-        item["title"] == "E362/B - AI Engineer / KI-Entwickler (m/w/d)"
+        item["title"] == "AI Engineer / KI-Entwickler (m/w/d)"
         for item in peers
     )
 
 
-def test_demo_learning_sample_fails_closed_without_six_employers() -> None:
+def test_demo_learning_sample_fails_closed_without_seven_employers() -> None:
     rows = [
         row(index, "Anchor Corp", "Data Job", facts=1, role=True)
         for index in range(1, 7)
     ] + [
         row(10 + index, f"Peer {index}", "AI Engineer", facts=1, role=True)
-        for index in range(4)
+        for index in range(5)
     ]
 
     try:
         select_demo_learning_sample(rows)
     except DemoLearningSampleStop as exc:
-        assert "at least six eligible employers" in str(exc)
+        assert "at least seven eligible employers" in str(exc)
     else:
         raise AssertionError("expected fail-closed demo sample")
