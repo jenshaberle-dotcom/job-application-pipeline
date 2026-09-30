@@ -307,8 +307,9 @@ def test_manual_review_is_an_explicit_nonrunnable_connector_disposition() -> Non
     source = source_by_name(payload, source_name)
     assert source["connector_disposition"]["status"] == "manual_review_required"
     assert source["connector_disposition"]["requires_action"] is True
-    assert source["current_blocker"] is None
-    assert source["next_action"] == "Explicit non-runnable connector disposition recorded"
+    assert source["current_blocker"] == "connector_manual_review_required"
+    assert source["next_action"].startswith("Review the explicit connector blocker")
+    assert payload["summary"]["attention_count"] >= 1
 
 
 def test_discovered_candidate_remains_preconnector_evidence_not_false_incident() -> None:
