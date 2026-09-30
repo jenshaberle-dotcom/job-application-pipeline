@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -24,9 +25,20 @@ def _latest_distinct_candidates(rows: Sequence[Mapping[str, Any]]) -> list[dict[
             continue
         row = dict(raw)
         source_name = str(row.get("source_name_candidate") or "").strip().casefold()
-        family = source_name.split(":", 1)[0] if source_name else ""
-        if family in {value.casefold() for value in CORE_SENSORS}:
-            raise ValueError(f"market_sensor_leaked_into_employer_candidate_population:{company_key}")
+        sensor_names = {value.casefold() for value in CORE_SENSORS}
+        source_parts = tuple(part for part in source_name.split(":") if part)
+        sensor_leak = (
+            source_name in sensor_names
+            or (
+                source_parts
+                and source_parts[0] in {"market_sensor", "sensor", "discovery"}
+                and source_parts[-1] in sensor_names
+            )
+        )
+        if sensor_leak:
+            raise ValueError(
+                f"market_sensor_leaked_into_employer_candidate_population:{company_key}"
+            )
         key = (
             str(row.get("updated_at") or ""),
             int(row.get("id") or 0),
@@ -54,8 +66,8 @@ def _builder_failure_map(builder_audit: Mapping[str, Any] | None) -> dict[str, s
         key = str(raw.get("company_key") or "").strip()
         if not key:
             continue
-        ready = bool(raw.get("recipe_ready"))
-        failure = str(raw.get("first_failure_layer") or "").strip()
+        ready = raw.get("recipe_ready") is True
+        failure = str(raw.get("first_failure_layer") or "").strip().casefold()
         result[key] = "RECIPE_READY" if ready else (failure or "UNCLASSIFIED_GAP")
     return result
 
@@ -85,6 +97,10 @@ def build_census(
         if str(row.get("source_name") or "").strip()
     }
     builder = _builder_failure_map(builder_audit)
+    candidate_keys = {str(row["company_key"]) for row in candidates}
+    builder_keys = set(builder)
+    builder_covered_candidate_count = len(candidate_keys & builder_keys)
+    builder_unknown_candidate_count = len(builder_keys - candidate_keys)
 
     records: list[dict[str, Any]] = []
     counts = {
@@ -197,6 +213,12 @@ def build_census(
                 if builder_audit is not None
                 else None
             ),
+            "builder_covered_candidate_count": builder_covered_candidate_count,
+            "builder_unknown_candidate_count": builder_unknown_candidate_count,
+            "builder_population_complete": (
+                builder_audit is not None
+                and builder_covered_candidate_count == len(candidate_keys)
+            ),
         },
         "candidates": records,
         "boundaries": {
@@ -220,9 +242,26 @@ def build_census(
 
 
 def _relation_exists(cur: Any, relation: str) -> bool:
-    cur.execute("SELECT to_regclass(%s)", (f"public.{relation}",))
+    cur.execute(
+        "SELECT to_regclass(%s) AS relation_name",
+        (f"public.{relation}",),
+    )
     row = cur.fetchone()
-    return bool(row and row[0] is not None)
+    if row is None:
+        return False
+    if isinstance(row, Mapping):
+        return row.get("relation_name") is not None
+    return row[0] is not None
+
+
+def _current_repository_sha() -> str:
+    value = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"],
+        text=True,
+    ).strip()
+    if len(value) != 40 or any(char not in "0123456789abcdef" for char in value):
+        raise ValueError("invalid_classic_repository_sha")
+    return value
 
 
 def load_live_rows(conn: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -313,6 +352,12 @@ def main() -> int:
         )
         conn.rollback()
 
+    result["provenance"] = {
+        "classic_repository_sha": _current_repository_sha(),
+        "database_access": "READ_ONLY",
+        "market_sensor_catalog": "src/search_intelligence/market_sensor_catalog.py",
+        "builder_audit_path": None if args.builder_audit is None else str(args.builder_audit),
+    }
     rendered = json.dumps(result, indent=2, sort_keys=True, default=str) + "\n"
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
