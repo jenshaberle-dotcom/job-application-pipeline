@@ -16,7 +16,7 @@ from scripts.export_jap_cloud_vnext_recycle import (
 )
 
 
-def test_candidate_export_requires_reconstructed_real_job_evidence() -> None:
+def test_candidate_export_preserves_full_classic_coverage_population() -> None:
     candidates = [
         {
             "id": 1,
@@ -54,19 +54,24 @@ def test_candidate_export_requires_reconstructed_real_job_evidence() -> None:
         classic_sha="a" * 40,
     )
 
-    assert [row["company_key"] for row in companies] == ["alpha"]
-    assert [row["company_key"] for row in exported] == ["alpha"]
+    assert [row["company_key"] for row in companies] == ["alpha", "beta"]
+    assert [row["company_key"] for row in exported] == ["alpha", "beta"]
     assert exported[0]["admission_reason"] == "REAL_JOB_OBSERVED"
     assert exported[0]["admission_evidence"]["sensor_key"] == "stepstone"
     assert exported[0]["admission_evidence"]["sensor_identity_boundary"] == (
         "DISCOVERY_PROVENANCE_ONLY"
     )
+    assert exported[1]["admission_reason"] == "LEGACY_CLASSIC_COVERAGE"
+    assert exported[1]["admission_evidence"]["origin_kind"] == (
+        "LEGACY_CLASSIC_CANDIDATE"
+    )
+    assert exported[1]["first_evidence_at"] == "2026-09-02T10:00:00+00:00"
     assert gaps == [
         {
             "candidate_id": 2,
             "company_key": "beta",
             "company_name": "Beta GmbH",
-            "gap": "REAL_JOB_OBSERVED_PROVENANCE_NOT_RECONSTRUCTED",
+            "diagnostic": "LEGACY_CLASSIC_COVERAGE_USED",
             "classic_status": "candidate",
             "source_name_candidate": "candidate:beta",
         }
@@ -219,7 +224,7 @@ def test_manifest_matches_cloud_contract_hash_shape(tmp_path: Path) -> None:
             {
                 "company_key": "alpha",
                 "admission_reason": "REAL_JOB_OBSERVED",
-                "first_observed_at": "2026-09-01T00:00:00Z",
+                "first_evidence_at": "2026-09-01T00:00:00Z",
                 "latest_evidence_at": "2026-09-01T00:00:00Z",
                 "admission_evidence": {"origin_kind": "MARKET_JOB_EVIDENCE"},
             }
