@@ -386,7 +386,12 @@ def _next_action(
                 "Build a reusable connector/profile definition or record an explicit "
                 "evidence-backed block, review or rejection",
             )
-        if candidate_status in EXPLICIT_NONRUNNABLE_CONNECTOR_DISPOSITIONS:
+        if candidate_status == "manual_review_required":
+            return (
+                "connector_manual_review_required",
+                "Review the explicit connector blocker and either build, reject or park it",
+            )
+        if candidate_status == "rejected_or_parked":
             return None, "Explicit non-runnable connector disposition recorded"
         return None, "Pre-connector candidate; continue bounded evidence lifecycle"
 
