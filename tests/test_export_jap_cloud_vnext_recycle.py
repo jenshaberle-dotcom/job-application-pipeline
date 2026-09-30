@@ -81,7 +81,11 @@ def test_evidence_precedence_prefers_candidate_promotion_over_market_or_silver()
                 "evidence_id": 1,
                 "source_name": "stepstone",
                 "evidence_count": 2,
-                "evidence": {"promotion": True},
+                "evidence": {
+                    "sample_titles": ["Data Engineer"],
+                    "source_name": "stepstone",
+                },
+                "latest_job_observed_at": "2026-08-31T08:00:00+00:00",
                 "created_at": "2026-09-01T08:00:00+00:00",
             }
         ],
@@ -107,8 +111,10 @@ def test_evidence_precedence_prefers_candidate_promotion_over_market_or_silver()
             }
         ],
     )
-    assert evidence[1]["origin_kind"] == "CANDIDATE_PROMOTION_EVIDENCE"
+    assert evidence[1]["origin_kind"] == "CANDIDATE_PROMOTION_JOB_EVIDENCE"
     assert evidence[1]["classic_row_id"] == 1
+    assert evidence[1]["observed_job_titles"] == ["Data Engineer"]
+    assert evidence[1]["observed_at"] == "2026-08-31T08:00:00+00:00"
 
 
 def test_active_source_export_is_generic_and_fingerprint_is_deterministic() -> None:
@@ -246,3 +252,54 @@ def test_manifest_matches_cloud_contract_hash_shape(tmp_path: Path) -> None:
         ).encode("utf-8")
     ).hexdigest()
     assert claimed == observed
+
+
+def test_promotion_without_job_title_does_not_claim_real_job_observed() -> None:
+    evidence = _candidate_evidence_index(
+        promotion_rows=[
+            {
+                "candidate_id": 1,
+                "evidence_id": 1,
+                "source_name": "stepstone",
+                "evidence_count": 4,
+                "evidence": {
+                    "search_terms": ["data engineer"],
+                    "sample_titles": [],
+                },
+                "created_at": "2026-09-01T08:00:00+00:00",
+            }
+        ],
+        market_rows=[
+            {
+                "candidate_id": 1,
+                "evidence_id": 2,
+                "source_name": "stepstone",
+                "title": "Data Engineer",
+                "evidence_url": None,
+                "evidence": {"market_sensor": True},
+                "observed_at": "2026-08-31T08:00:00+00:00",
+            }
+        ],
+    )
+    assert evidence[1]["origin_kind"] == "MARKET_JOB_EVIDENCE"
+    assert evidence[1]["title"] == "Data Engineer"
+    assert evidence[1]["evidence_url"] is None
+
+
+def test_market_job_title_is_sufficient_even_when_sensor_does_not_store_job_url() -> None:
+    evidence = _candidate_evidence_index(
+        market_rows=[
+            {
+                "candidate_id": 1,
+                "evidence_id": 10,
+                "source_name": "stepstone",
+                "title": "Analytics Engineer",
+                "evidence_url": None,
+                "evidence": {"evidence_kind": "market_sensor_company_sighting"},
+                "source_seen_at": "2026-09-01T07:30:00+00:00",
+                "observed_at": "2026-09-01T08:00:00+00:00",
+            }
+        ]
+    )
+    assert evidence[1]["origin_kind"] == "MARKET_JOB_EVIDENCE"
+    assert evidence[1]["observed_at"] == "2026-09-01T07:30:00+00:00"
