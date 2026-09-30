@@ -218,6 +218,7 @@ def accepted_schedule(*, recurring: int = 1) -> dict[str, dict[str, object]]:
         SOURCE: {
             "recurring_enabled_profile_count": recurring,
             "expected_cadence_minutes": 1440 if recurring else None,
+            "overdue_grace_minutes": 360 if recurring else None,
             "cadence_truth_source": (
                 "config/connector_fleet_policy.json" if recurring else None
             ),
@@ -358,3 +359,33 @@ def test_active_connector_with_broken_registration_is_red() -> None:
     row = source(result)
     assert row["fleet_status"]["light"] == "red"
     assert row["fleet_status"]["reason"] == "registration_broken"
+
+
+def test_connector_stays_current_inside_overdue_grace_window() -> None:
+    result = project_current_source_health(
+        payload_for(finished_at="2026-09-15T06:00:00+00:00"),
+        schedule_evidence=accepted_schedule(),
+        operator_evidence=operator_evidence(),
+        observed_at=datetime(2026, 9, 16, 9, 0, tzinfo=timezone.utc),
+    )
+
+    row = source(result)
+    assert row["scheduling"]["next_expected_run_at"] == "2026-09-16T06:00:00+00:00"
+    assert row["scheduling"]["overdue_at"] == "2026-09-16T12:00:00+00:00"
+    assert row["operational_health"]["status"] == "healthy"
+    assert row["fleet_status"]["light"] == "green"
+
+
+def test_connector_turns_red_after_cadence_plus_overdue_grace() -> None:
+    result = project_current_source_health(
+        payload_for(finished_at="2026-09-15T02:00:00+00:00"),
+        schedule_evidence=accepted_schedule(),
+        operator_evidence=operator_evidence(),
+        observed_at=datetime(2026, 9, 16, 9, 0, tzinfo=timezone.utc),
+    )
+
+    row = source(result)
+    assert row["scheduling"]["next_expected_run_at"] == "2026-09-16T02:00:00+00:00"
+    assert row["scheduling"]["overdue_at"] == "2026-09-16T08:00:00+00:00"
+    assert row["operational_health"]["status"] == "stale"
+    assert row["fleet_status"]["light"] == "red"
