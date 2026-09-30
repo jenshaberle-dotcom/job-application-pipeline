@@ -72,8 +72,11 @@ def load_source_schedule_evidence() -> dict[str, dict[str, object]]:
     policy = load_connector_fleet_policy()
     scheduling = _mapping(policy.get("scheduling"))
     default_cadence = int(scheduling.get("default_cadence_minutes") or 0)
+    overdue_grace = int(scheduling.get("overdue_grace_minutes") or 0)
     if default_cadence <= 0:
         raise RuntimeError("connector fleet default cadence is invalid")
+    if overdue_grace < 0:
+        raise RuntimeError("connector fleet overdue grace is invalid")
 
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(),
@@ -129,6 +132,9 @@ def load_source_schedule_evidence() -> dict[str, dict[str, object]]:
             "recurring_enabled_profile_count": recurring_count,
             "expected_cadence_minutes": (
                 default_cadence if recurring_count > 0 else None
+            ),
+            "overdue_grace_minutes": (
+                overdue_grace if recurring_count > 0 else None
             ),
             "cadence_truth_source": (
                 "config/connector_fleet_policy.json"
@@ -373,6 +379,8 @@ def load_source_operator_evidence() -> dict[str, dict[str, object]]:
 
 def _schedule_projection(
     evidence: Mapping[str, object] | None,
+    *,
+    default_overdue_grace_minutes: int,
 ) -> dict[str, object]:
     if evidence is None:
         return {
@@ -380,7 +388,9 @@ def _schedule_projection(
             "recurring_ingestion_eligible": None,
             "recurring_enabled_profile_count": None,
             "expected_cadence_minutes": None,
+            "overdue_grace_minutes": None,
             "next_expected_run_at": None,
+            "overdue_at": None,
             "cadence_authority": False,
             "truth_source": "not_projected",
         }
@@ -393,6 +403,18 @@ def _schedule_projection(
         cadence = None
     if cadence is not None and cadence <= 0:
         cadence = None
+
+    raw_grace = evidence.get("overdue_grace_minutes")
+    try:
+        grace = (
+            int(raw_grace)
+            if raw_grace is not None
+            else int(default_overdue_grace_minutes)
+        )
+    except (TypeError, ValueError):
+        grace = int(default_overdue_grace_minutes)
+    if grace < 0:
+        grace = int(default_overdue_grace_minutes)
 
     cadence_source = str(evidence.get("cadence_truth_source") or "").strip() or None
     cadence_authority = cadence is not None and cadence_source is not None
@@ -409,7 +431,9 @@ def _schedule_projection(
         "recurring_ingestion_eligible": recurring_count > 0,
         "recurring_enabled_profile_count": recurring_count,
         "expected_cadence_minutes": cadence if cadence_authority else None,
+        "overdue_grace_minutes": grace if cadence_authority else None,
         "next_expected_run_at": None,
+        "overdue_at": None,
         "cadence_authority": cadence_authority,
         "truth_source": (
             "search_profiles.recurring_ingestion_enabled"
@@ -437,12 +461,20 @@ def _current_health(
 
     cadence = schedule.get("expected_cadence_minutes")
     cadence_minutes = int(cadence) if isinstance(cadence, int) and cadence > 0 else None
+    grace = schedule.get("overdue_grace_minutes")
+    grace_minutes = int(grace) if isinstance(grace, int) and grace >= 0 else 0
     next_expected = (
         run_at + timedelta(minutes=cadence_minutes)
         if run_at is not None and cadence_minutes is not None
         else None
     )
+    overdue_at = (
+        next_expected + timedelta(minutes=grace_minutes)
+        if next_expected is not None
+        else None
+    )
     schedule["next_expected_run_at"] = _iso(next_expected)
+    schedule["overdue_at"] = _iso(overdue_at)
 
     if latest == "failed":
         status, reason, freshness = "degraded", "latest_attempt_failed", "unknown_without_success"
@@ -462,10 +494,10 @@ def _current_health(
         )
     elif run_at is None:
         status, reason, freshness = "unknown", "successful_run_timestamp_missing", "unknown"
-    elif next_expected is not None and observed_at > next_expected:
+    elif overdue_at is not None and observed_at > overdue_at:
         status, reason, freshness = (
             "stale",
-            "successful_run_overdue_for_explicit_cadence",
+            "successful_run_overdue_for_explicit_cadence_and_grace",
             "overdue",
         )
     else:
@@ -686,8 +718,13 @@ def project_current_source_health(
     yield_window_minutes = int(
         fleet_scheduling.get("recent_yield_window_minutes") or 0
     )
+    overdue_grace_minutes = int(
+        fleet_scheduling.get("overdue_grace_minutes") or 0
+    )
     if yield_window_minutes <= 0:
         raise RuntimeError("connector fleet yield window is invalid")
+    if overdue_grace_minutes < 0:
+        raise RuntimeError("connector fleet overdue grace is invalid")
     operator_rows = (
         load_source_operator_evidence()
         if operator_evidence is None
@@ -709,7 +746,10 @@ def project_current_source_health(
             continue
         source = dict(raw_source)
         source_name = str(source.get("source_name") or "").strip()
-        schedule = _schedule_projection(schedules.get(source_name))
+        schedule = _schedule_projection(
+            schedules.get(source_name),
+            default_overdue_grace_minutes=overdue_grace_minutes,
+        )
         health, reachability = _current_health(
             source,
             schedule=schedule,
