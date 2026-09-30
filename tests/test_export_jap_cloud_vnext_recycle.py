@@ -303,3 +303,56 @@ def test_market_job_title_is_sufficient_even_when_sensor_does_not_store_job_url(
     )
     assert evidence[1]["origin_kind"] == "MARKET_JOB_EVIDENCE"
     assert evidence[1]["observed_at"] == "2026-09-01T07:30:00+00:00"
+
+
+def test_non_core_market_source_does_not_prove_candidate_admission() -> None:
+    evidence = _candidate_evidence_index(
+        market_rows=[
+            {
+                "candidate_id": 1,
+                "evidence_id": 10,
+                "source_name": "manual_market_observation",
+                "title": "Data Engineer",
+                "evidence_url": "https://example.test/job/1",
+                "evidence": {},
+                "observed_at": "2026-09-01T08:00:00+00:00",
+            }
+        ]
+    )
+    assert evidence == {}
+
+
+def test_detail_evidence_requires_job_title_and_prefers_updated_timestamp() -> None:
+    evidence = _candidate_evidence_index(
+        detail_rows=[
+            {
+                "candidate_id": 1,
+                "evidence_id": 9,
+                "source_url": "https://jobs.alpha.test/job/9",
+                "page_title": "ML Engineer",
+                "status_code": 200,
+                "confidence": "0.9500",
+                "evidence": {"kind": "detail"},
+                "created_at": "2026-09-01T07:00:00+00:00",
+                "updated_at": "2026-09-02T08:00:00+00:00",
+            }
+        ]
+    )
+    row = evidence[1]
+    assert row["origin_kind"] == "EMPLOYER_ORIGIN_JOB_DETAIL_EVIDENCE"
+    assert row["title"] == "ML Engineer"
+    assert row["observed_at"] == "2026-09-02T08:00:00+00:00"
+
+    missing_title = _candidate_evidence_index(
+        detail_rows=[
+            {
+                "candidate_id": 1,
+                "evidence_id": 10,
+                "source_url": "https://jobs.alpha.test/job/10",
+                "page_title": None,
+                "evidence": {},
+                "updated_at": "2026-09-02T08:00:00+00:00",
+            }
+        ]
+    )
+    assert missing_title == {}
