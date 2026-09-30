@@ -30,6 +30,8 @@ def test_census_excludes_market_sensors_and_partitions_current_candidates() -> N
         _candidate(3, "gamma"),
         _candidate(4, "delta"),
         _candidate(5, "epsilon"),
+        _candidate(7, "zeta"),
+        _candidate(8, "eta"),
         # Older duplicate candidate identity must not inflate the denominator.
         _candidate(6, "alpha", updated_at="2026-09-01T08:00:00+00:00"),
     ]
@@ -68,25 +70,41 @@ def test_census_excludes_market_sensors_and_partitions_current_candidates() -> N
             }
         ],
         builder_audit={
-            "candidates": [
+            "schema": "jap.deterministic_connector_builder_layer_audit.v6",
+            "results": [
                 {"company_key": "gamma", "recipe_ready": True},
                 {
                     "company_key": "delta",
                     "recipe_ready": False,
                     "first_failure_layer": "inventory",
                 },
+                {
+                    "company_key": "zeta",
+                    "recipe_ready": False,
+                    "first_failure_layer": "origin",
+                },
+                {
+                    "company_key": "eta",
+                    "recipe_ready": False,
+                    "first_failure_layer": "proof",
+                },
             ]
         },
     )
 
     summary = result["summary"]
-    assert summary["employer_candidate_count"] == 5
+    assert summary["employer_candidate_count"] == 7
     assert summary["market_sensor_count_excluded"] == 7
     assert summary["active_recurring_connector_count"] == 1
     assert summary["connector_materialized_nonrecurring_count"] == 1
     assert summary["recipe_ready_not_materialized_count"] == 1
+    assert summary["source_resolution_gap_count"] == 1
     assert summary["capability_gap_count"] == 1
+    assert summary["qualification_gap_count"] == 1
     assert summary["resolution_required_count"] == 1
+    assert summary["builder_audit_schema"] == (
+        "jap.deterministic_connector_builder_layer_audit.v6"
+    )
     assert {
         row["company_key"]: row["disposition"] for row in result["candidates"]
     } == {
@@ -95,6 +113,8 @@ def test_census_excludes_market_sensors_and_partitions_current_candidates() -> N
         "gamma": "RECIPE_READY_NOT_MATERIALIZED",
         "delta": "CAPABILITY_GAP",
         "epsilon": "RESOLUTION_REQUIRED",
+        "zeta": "SOURCE_RESOLUTION_GAP",
+        "eta": "QUALIFICATION_GAP",
     }
 
 
@@ -149,3 +169,33 @@ def test_sensor_family_in_candidate_population_fails_closed() -> None:
                 )
             ]
         )
+
+
+def test_v6_results_shape_is_consumed_without_inventing_capability_gap() -> None:
+    result = build_census(
+        candidate_rows=[_candidate(1, "alpha"), _candidate(2, "beta")],
+        builder_audit={
+            "schema": "jap.deterministic_connector_builder_layer_audit.v6",
+            "results": [
+                {
+                    "company_key": "alpha",
+                    "recipe_ready": False,
+                    "first_failure_layer": "origin_reachability",
+                },
+                {
+                    "company_key": "beta",
+                    "recipe_ready": False,
+                    "first_failure_layer": "detail",
+                },
+            ],
+        },
+    )
+    dispositions = {
+        row["company_key"]: row["disposition"] for row in result["candidates"]
+    }
+    assert dispositions == {
+        "alpha": "SOURCE_RESOLUTION_GAP",
+        "beta": "CAPABILITY_GAP",
+    }
+    assert result["summary"]["source_resolution_gap_count"] == 1
+    assert result["summary"]["capability_gap_count"] == 1
