@@ -21,11 +21,23 @@ type SourceReachability = {
   reason?: string;
 };
 
+type SourceFleetStatus = {
+  light?: "green" | "yellow" | "red" | "neutral" | string;
+  reason?: string;
+  technical_state?: string;
+  yield_state?: string;
+  relevant_job_count?: number;
+  latest_relevant_job_observed_at?: string | null;
+  yield_window_minutes?: number;
+};
+
 type SourceDelivery = {
   latest_run_loaded?: number;
   latest_run_inserted?: number;
   latest_success_zero_yield?: boolean;
   current_job_count?: number;
+  relevant_current_job_count?: number;
+  latest_relevant_job_observed_at?: string | null;
   last_job_delivery_at?: string | null;
   latest_job_observed_at?: string | null;
   source_data_age_hours?: number | null;
@@ -40,6 +52,7 @@ type SourceRow = {
   source_scan?: SourceScan;
   scheduling?: SourceScheduling;
   reachability?: SourceReachability;
+  fleet_status?: SourceFleetStatus;
   delivery?: SourceDelivery;
 };
 
@@ -48,6 +61,10 @@ type SourceSummary = {
   latest_scan_failed_count?: number;
   latest_scan_running_count?: number;
   reachability_not_checked_count?: number;
+  fleet_green_count?: number;
+  fleet_yellow_count?: number;
+  fleet_red_count?: number;
+  fleet_neutral_count?: number;
 };
 
 type ProductPayload = {
@@ -91,6 +108,45 @@ function scanLabel(value: string | null | undefined) {
       return "NOT SCANNED";
     default:
       return "SCAN UNKNOWN";
+  }
+}
+
+function fleetTone(value: string | null | undefined) {
+  switch ((value || "").toLowerCase()) {
+    case "green":
+      return "good";
+    case "red":
+      return "bad";
+    case "yellow":
+      return "warn";
+    default:
+      return "neutral";
+  }
+}
+
+function fleetLabel(value: string | null | undefined) {
+  switch ((value || "").toLowerCase()) {
+    case "green":
+      return "CONNECTOR GREEN";
+    case "yellow":
+      return "CONNECTOR YELLOW";
+    case "red":
+      return "CONNECTOR RED";
+    default:
+      return "LIFECYCLE";
+  }
+}
+
+function fleetExplanation(status?: SourceFleetStatus) {
+  switch ((status?.light || "").toLowerCase()) {
+    case "green":
+      return "Recurring monitoring is technically current and this connector has delivered at least one current relevant job inside the fleet yield window.";
+    case "yellow":
+      return "Recurring monitoring is technically current, but no current relevant job was observed inside the fleet yield window. This is not a connector failure.";
+    case "red":
+      return "The connector needs technical attention because execution is failed, overdue, blocked, or its operational lifecycle is broken.";
+    default:
+      return "This source is not yet an operational recurring connector. Build, validation, registration and monitoring admission remain lifecycle state.";
   }
 }
 
@@ -197,8 +253,10 @@ export default function F4cSourceHealthSurface() {
   const summaryPortal = summaryRoot && summary
     ? createPortal(
         <>
-          <div className="f4c-health-summary"><span>Latest scan failed</span><b>{summary.latest_scan_failed_count ?? 0}</b></div>
-          <div className="f4c-health-summary"><span>Live check not measured</span><b>{summary.reachability_not_checked_count ?? 0}</b></div>
+          <div className="f4c-health-summary"><span>Connectors green</span><b>{summary.fleet_green_count ?? 0}</b></div>
+          <div className="f4c-health-summary"><span>Connectors yellow</span><b>{summary.fleet_yellow_count ?? 0}</b></div>
+          <div className="f4c-health-summary"><span>Connectors red</span><b>{summary.fleet_red_count ?? 0}</b></div>
+          <div className="f4c-health-summary"><span>Lifecycle / pending</span><b>{summary.fleet_neutral_count ?? 0}</b></div>
         </>,
         summaryRoot,
       )
@@ -207,6 +265,7 @@ export default function F4cSourceHealthSurface() {
   const scan = source?.source_scan;
   const scheduling = source?.scheduling;
   const reachability = source?.reachability;
+  const fleet = source?.fleet_status;
   const delivery = source?.delivery;
 
   const detailPortal = detailRoot && source
@@ -217,11 +276,11 @@ export default function F4cSourceHealthSurface() {
               <span>F4C · SOURCE ACTIVITY</span>
               <h3>Source status & job delivery</h3>
             </div>
-            <span className={`f4c-health-status ${scanTone(scan?.status)}`}>
-              {scanLabel(scan?.status)}
+            <span className={`f4c-health-status ${fleetTone(fleet?.light)}`}>
+              {fleetLabel(fleet?.light)}
             </span>
           </div>
-          <p className="f4c-health-reason">{scanExplanation(scan, delivery)}</p>
+          <p className="f4c-health-reason">{fleetExplanation(fleet)}</p>
           <div className="f4c-health-grid">
             <div>
               <span>Latest source scan</span>
@@ -230,6 +289,15 @@ export default function F4cSourceHealthSurface() {
             <div>
               <span>Current jobs</span>
               <b>{(delivery?.current_job_count ?? 0).toLocaleString()}</b>
+            </div>
+            <div>
+              <span>Current relevant jobs</span>
+              <b>{(fleet?.relevant_job_count ?? delivery?.relevant_current_job_count ?? 0).toLocaleString()}</b>
+              <small>validated · active · hard filter passed</small>
+            </div>
+            <div>
+              <span>Last relevant job</span>
+              <b>{dateTime(fleet?.latest_relevant_job_observed_at ?? delivery?.latest_relevant_job_observed_at)}</b>
             </div>
             <div>
               <span>Last job delivery</span>
@@ -247,12 +315,15 @@ export default function F4cSourceHealthSurface() {
             </div>
           </div>
           <div className="f4c-health-grid f4c-health-grid-secondary">
+            <div><span>Technical scan</span><b>{scanLabel(scan?.status)}</b><small>{scanExplanation(scan, delivery)}</small></div>
+            <div><span>Technical state</span><b>{human(fleet?.technical_state)}</b></div>
+            <div><span>Relevant-yield state</span><b>{human(fleet?.yield_state)}</b></div>
             <div><span>Live now</span><b>{reachabilityText(reachability)}</b></div>
-            <div><span>Latest scan yield</span><b>{delivery?.latest_run_loaded ?? 0} loaded · {delivery?.latest_run_inserted ?? 0} inserted</b></div>
-            <div><span>Recurring ingestion</span><b>{scheduleText(scheduling)}</b></div>
+            <div><span>Latest raw scan yield</span><b>{delivery?.latest_run_loaded ?? 0} loaded · {delivery?.latest_run_inserted ?? 0} inserted</b></div>
+            <div><span>Recurring monitoring</span><b>{scheduleText(scheduling)}</b></div>
           </div>
           <p className="f4c-health-boundary">
-            A successful scan proves that the last execution worked; it is not a live ping. “Live now” stays Not checked until JAP has an actual reachability measurement. Job age and disappearance are derived only from persisted source observations.
+            Fleet light = technical monitoring health + relevant-job yield. Raw loaded rows never make a connector green by themselves. Green requires current validated jobs that passed the hard filter; yellow is healthy monitoring with no recent relevant job; red is a technical/runtime problem. “Live now” stays separate until JAP has an actual reachability measurement.
           </p>
         </section>,
         detailRoot,
