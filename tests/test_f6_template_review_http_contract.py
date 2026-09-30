@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SERVER = ROOT / "scripts" / "run_product_v1_demo_control_center.py"
+SERVER = ROOT / "scripts" / "run_product_v1_operator_control_center.py"
 
 
 def test_f6_c_loopback_export_is_manifest_bound_and_has_no_submit_send_authority() -> None:

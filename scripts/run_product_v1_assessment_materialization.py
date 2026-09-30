@@ -52,7 +52,7 @@ from src.search_intelligence.product_v1_downstream_preview import (
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = (
-    ROOT / ".runtime" / "demo" / "product_v1_assessment_materialization.json"
+    ROOT / ".runtime" / "product" / "product_v1_assessment_materialization.json"
 )
 APPROVAL_TOKEN = "PRODUCT-V1-ASSESSMENT-MATERIALIZE"
 MATERIALIZER_CONTRACT = "product_v1_assessment_materialization.v1"
@@ -800,7 +800,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--source-name", action="append", default=[])
     parser.add_argument("--silver-job-id", action="append", type=int, default=[])
     parser.add_argument("--role-relevant-only", action="store_true")
-    parser.add_argument("--demo-learning-sample", action="store_true")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
@@ -815,10 +814,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit("at least one --source-name or --silver-job-id is required")
     if any(value <= 0 for value in silver_job_ids):
         raise SystemExit("--silver-job-id values must be positive")
-    if args.demo_learning_sample and (not silver_job_ids or source_names):
-        raise SystemExit(
-            "--demo-learning-sample requires exact --silver-job-id values and no --source-name"
-        )
     if args.apply and args.approval_token != APPROVAL_TOKEN:
         raise SystemExit(f"--apply requires --approval-token {APPROVAL_TOKEN}")
     if not args.apply and args.approval_token:
@@ -847,16 +842,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             role_relevant_only=args.role_relevant_only,
         )
         conn.rollback()
-
-    if args.demo_learning_sample:
-        if len(rows) != len(silver_job_ids):
-            raise SystemExit("demo learning sample job set changed before materialization")
-        if any(
-            str(row.get("canonical_source_type") or "") not in EMPLOYER_ORIGIN_SOURCE_TYPES
-            for row in rows
-        ):
-            raise SystemExit("demo learning sample contains a non-employer-origin job")
-        authorized_sources = {str(row["source_name"]) for row in rows}
 
     plan = build_plan(
         rows=rows,

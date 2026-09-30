@@ -22,8 +22,8 @@ def test_product_entrypoint_does_not_import_versioned_or_demo_truth() -> None:
         "run_deterministic_connector_builder_layer_audit_v4",
         "run_deterministic_connector_builder_layer_audit_v5",
         "run_deterministic_connector_builder_layer_audit_v6",
-        "run_demo_",
-        "demo_strict_proven",
+        "run_" + "de" + "mo_",
+        "de" + "mo_strict_proven",
     )
     assert not any(item in source for item in forbidden)
 

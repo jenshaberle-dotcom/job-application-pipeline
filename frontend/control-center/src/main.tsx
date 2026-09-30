@@ -3,16 +3,16 @@ import { createRoot } from "react-dom/client";
 import AboutPanel from "./AboutPanel";
 import DataLayersTab from "./DataLayersTab";
 import ApplicationWorkspace from "./ApplicationWorkspace";
-import DemoOperatorHardening from "./DemoOperatorHardening";
-import DemoProductPolish from "./DemoProductPolish";
-import DemoTruthRibbon from "./DemoTruthRibbon";
+import OperatorHardening from "./OperatorHardening";
+import ProductPolish from "./ProductPolish";
+import ProductTruthRibbon from "./ProductTruthRibbon";
 import F4cSourceHealthSurface from "./F4cSourceHealthSurface";
 import App from "./OperatorWorkspace";
 import RuntimeErrorBoundary from "./RuntimeErrorBoundary";
 import { ProductTruthProvider } from "./ProductTruthContext";
 import "./styles.css";
 import "./compact-control-center.css";
-import "./demo-operator-focus.css";
+import "./operator-focus.css";
 import "./product-finish-ux.css";
 
 
@@ -28,9 +28,9 @@ createRoot(root).render(
         <App />
         <DataLayersTab />
         <AboutPanel />
-        <DemoOperatorHardening />
-        <DemoProductPolish />
-        <DemoTruthRibbon />
+        <OperatorHardening />
+        <ProductPolish />
+        <ProductTruthRibbon />
         <F4cSourceHealthSurface />
         <ApplicationWorkspace />
       </ProductTruthProvider>

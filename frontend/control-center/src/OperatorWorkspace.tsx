@@ -6,7 +6,7 @@ import JobReviewLabelControls, {
 import F5ApplicationTracking, { type F5ProductPayload } from "./F5ApplicationTracking";
 import { useProductTruth } from "./ProductTruthContext";
 import "./operator-workspace-v2.css";
-import "./operator-demo-hardening.css";
+import "./operator-product-hardening.css";
 
 type Job = {
   silver_job_id: number;
@@ -60,8 +60,6 @@ type Job = {
   profile_fit_missing_factors?: string[];
   profile_fit_failed_factors?: string[];
   review_label?: JobReviewLabelState | null;
-  demo_live_verified?: boolean;
-  demo_live_reason?: string | null;
   last_health_checked_at?: string | null;
   latest_health_observed_at?: string | null;
 };
@@ -117,7 +115,18 @@ type SourceConnector = {
     }>;
   } | null;
   activation: { status: string; active: boolean | null };
-  search_profiles: { active_profile_count: number; profile_count: number };
+  ingestion_authority: {
+    status: string;
+    recurring_authorized: boolean | null;
+    manual_execution_allowed: boolean | null;
+  };
+  search_profiles: {
+    active_profile_count: number;
+    recurring_profile_count: number;
+    profile_count: number;
+    active_search_term_count?: number;
+    recurring_search_term_count?: number;
+  };
   gates: {
     connector_validation_gate: { status: string; decision?: string | null };
     final_approval_gate: { status: string; decision?: string | null };
@@ -193,6 +202,8 @@ type ProductPayload = {
       healthy_sensor_count: number;
       employer_origin_count: number;
       employer_origin_active_count: number;
+      employer_origin_recurring_authorized_count?: number;
+      employer_origin_manual_only_count?: number;
       active_last_run_loaded_count: number;
       active_last_run_zero_count: number;
       implemented_count: number;
@@ -243,7 +254,7 @@ type JobSort =
   | "gate_asc"
   | "gate_desc";
 type SortColumn = "fit" | "review" | "job" | "location" | "published" | "observed" | "gate";
-type SourceGroup = "Needs attention" | "Delivering now" | "Active, 0 current jobs" | "Market sensors" | "Pending" | "Not implemented";
+type SourceGroup = "Needs attention" | "Delivering now" | "Active, 0 current jobs" | "Manual only" | "Market sensors" | "Pending" | "Not implemented";
 type SourceTab = "All" | SourceGroup;
 
 function downloadBase64Document(contentBase64: string, filename: string, mimeType: string) {
@@ -980,7 +991,7 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
   const runAssessment = async () => {
     setAssessmentState({
       status: "running",
-      message: "Evaluating the frozen 10-job demo cohort: CV-skill Candidate Fit, Affinity and Top 5…",
+      message: "Evaluating a bounded current-job cohort: CV-skill Candidate Fit, Affinity and Top 5…",
     });
     try {
       const response = await fetch("/api/v1/product-v1/assessment-cohort", {
@@ -1008,7 +1019,7 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
       if (result.target_met) {
         setAssessmentState({
           status: "complete",
-          message: "Frozen demo cohort ready: 10/10 Candidate Fit scores, 10/10 Affinity scores and 5 authoritative Top-5 jobs.",
+          message: `Assessment complete: ${summary.selected_count ?? 0} current jobs scored for Candidate Fit and Affinity; Top 5 refreshed from authoritative ranking truth.`,
         });
         return;
       }
@@ -1020,10 +1031,11 @@ function TopFive({ payload, refresh, onReviewJobs }: { payload: ProductPayload; 
         .filter(([, count]) => count > 0)
         .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
         .map(([reason, count]) => `${fitBlockerReasonLabel[reason] || label(reason)}: ${count}`);
+      const selectedCount = summary.selected_count ?? 0;
       const baseStatus = [
-        `${summary.candidate_fit_authoritative_count ?? 0}/10 Candidate Fit scored`,
-        `${summary.affinity_authoritative_count ?? 0}/10 Affinity scored`,
-        `${summary.profile_fit_complete_count ?? 0}/10 gate evidence complete`,
+        `${summary.candidate_fit_authoritative_count ?? 0}/${selectedCount} Candidate Fit scored`,
+        `${summary.affinity_authoritative_count ?? 0}/${selectedCount} Affinity scored`,
+        `${summary.profile_fit_complete_count ?? 0}/${selectedCount} gate evidence complete`,
         `${summary.profile_fit_passed_count ?? 0} gates passed`,
         `${summary.rankable_job_count ?? 0} ready to rank`,
         `${summary.top_job_count ?? 0}/5 Top 5`,
@@ -1243,6 +1255,7 @@ function Applications({
 function sourceGroup(source: SourceConnector): SourceGroup {
   if (source.current_blocker) return "Needs attention";
   if (normalize(source.source_role) === "sensor") return "Market sensors";
+  if (["manual only", "manual_only"].includes(normalize(source.ingestion_authority?.status))) return "Manual only";
   if (source.activation.active === true) {
     if (normalize(source.last_ingestion.status) === "success" && source.last_ingestion.total_loaded > 0) return "Delivering now";
     if (normalize(source.last_ingestion.status) === "success" && source.last_ingestion.total_loaded === 0) return "Active, 0 current jobs";
@@ -1255,7 +1268,7 @@ function sourceGroup(source: SourceConnector): SourceGroup {
 function Sources({ payload }: { payload: ProductPayload }) {
   const sources = payload.source_connector_overview.sources;
   const overview = payload.source_connector_overview.summary;
-  const groups: SourceGroup[] = ["Needs attention", "Delivering now", "Active, 0 current jobs", "Market sensors", "Pending", "Not implemented"];
+  const groups: SourceGroup[] = ["Needs attention", "Delivering now", "Active, 0 current jobs", "Manual only", "Market sensors", "Pending", "Not implemented"];
   const groupCounts = Object.fromEntries(
     groups.map((group) => [group, sources.filter((source) => sourceGroup(source) === group).length]),
   ) as Record<SourceGroup, number>;
@@ -1266,6 +1279,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     sources.find((source) => source.current_blocker)?.source_name ||
     sources.find((source) => sourceGroup(source) === "Delivering now")?.source_name ||
     sources.find((source) => sourceGroup(source) === "Active, 0 current jobs")?.source_name ||
+    sources.find((source) => sourceGroup(source) === "Manual only")?.source_name ||
     sources.find((source) => sourceGroup(source) === "Market sensors")?.source_name ||
     sources[0]?.source_name || ""
   );
@@ -1274,6 +1288,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
     { id: "Needs attention", label: "Needs attention", count: groupCounts["Needs attention"] },
     { id: "Delivering now", label: "Delivering jobs", count: groupCounts["Delivering now"] },
     { id: "Active, 0 current jobs", label: "Active · no jobs", count: groupCounts["Active, 0 current jobs"] },
+    { id: "Manual only", label: "Manual only", count: groupCounts["Manual only"] },
     { id: "Market sensors", label: "Market discovery", count: groupCounts["Market sensors"] },
     { id: "Pending", label: "Setup pending", count: groupCounts.Pending },
     { id: "Not implemented", label: "Not connected", count: groupCounts["Not implemented"] },
@@ -1293,20 +1308,20 @@ function Sources({ payload }: { payload: ProductPayload }) {
     visible[0] ||
     null;
   const sensorContractReady =
-    payload.source_connector_overview.schema_version === "pipeline.source_connector_overview.v5"
+    payload.source_connector_overview.schema_version === "pipeline.source_connector_overview.v6"
     && (overview.verified_discovery_evidence_count ?? 0) >= 7;
   const summaryTruth = [
     ["Employer sources", overview.employer_origin_count],
+    ["Recurring authorized", overview.employer_origin_recurring_authorized_count ?? 0],
+    ["Manual only", overview.employer_origin_manual_only_count ?? 0],
     ["Delivering jobs", overview.active_last_run_loaded_count],
-    ["Active · no current jobs", overview.active_last_run_zero_count],
     ["Discovery coverage", overview.discovery_coverage_count ?? overview.sensor_count],
-    ["New employer leads", overview.discovery_lead_count ?? 0],
     ["Needs attention", overview.attention_count],
   ] as Array<[string, number]>;
 
   return <div className="ow-stack">
     <header className="ow-page-header"><div><span>Where jobs come from</span><h1>Sources</h1><p>See which employer sources currently deliver jobs, which discovery channels expand coverage and where attention is needed.</p></div><strong className="ow-big-count">{sources.length}</strong></header>
-    {!sensorContractReady && <div className="ow-callout warn"><b>Market discovery runtime mismatch</b><span>The installed UI expects the v5 market-sensor evidence contract. Restart/update the JAP runtime before trusting discovery counts or sensor yield.</span></div>}
+    {!sensorContractReady && <div className="ow-callout warn"><b>Market discovery runtime mismatch</b><span>The installed UI expects the v6 source-authority evidence contract. Restart/update the JAP runtime before trusting discovery counts or sensor yield.</span></div>}
     <section className="ow-source-summary-strip">
       {summaryTruth.map(([name, value]) => <div key={name}><span>{name}</span><b>{value}</b></div>)}
     </section>
@@ -1364,16 +1379,19 @@ function Sources({ payload }: { payload: ProductPayload }) {
           <div><span>Verified</span><b>{label(selected.gates.connector_validation_gate.status)}</b></div>
           <div><span>Ready for use</span><b>{label(selected.gates.final_approval_gate.status)}</b></div>
           <div><span>Status</span><b>{label(selected.activation.status)}</b></div>
+          <div><span>Ingestion authority</span><b>{label(selected.ingestion_authority?.status)}</b></div>
           <div><span>Last check</span><b>{selected.discovery_evidence ? "verified sensor flight" : label(selected.last_ingestion.status)}</b></div>
           <div><span>Jobs found</span><b>{selected.discovery_evidence ? `${selected.discovery_evidence.qualifying_jobs} qualifying` : `${selected.last_ingestion.total_loaded} found · ${selected.last_ingestion.inserted_count} new`}</b></div>
-          <div><span>Search setup</span><b>{selected.discovery_evidence ? `${selected.discovery_evidence.search_term_count} terms · ${selected.discovery_evidence.location_signals.length} markets` : `${selected.search_profiles.active_profile_count}/${selected.search_profiles.profile_count} active`}</b></div>
+          <div><span>Search setup</span><b>{selected.discovery_evidence ? `${selected.discovery_evidence.search_term_count} terms · ${selected.discovery_evidence.location_signals.length} markets` : `${selected.search_profiles.active_profile_count}/${selected.search_profiles.profile_count} active · ${selected.search_profiles.recurring_profile_count ?? 0} recurring`}</b></div>
           <div><span>Data coverage</span><b>Raw {selected.layers.bronze_count} · normalized {selected.layers.silver_count}</b></div>
         </div>
         {selected.current_blocker
           ? <div className="ow-callout warn"><b>Next step</b><span>{selected.next_action}</span></div>
           : isCoverageTarget(selected)
             ? <div className="ow-callout info"><b>Coverage target · not directly connected</b><span>Discovery evidence is obtained through the qualified external-index path. Employer leads still require direct Employer-Origin verification before Product promotion.</span></div>
-            : <div className="ow-callout good"><b>No action needed</b><span>This source is currently ready to use.</span></div>}
+            : ["manual only", "manual_only"].includes(normalize(selected.ingestion_authority?.status))
+              ? <div className="ow-callout info"><b>Manual execution only</b><span>This connector may be run explicitly, but recurring ingestion is not authorized.</span></div>
+              : <div className="ow-callout good"><b>No action needed</b><span>This source is currently ready to use.</span></div>}
       </article>}
     </section>
   </div>;

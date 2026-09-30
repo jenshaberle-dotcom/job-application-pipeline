@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useProductTruth } from "./ProductTruthContext";
 import F6TemplateReviewEditor from "./F6TemplateReviewEditor";
-import "./demo-application-workspace.css";
+import "./application-workspace.css";
 
 type TopJob = {
   silver_job_id: number;
@@ -16,8 +16,6 @@ type TopJob = {
   lifecycle_status?: string | null;
   origin_validation_status?: string | null;
   hard_filter_status?: string | null;
-  demo_live_verified?: boolean;
-  demo_live_reason?: string | null;
 };
 
 type ApplicationStage = "prepared" | "applied" | "reply" | "interview" | "offer" | "closed";
@@ -593,20 +591,20 @@ export default function ApplicationWorkspace() {
 
   if (!open) return null;
 
-  return <div className="demo-application-backdrop" role="presentation" onMouseDown={(event) => {
+  return <div className="application-application-backdrop" role="presentation" onMouseDown={(event) => {
     if (event.currentTarget === event.target) setOpen(false);
   }}>
-    <section className="demo-application-workspace" role="dialog" aria-modal="true" aria-label="Application Builder">
-      <header className="demo-application-header">
+    <section className="application-application-workspace" role="dialog" aria-modal="true" aria-label="Application Builder">
+      <header className="application-application-header">
         <div>
-          <span className="demo-eyebrow">Application Builder</span>
+          <span className="application-eyebrow">Application Builder</span>
           <h1>Application Builder</h1>
           <p>The job you selected stays the application target. Change it only explicitly.</p>
         </div>
-        <button type="button" className="demo-close" onClick={() => { setChooserOpen(false); setOpen(false); }}>×</button>
+        <button type="button" className="application-close" onClick={() => { setChooserOpen(false); setOpen(false); }}>×</button>
       </header>
 
-      <div className="demo-journey" aria-label="Application preparation journey">
+      <div className="application-journey" aria-label="Application preparation journey">
         <span className="done"><b>1</b>Discover</span>
         <i />
         <span className="done"><b>2</b>Verify</span>
@@ -616,38 +614,38 @@ export default function ApplicationWorkspace() {
         <span className="active"><b>4</b>Prepare</span>
       </div>
 
-      <div className="demo-safety-banner">
+      <div className="application-safety-banner">
         <strong>REVIEW REQUIRED</strong>
         <span>Nothing is submitted or sent automatically.</span>
       </div>
 
-      <div className="demo-application-shell demo-application-shell-direct">
-        <main className="demo-application-main">
-          {selectedJob && <section className="demo-selected-job">
-            <div className="demo-selected-copy">
-              <span className="demo-eyebrow">{selectedJob.product_rank ? "Selected Top-5 recommendation" : "Selected current job"}</span>
+      <div className="application-application-shell application-application-shell-direct">
+        <main className="application-application-main">
+          {selectedJob && <section className="application-selected-job">
+            <div className="application-selected-copy">
+              <span className="application-eyebrow">{selectedJob.product_rank ? "Selected Top-5 recommendation" : "Selected current job"}</span>
               <h2>{selectedJob.title}</h2>
               <p>{selectedJob.company_name} · {selectedJob.city || "Location unconfirmed"}</p>
             </div>
-            <div className="demo-selected-actions">
+            <div className="application-selected-actions">
               <button
                 type="button"
-                className="demo-change-job"
+                className="application-change-job"
                 onClick={() => setChooserOpen((value) => !value)}
               >
                 Change job
               </button>
-              <div className="demo-score-ring" aria-label={`${percent(affinityScore(selectedJob))} ${selectedJob.product_rank ? "Product score" : "Affinity"}`}>
+              <div className="application-score-ring" aria-label={`${percent(affinityScore(selectedJob))} ${selectedJob.product_rank ? "Product score" : "Affinity"}`}>
                 <strong>{percent(affinityScore(selectedJob))}</strong>
                 <span>{selectedJob.product_rank ? "Product score" : "Affinity"}</span>
               </div>
             </div>
           </section>}
 
-          {chooserOpen && <section className="demo-job-chooser" aria-label="Change application target">
+          {chooserOpen && <section className="application-job-chooser" aria-label="Change application target">
             <header>
               <div>
-                <span className="demo-eyebrow">Change application target</span>
+                <span className="application-eyebrow">Change application target</span>
                 <h3>Find another current job</h3>
                 <small>{applicationJobs.length} jobs can still enter the review-only preparation flow.</small>
               </div>
@@ -661,7 +659,7 @@ export default function ApplicationWorkspace() {
               placeholder="Search title, employer or location…"
               aria-label="Search application target jobs"
             />
-            <div className="demo-job-chooser-results">
+            <div className="application-job-chooser-results">
               {chooserJobs.map((job) => <button
                 type="button"
                 key={job.silver_job_id}
@@ -679,19 +677,19 @@ export default function ApplicationWorkspace() {
             {applicationJobs.length > chooserJobs.length && !jobQuery.trim() && <footer>Showing the 10 highest-Affinity selectable jobs. Search to reach the rest.</footer>}
           </section>}
 
-          {!selectedJob && <div className="demo-error"><b>Exact target unavailable</b><span>The requested job is no longer selectable. Close this workspace and choose another job from All jobs.</span></div>}
+          {!selectedJob && <div className="application-error"><b>Exact target unavailable</b><span>The requested job is no longer selectable. Close this workspace and choose another job from All jobs.</span></div>}
 
-          {loading && <div className="demo-loading">Loading the current vacancy, your profile evidence and source documents…</div>}
-          {error && <div className="demo-error"><b>Cannot continue safely</b><span>{error}</span></div>}
+          {loading && <div className="application-loading">Loading the current vacancy, your profile evidence and source documents…</div>}
+          {error && <div className="application-error"><b>Cannot continue safely</b><span>{error}</span></div>}
 
-          {!loading && workspace && <div className="demo-application-grid">
-            <article className="demo-workspace-card demo-context-card">
+          {!loading && workspace && <div className="application-application-grid">
+            <article className="application-workspace-card application-context-card">
               <header>
-                <span className="demo-eyebrow">Verified context</span>
+                <span className="application-eyebrow">Verified context</span>
                 <h3>{generationReady ? "Ready for drafting" : "Context blocked"}</h3>
               </header>
 
-              <div className="demo-readiness-list">
+              <div className="application-readiness-list">
                 <div className={readinessTone(vacancyReady)}><i /><span>Vacancy</span><b>{vacancyReady ? "Live vacancy verified" : "Evidence required"}</b></div>
                 <div className={readinessTone(originAuthorized)}><i /><span>Employer source</span><b>{originAuthorized ? "Verified" : "Verification required"}</b></div>
                 <div className={readinessTone(candidateFactsReady)}><i /><span>Profile evidence</span><b>{candidateFactsReady ? `${claimPlan.length} matched facts` : "Evidence required"}</b></div>
@@ -706,7 +704,7 @@ export default function ApplicationWorkspace() {
                 <div className="ready"><i /><span>Submission boundary</span><b>Review only · no auto-submit</b></div>
               </div>
 
-              <div className="demo-blockers">
+              <div className="application-blockers">
                 <b>How should JAP prepare this application?</b>
                 <label><input
                   type="radio"
@@ -721,8 +719,8 @@ export default function ApplicationWorkspace() {
                   onChange={() => { setGenerationMode("local_private"); setDraft(null); }}
                 /> Local only — send no CV, letter or vacancy text to an LLM; preserve wording and edit locally</label>
               </div>
-              {workspaceBlockers.length > 0 && <div className="demo-blockers"><b>What still blocks this application?</b>{workspaceBlockers.map((item) => <span key={item}>{normalized(item)}</span>)}</div>}
-              {codexRequired && !codexReady && <div className="demo-blockers">
+              {workspaceBlockers.length > 0 && <div className="application-blockers"><b>What still blocks this application?</b>{workspaceBlockers.map((item) => <span key={item}>{normalized(item)}</span>)}</div>}
+              {codexRequired && !codexReady && <div className="application-blockers">
                 <b>What still blocks automatic CV + letter adaptation?</b>
                 <span>{codexStatus?.installed
                   ? `Bundled Codex ${codexStatus.version || ""} is present, but this WSL runtime is not signed in with ChatGPT.`
@@ -740,16 +738,16 @@ export default function ApplicationWorkspace() {
                 {codexLogin?.status === "failed" && <span>{codexLogin.detail || "ChatGPT sign-in did not complete."}</span>}
               </div>}
 
-              <details className="demo-evidence-details">
+              <details className="application-evidence-details">
                 <summary>Evidence details</summary>
-                <div className="demo-evidence-meta">
+                <div className="application-evidence-meta">
                   <span>Current vacancy</span><b>{workspace.live_job_evidence?.fetched_title || "Validated source"}</b>
                   <span>Detail fingerprint</span><code>{workspace.live_job_evidence?.detail_sha256?.slice(0, 12) || "—"}</code>
                 </div>
-                {claimPlan.length > 0 && <div className="demo-claim-plan">{claimPlan.slice(0, 5).map((entry) => <div key={entry.fact_key}><b>{entry.statement || entry.fact_key}</b><small>{entry.job_references?.map((reference) => reference.evidence).filter(Boolean).join(" · ") || "No exact vacancy match"}</small></div>)}</div>}
+                {claimPlan.length > 0 && <div className="application-claim-plan">{claimPlan.slice(0, 5).map((entry) => <div key={entry.fact_key}><b>{entry.statement || entry.fact_key}</b><small>{entry.job_references?.map((reference) => reference.evidence).filter(Boolean).join(" · ") || "No exact vacancy match"}</small></div>)}</div>}
               </details>
 
-              <button type="button" className="demo-generate-button" disabled={!generationReady || (codexRequired && !codexReady) || drafting} onClick={() => void generateDraft()}>
+              <button type="button" className="application-generate-button" disabled={!generationReady || (codexRequired && !codexReady) || drafting} onClick={() => void generateDraft()}>
                 {drafting
                   ? "Preparing review text…"
                   : codexRequired && !codexReady
@@ -764,9 +762,9 @@ export default function ApplicationWorkspace() {
               </button>
             </article>
 
-            <article className="demo-workspace-card demo-draft-card">
+            <article className="application-workspace-card application-draft-card">
               <header>
-                <span className="demo-eyebrow">Prepared application</span>
+                <span className="application-eyebrow">Prepared application</span>
                 <h3>{drafting
                   ? "Your application documents are being created"
                   : draft?.status === "draft_for_review"
@@ -776,8 +774,8 @@ export default function ApplicationWorkspace() {
                       : "Waiting for your action"}</h3>
               </header>
 
-              {drafting && <div className="demo-drafting-progress" role="status" aria-live="polite">
-                <div className="demo-drafting-progress-head">
+              {drafting && <div className="application-drafting-progress" role="status" aria-live="polite">
+                <div className="application-drafting-progress-head">
                   <div>
                     <strong>Your application documents are being created</strong>
                     <span>{draftProgress?.message || "ChatGPT Codex is working on your CV and cover letter."}</span>
@@ -785,7 +783,7 @@ export default function ApplicationWorkspace() {
                   <b>{draftProgressPercent}%</b>
                 </div>
                 <div
-                  className="demo-drafting-progress-track"
+                  className="application-drafting-progress-track"
                   role="progressbar"
                   aria-valuemin={0}
                   aria-valuemax={100}
@@ -793,7 +791,7 @@ export default function ApplicationWorkspace() {
                 >
                   <i style={{ width: `${Math.max(3, draftProgressPercent)}%` }} />
                 </div>
-                <div className="demo-drafting-telemetry">
+                <div className="application-drafting-telemetry">
                   <span>{codexStatus?.model || "gpt-5.6-sol"} · reasoning {codexStatus?.reasoning_effort || "high"}</span>
                   <span>{(draftProgress?.provider_request || 0) > 0
                     ? `AI drafting pass ${draftProgress?.provider_request}/${draftProgress?.provider_request_limit || 3}`
@@ -801,12 +799,12 @@ export default function ApplicationWorkspace() {
                   <span>Elapsed {draftElapsedLabel}</span>
                 </div>
                 <small
-                  className="demo-progress-explainer"
+                  className="application-progress-explainer"
                   title="Progress only advances after JAP verifies a completed step. While Codex is generating text, the bar remains at the current verified phase."
                 >ⓘ Progress is based on completed JAP steps.</small>
               </div>}
 
-              {draft?.status === "draft_unavailable" && <div className="demo-error">
+              {draft?.status === "draft_unavailable" && <div className="application-error">
                 <b>{["codex_auth_required", "codex_chatgpt_auth_required"].includes(draft.reason_code || "")
                   ? "One-time ChatGPT sign-in required"
                   : draft.reason_code === "codex_capacity_unavailable"
@@ -819,30 +817,30 @@ export default function ApplicationWorkspace() {
               </div>}
 
               {draft?.status === "draft_for_review" && draft.package ? <>
-                <div className="demo-draft-badge">{draftModeLabel(draft.draft_mode)} · REVIEW REQUIRED</div>
-                {draft.base_cv_text_shared_with_codex && draft.base_application_letter_text_shared_with_codex && <p className="demo-provider-context-note">Drafting used the current CV, current cover letter and exact vacancy together. Your profile evidence remains the factual basis; the previous letter is style/structure reference only. No submission or send action occurred.</p>}
-                {draft.draft_mode === "local_private_edit" && <p className="demo-provider-context-note">Local-only mode made zero LLM/provider requests. Existing descriptive wording stays local and unchanged until you edit it; JAP only prepares target/date metadata automatically, then the same exact PDF renderer verifies the result.</p>}
-                {draft.base_document_text_shared_with_provider && <p className="demo-provider-context-note">The extracted text of your two approved base documents was used for this explicit generation request as style and structure context. No submission or send action occurred.</p>}
-                {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
-                {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain grounded in approved profile evidence and the exact vacancy.</p>}
+                <div className="application-draft-badge">{draftModeLabel(draft.draft_mode)} · REVIEW REQUIRED</div>
+                {draft.base_cv_text_shared_with_codex && draft.base_application_letter_text_shared_with_codex && <p className="application-provider-context-note">Drafting used the current CV, current cover letter and exact vacancy together. Your profile evidence remains the factual basis; the previous letter is style/structure reference only. No submission or send action occurred.</p>}
+                {draft.draft_mode === "local_private_edit" && <p className="application-provider-context-note">Local-only mode made zero LLM/provider requests. Existing descriptive wording stays local and unchanged until you edit it; JAP only prepares target/date metadata automatically, then the same exact PDF renderer verifies the result.</p>}
+                {draft.base_document_text_shared_with_provider && <p className="application-provider-context-note">The extracted text of your two approved base documents was used for this explicit generation request as style and structure context. No submission or send action occurred.</p>}
+                {draft.package.rationale && <p className="application-boundary-note">{draft.package.rationale}</p>}
+                {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="application-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain grounded in approved profile evidence and the exact vacancy.</p>}
 
-                <section className="demo-application-downloads">
+                <section className="application-application-downloads">
                   <header><strong>Document templates</strong><span>{templateAuthority?.status === "ready" ? "2/2 private PDFs verified" : "source templates required"}</span></header>
-                  <p className="demo-boundary-note">JAP keeps the PDF layout fixed, edits only the intended text areas and verifies the surrounding layout. Portrait, signature, rules and geometry remain unchanged.</p>
+                  <p className="application-boundary-note">JAP keeps the PDF layout fixed, edits only the intended text areas and verifies the surrounding layout. Portrait, signature, rules and geometry remain unchanged.</p>
                 </section>
 
-                <section className="demo-document">
+                <section className="application-document">
                   <header><span>CV adaptation</span><small>complete review copy</small></header>
-                  {draftPreview?.cv_short_profile && <div className="demo-draft-fragment"><p>{draftPreview.cv_short_profile}</p></div>}
-                  {draftPreview?.cv_competency_profile && <div className="demo-draft-fragment"><p>{draftPreview.cv_competency_profile}</p></div>}
-                  {!draftPreview && cvFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
+                  {draftPreview?.cv_short_profile && <div className="application-draft-fragment"><p>{draftPreview.cv_short_profile}</p></div>}
+                  {draftPreview?.cv_competency_profile && <div className="application-draft-fragment"><p>{draftPreview.cv_competency_profile}</p></div>}
+                  {!draftPreview && cvFragments.map((fragment, index) => <div className="application-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
                 </section>
 
-                <section className="demo-document">
+                <section className="application-document">
                   <header><span>Application letter</span><small>complete review copy</small></header>
                   {draftPreview?.application_letter
-                    ? draftPreview.application_letter.split("\n\n").filter(Boolean).map((paragraph, index) => <div className="demo-draft-fragment" key={`codex-letter-${index}`}><p>{paragraph}</p></div>)
-                    : letterFragments.map((fragment, index) => <div className="demo-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
+                    ? draftPreview.application_letter.split("\n\n").filter(Boolean).map((paragraph, index) => <div className="application-draft-fragment" key={`codex-letter-${index}`}><p>{paragraph}</p></div>)
+                    : letterFragments.map((fragment, index) => <div className="application-draft-fragment" key={`${fragment.kind}-${index}`}><p>{fragment.text}</p></div>)}
                 </section>
 
                 {selectedId != null && draft.package.source_manifest_sha256 && <F6TemplateReviewEditor
@@ -852,14 +850,14 @@ export default function ApplicationWorkspace() {
                   manualEditingRequired={draft.draft_mode === "local_private_edit"}
                 />}
 
-                <details className="demo-evidence-details demo-audit-details">
+                <details className="application-evidence-details application-audit-details">
                   <summary>Audit details</summary>
                   {draft.draft_mode === "codex_embedded_v1"
-                    ? <div className="demo-claim-plan"><div><b>Embedded Codex</b><small>{draft.codex_model || "configured model"} · reasoning {draft.codex_reasoning_effort || codexStatus?.reasoning_effort || "configured"} · {draft.codex_version || "version unavailable"} · current CV + current letter + vacancy</small></div></div>
-                    : <div className="demo-claim-plan">{draftFragments.map((fragment, index) => <div key={`${fragment.kind}-${index}`}><b>{fragment.kind}</b><small>{fragment.candidate_fact_keys?.join(", ") || "no candidate claim"}{fragment.job_evidence?.length ? ` · ${fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}` : ""}</small></div>)}</div>}
+                    ? <div className="application-claim-plan"><div><b>Embedded Codex</b><small>{draft.codex_model || "configured model"} · reasoning {draft.codex_reasoning_effort || codexStatus?.reasoning_effort || "configured"} · {draft.codex_version || "version unavailable"} · current CV + current letter + vacancy</small></div></div>
+                    : <div className="application-claim-plan">{draftFragments.map((fragment, index) => <div key={`${fragment.kind}-${index}`}><b>{fragment.kind}</b><small>{fragment.candidate_fact_keys?.join(", ") || "no candidate claim"}{fragment.job_evidence?.length ? ` · ${fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}` : ""}</small></div>)}</div>}
                   <footer><span>AI requests: {draft.codex_requests ?? draft.provider_requests ?? 0}</span><span>Layout checks: {draft.layout_repair_attempts ?? 0} AI · {draft.automatic_layout_repairs?.length ?? 0} local</span><span>Content checks: {draft.automatic_semantic_repairs?.length ?? 0}</span><span>Submission actions: {draft.submission_writes ?? 0}</span><span>Email send actions: {draft.send_actions ?? 0}</span></footer>
                 </details>
-              </> : <div className="demo-empty-draft">
+              </> : <div className="application-empty-draft">
                 <strong>Document generation is review-first.</strong>
                 <p>When factual context and both exact templates are ready, the system may draft text for review. The verified renderer then enables local PDF review and export without submitting anything.</p>
               </div>}

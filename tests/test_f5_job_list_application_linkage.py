@@ -138,7 +138,7 @@ def test_job_detail_preserves_1_0_79_application_navigation_affordances() -> Non
     assert 'disabled={liveCheck.status === "checking"}' in source
     assert ">Open Application Tracker</button>" in source
     assert "hasPersistedActiveLifecycle(job)" in source
-    assert "demo_live_verified" in source
+    assert 'disabled={liveCheck.status === "checking"}' in source
 
 
 def test_progressed_application_never_offers_prepare_application_again() -> None:

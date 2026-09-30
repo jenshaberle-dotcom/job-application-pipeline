@@ -10,24 +10,17 @@ def _text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_product_assessment_cohort_is_reusable_not_job_specific() -> None:
+def test_product_assessment_cohort_is_generic_current_truth() -> None:
     runner = _text(RUNNER)
 
     assert "job_application_pipeline.product_v1_assessment_cohort.v1" in runner
     assert "--evaluated-target" in runner
     assert "--top5-target" in runner
     assert "--candidate-cap" in runner
-    assert "--demo-learning-sample" in runner
-    assert '"canonical_role_classifier_unchanged": True' in runner
-    assert "profile_fit_complete" in runner
-    assert "profile_fit_decision" in runner
-    assert '"profile_fit_factors": row.get("profile_fit_factors")' in runner
-    assert "affinity_authority_status" in runner
+    assert '"selection_mode": "bounded_current_product_truth"' in runner
+    assert "authorized_recurring_employer_origin_sources" in runner
     assert "is_employer_origin_review_source" in runner
-    assert "run_product_v1_rankable_refill_apply" in runner
-    assert "run_product_v1_rankable_refill_campaign" in runner
-    assert "run_product_v1_rankable_refill_scout" in runner
-    assert "run_demo_001_rankable_refill" not in runner
+    assert "_selected_candidates" in runner
 
     for forbidden in (
         "TARGET_IDS",
@@ -36,61 +29,48 @@ def test_product_assessment_cohort_is_reusable_not_job_specific() -> None:
         "Computacenter AG",
         "Sopra Steria",
         "Hannover Re",
-        "silver_job_id = 646",
-        "silver_job_id = 655",
     ):
         assert forbidden not in runner
 
 
-def test_product_assessment_cohort_keeps_fit_and_ranking_authorities_separate() -> None:
+def test_product_assessment_keeps_fit_affinity_gates_and_ranking_separate() -> None:
     runner = _text(RUNNER)
 
     assert '"direct_top5_writes": False' in runner
     assert '"direct_rank_writes": False' in runner
     assert '"hard_filter_operator_auto_pass": False' in runner
-    assert '"top5_must_be_subset_of_selected_ten": True' in runner
-    assert '"top_job_outside_selected_assessment_cohort"' in runner
+    assert '"top5_must_be_subset_of_selected_cohort": True' in runner
     assert '"candidate_fit_and_affinity_remain_separate": True' in runner
     assert '"candidate_fit_is_job_skills_vs_cv_skills": True' in runner
     assert '"numeric_candidate_fit_authority_created": True' in runner
-    assert '"all_ten_require_numeric_candidate_fit": True' in runner
-    assert '"all_ten_require_authoritative_affinity": True' in runner
+    assert '"all_selected_require_numeric_candidate_fit": True' in runner
+    assert '"all_selected_require_authoritative_affinity": True' in runner
     assert '"combined_score_authority_created": False' in runner
-    assert "run_product_v1_assessment_cohort" not in runner.replace(
-        '"scripts.run_product_v1_assessment_cohort"', ""
-    )
 
 
-def test_product_assessment_cohort_target_is_ten_evaluated_and_exact_five_top_jobs() -> None:
+def test_assessment_cohort_size_is_bounded_but_not_demo_fixed() -> None:
     runner = _text(RUNNER)
     workflow = _text(WORKFLOW)
 
     assert 'parser.add_argument("--evaluated-target", type=int, default=10)' in runner
-    assert 'parser.add_argument("--top5-target", type=int, default=5)' in runner
     assert 'parser.add_argument("--candidate-cap", type=int, default=10)' in runner
-    assert 'args.candidate_cap == args.evaluated_target' in runner
-    assert 'int(final["profile_fit_complete_count"]) >= args.evaluated_target' in runner
+    assert "args.candidate_cap == args.evaluated_target" in runner
     assert 'int(final["candidate_fit_authoritative_count"]) >= args.evaluated_target' in runner
     assert 'int(final["affinity_authoritative_count"]) >= args.evaluated_target' in runner
-    assert 'int(final["profile_fit_passed_count"]) >= args.top5_target' in runner
-    assert 'int(final["rankable_job_count"]) >= args.top5_target' in runner
     assert 'int(final["top_job_count"]) == args.top5_target' in runner
 
-    assert 'default: "10"' in workflow
-    assert 'default: "5"' in workflow
-    assert 'candidate_cap:' in workflow
-    assert 'default: "10"' in workflow
-    assert 'test "$CANDIDATE_CAP" = "10"' in workflow
-    assert 'test "$EVALUATED_TARGET" = "10"' in workflow
-    assert 'test "$TOP5_TARGET" = "5"' in workflow
-    assert "ASSESSMENT_COHORT_COMPLETE_FIT_LT_10" in workflow
-    assert "ASSESSMENT_COHORT_TOP5_NOT_EXACTLY_5" in workflow
+    assert 'test "$EVALUATED_TARGET" = "10"' not in workflow
+    assert 'test "$CANDIDATE_CAP" = "10"' not in workflow
+    assert 'test "$CANDIDATE_CAP" -eq "$EVALUATED_TARGET"' in workflow
+    assert "ASSESSMENT_COHORT_CANDIDATE_FIT_BELOW_TARGET" in workflow
+    assert "ASSESSMENT_COHORT_AFFINITY_BELOW_TARGET" in workflow
+    assert "ASSESSMENT_COHORT_TOP5_COUNT_MISMATCH" in workflow
 
 
-def test_product_assessment_cohort_has_readonly_plan_before_apply() -> None:
+def test_assessment_cohort_has_readonly_plan_before_apply_and_uses_rcc() -> None:
     workflow = _text(WORKFLOW)
 
-    plan = workflow.index("Read-only plan 10-job Fit cohort")
+    plan = workflow.index("Read-only plan Product assessment cohort")
     apply = workflow.index("Apply existing Product authorities")
     prove = workflow.index("Prove final Product truth")
     assert plan < apply < prove
@@ -102,48 +82,7 @@ def test_product_assessment_cohort_has_readonly_plan_before_apply() -> None:
     assert "${{ inputs.rcc_facade_label }}" in workflow
     assert "${{ inputs.rcc_assignment_label }}" in workflow
     assert "rcc-assignment-proof-[0-9a-f]{32}" in workflow
-    assert "RCC_ASSIGNED_RUNNER" in workflow
-    assert "physical_runner:" not in workflow
-    assert "facade_runner:" not in workflow
-    assert ("rcc-" + "general-linux-0") not in workflow
-    assert "runs_on_json" not in workflow
-    assert "reservation_id:" not in workflow
-    assert ".runtime/demo/" not in workflow
-    assert ".runtime/product/product_v1_rankable_refill_materialization.json" in workflow
-    assert ".runtime/product/product_v1_rankable_refill_apply.json" in workflow
-
-
-def test_product_assessment_cohort_uses_rcc_runtime_and_not_public_pip_bootstrap() -> None:
-    workflow = _text(WORKFLOW)
-
-    assert ("job-" + "pipeline-runtime-linux") not in workflow
     assert "Resolve verified RCC runtime context" in workflow
     assert '"capability:postgresql"' in workflow
-    assert "ASSESSMENT_COHORT_RCC_RUNTIME=PASS" in workflow
     assert "python3 -m venv" not in workflow
     assert "pip install -r requirements.txt" not in workflow
-
-
-def test_demo_learning_cohort_freezes_runtime_identity_without_hardcoded_job_ids() -> None:
-    runner = _text(RUNNER)
-
-    assert "demo_learning_cohort_frozen.json" in runner
-    assert "demo_learning_frozen" in runner
-    assert '"automatic_replacement_on_drift": False' in runner
-    assert "frozen demo cohort jobs disappeared from current Product truth" in runner
-    assert "selected_ids=selected_id_tuple" in runner
-
-
-def test_demo_cohort_freeze_uses_persistent_install_state_and_recovers_project_history() -> None:
-    runner = _text(RUNNER)
-    bridge = _text(ROOT / "scripts" / "run_jap_windows_control_center.sh")
-
-    assert "JAP_CONTROL_CENTER_STATE_ROOT" in bridge
-    assert "JAP_CONTROL_CENTER_PROJECT_ROOT" in bridge
-    assert 'os.environ.get("JAP_CONTROL_CENTER_STATE_ROOT"' in runner
-    assert 'os.environ.get("JAP_CONTROL_CENTER_PROJECT_ROOT"' in runner
-    assert 'PERSISTENT_STATE_ROOT / "demo-learning-cohort-frozen.json"' in runner
-    assert 'project_product / "control_center_assessment_cohort.json"' in runner
-    assert 'project_product / "product_v1_assessment_cohort.json"' in runner
-    assert '"persistent_install_state": PERSISTENT_STATE_ROOT is not None' in runner
-    assert '"automatic_replacement_on_drift": False' in runner

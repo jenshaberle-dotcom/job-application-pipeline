@@ -20,7 +20,7 @@ def test_runtime_launcher_is_unbuffered_and_uses_immutable_runtime_bundle() -> N
     assert "runtime-info.json" in runner
     assert "frontend/control-center/dist" in runner
     assert (
-        "launcher=(python -u scripts/run_product_v1_live_demo.py "
+        "launcher=(python -u scripts/run_jap_control_center_runtime.py "
         "--installed-runtime --reuse-frontend)" in runner
     )
     assert 'export JAP_CONTROL_CENTER_PINNED_SHA="$PINNED_SHA"' in runner

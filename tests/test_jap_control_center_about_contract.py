@@ -7,7 +7,7 @@ MAIN = SRC / "main.tsx"
 ABOUT = SRC / "AboutPanel.tsx"
 DATA_LAYERS = SRC / "DataLayersTab.tsx"
 ABOUT_CSS = SRC / "about-panel.css"
-LIVE_LAUNCHER = ROOT / "scripts" / "run_product_v1_live_demo.py"
+LIVE_LAUNCHER = ROOT / "scripts" / "run_jap_control_center_runtime.py"
 CANONICAL_SERVER = ROOT / "scripts" / "run_product_v1_control_center.py"
 VERSION = ROOT / "windows" / "JAP.ControlCenter.Desktop" / "VERSION"
 

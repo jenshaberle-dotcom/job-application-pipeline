@@ -3,7 +3,7 @@
 This is the product entrypoint for closing a bounded cohort from current,
 Employer-Origin vacancy evidence through the existing Assessment -> Candidate Fit
 -> hard-filter -> ranking authorities.  It deliberately reuses the already
-qualified lower-level refill implementation while removing demo-specific target
+qualified lower-level refill implementation while removing presentation-specific target
 semantics from the operator contract.
 
 No job id, company or rank is hard-coded here.  Candidate selection is derived
@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 import subprocess
 import sys
@@ -45,31 +44,11 @@ from src.ingestion.repository import JobIngestionRepository
 from scripts.product_v1_job_presentation_runtime import (
     is_employer_origin_review_source,
 )
-from src.search_intelligence.product_v1_demo_learning_sample import (
-    DEMO_REQUIRED_EMPLOYERS,
-    select_demo_learning_sample,
-)
-
 
 SCHEMA = "job_application_pipeline.product_v1_assessment_cohort.v1"
 APPROVAL_TOKEN = "PRODUCT-V1-ASSESSMENT-COHORT-001"
 DEFAULT_OUTPUT = Path(".runtime/product/product_v1_assessment_cohort.json")
 CONTROL_CENTER_REPORT = Path(".runtime/product/control_center_assessment_cohort.json")
-
-_PERSISTENT_STATE_RAW = os.environ.get("JAP_CONTROL_CENTER_STATE_ROOT", "").strip()
-_PROJECT_ROOT_RAW = os.environ.get("JAP_CONTROL_CENTER_PROJECT_ROOT", "").strip()
-PERSISTENT_STATE_ROOT = (
-    Path(_PERSISTENT_STATE_RAW).resolve() if _PERSISTENT_STATE_RAW else None
-)
-CANONICAL_PROJECT_ROOT = (
-    Path(_PROJECT_ROOT_RAW).resolve() if _PROJECT_ROOT_RAW else None
-)
-FROZEN_DEMO_COHORT = (
-    PERSISTENT_STATE_ROOT / "demo-learning-cohort-frozen.json"
-    if PERSISTENT_STATE_ROOT is not None
-    else Path(".runtime/product/demo_learning_cohort_frozen.json")
-)
-
 
 class ProductAssessmentCohortStop(RuntimeError):
     pass
@@ -80,99 +59,11 @@ def _require(condition: bool, message: str) -> None:
         raise ProductAssessmentCohortStop(message)
 
 
-def _report_selection_ids(path: Path, candidate_cap: int) -> tuple[int, ...]:
-    if not path.is_file():
-        return ()
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return ()
-    if not isinstance(payload, Mapping):
-        return ()
-    if payload.get("schema") == "job_application_pipeline.demo_learning_cohort_frozen.v1":
-        raw = payload.get("silver_job_ids")
-    else:
-        boundaries = payload.get("boundaries")
-        selection = payload.get("selection")
-        if not isinstance(boundaries, Mapping) or boundaries.get("demo_learning_sample") is not True:
-            return ()
-        if not isinstance(selection, Mapping):
-            return ()
-        jobs = selection.get("jobs")
-        raw = [
-            item.get("silver_job_id")
-            for item in jobs
-            if isinstance(item, Mapping)
-        ] if isinstance(jobs, list) else []
-    try:
-        ids = tuple(dict.fromkeys(int(value) for value in raw or [] if int(value) > 0))
-    except (TypeError, ValueError):
-        return ()
-    return ids if len(ids) == candidate_cap else ()
-
-
-def _load_frozen_demo_ids(candidate_cap: int) -> tuple[tuple[int, ...], str | None]:
-    candidates: list[Path] = [FROZEN_DEMO_COHORT]
-    if CANONICAL_PROJECT_ROOT is not None:
-        project_product = CANONICAL_PROJECT_ROOT / ".runtime" / "product"
-        candidates.extend(
-            [
-                project_product / "demo_learning_cohort_frozen.json",
-                project_product / "control_center_assessment_cohort.json",
-                project_product / "product_v1_assessment_cohort.json",
-            ]
-        )
-    candidates.extend([CONTROL_CENTER_REPORT, DEFAULT_OUTPUT])
-    seen: set[Path] = set()
-    for path in candidates:
-        resolved = path.resolve()
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        ids = _report_selection_ids(path, candidate_cap)
-        if ids:
-            return ids, str(path)
-    return (), None
-
-
-def _write_frozen_demo_cohort(
-    selected: list[dict[str, object]],
-    *,
-    recovered_from: str | None,
-) -> None:
-    payload = {
-        "schema": "job_application_pipeline.demo_learning_cohort_frozen.v1",
-        "silver_job_ids": [int(row["silver_job_id"]) for row in selected],
-        "jobs": [
-            {
-                "silver_job_id": int(row["silver_job_id"]),
-                "company_name": row.get("company_name"),
-                "title": row.get("title"),
-                "source_name": row.get("source_name"),
-            }
-            for row in selected
-        ],
-        "recovered_from": recovered_from,
-        "boundaries": {
-            "persistent_install_state": PERSISTENT_STATE_ROOT is not None,
-            "immutable_runtime_payload_mutation": False,
-            "job_ids_hard_coded_in_source": False,
-            "automatic_replacement_on_drift": False,
-        },
-    }
-    FROZEN_DEMO_COHORT.parent.mkdir(parents=True, exist_ok=True)
-    FROZEN_DEMO_COHORT.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-
-
 def _selection(
     candidate_cap: int,
-    *,
-    demo_learning_sample: bool,
-    frozen_ids: tuple[int, ...] = (),
 ) -> tuple[list[dict[str, object]], dict[str, object]]:
+    """Select a bounded cohort from current recurring-authorized Employer-Origin truth."""
+
     authorized = sorted(
         authorized_recurring_employer_origin_sources(JobIngestionRepository())
     )
@@ -183,51 +74,12 @@ def _selection(
         rows = _load_rows(
             conn,
             authorized_sources=authorized,
-            limit=100 if demo_learning_sample else max(60, candidate_cap * 5),
-            demo_learning_sample=demo_learning_sample,
+            limit=max(60, candidate_cap * 5),
         )
         conn.rollback()
 
     scouted = scout(rows=rows, facts=facts)
-    if demo_learning_sample and frozen_ids:
-        _require(
-            len(frozen_ids) == candidate_cap,
-            "frozen demo cohort cardinality drift",
-        )
-        by_id = {int(row["silver_job_id"]): row for row in scouted}
-        missing = sorted(set(frozen_ids) - set(by_id))
-        _require(
-            not missing,
-            "frozen demo cohort jobs disappeared from current Product truth: "
-            + ",".join(str(value) for value in missing),
-        )
-        selected = [dict(by_id[value]) for value in frozen_ids]
-        for row in selected:
-            _require(
-                row.get("live_outcome") == "seen_active",
-                f"frozen demo job is no longer live: {row['silver_job_id']}",
-            )
-            _require(
-                row.get("geography_eligible") is True,
-                f"frozen demo job left approved geography: {row['silver_job_id']}",
-            )
-            matches = row.get("candidate_fact_matches")
-            _require(
-                isinstance(matches, list) and bool(matches),
-                f"frozen demo job lost Candidate Fact capability evidence: {row['silver_job_id']}",
-            )
-        selection_mode = "demo_learning_frozen"
-    else:
-        selected = (
-            select_demo_learning_sample(
-                scouted,
-                candidate_cap=candidate_cap,
-                required_employers=DEMO_REQUIRED_EMPLOYERS,
-            )
-            if demo_learning_sample
-            else _selected_candidates(scouted, candidate_cap=candidate_cap)
-        )
-        selection_mode = "demo_learning_sample" if demo_learning_sample else "canonical"
+    selected = _selected_candidates(scouted, candidate_cap=candidate_cap)
     diagnostics = {
         "authorized_source_count": len(authorized),
         "approved_capability_fact_count": len(facts),
@@ -235,7 +87,9 @@ def _selection(
         "live_active_count": sum(
             1 for row in scouted if row.get("live_outcome") == "seen_active"
         ),
-        "role_relevant_count": sum(1 for row in scouted if row.get("role_relevant") is True),
+        "role_relevant_count": sum(
+            1 for row in scouted if row.get("role_relevant") is True
+        ),
         "geography_eligible_count": sum(
             1 for row in scouted if row.get("geography_eligible") is True
         ),
@@ -243,11 +97,12 @@ def _selection(
             1 for row in scouted if int(row.get("matched_fact_count") or 0) > 0
         ),
         "selected_count": len(selected),
-        "selection_mode": selection_mode,
-        "frozen_selection": bool(demo_learning_sample and frozen_ids),
+        "selection_mode": "bounded_current_product_truth",
         "geography_buckets": {
             bucket: sum(
-                1 for row in scouted if str(row.get("geography_bucket") or "") == bucket
+                1
+                for row in scouted
+                if str(row.get("geography_bucket") or "") == bucket
             )
             for bucket in sorted(
                 {
@@ -267,7 +122,6 @@ def _run_existing_authorities(
     top5_target: int,
     reviewed_by: str,
     apply: bool,
-    demo_learning_sample: bool,
     selected_ids: tuple[int, ...] = (),
 ) -> int:
     command = [
@@ -281,8 +135,6 @@ def _run_existing_authorities(
         "--reviewed-by",
         reviewed_by,
     ]
-    if demo_learning_sample:
-        command.append("--demo-learning-sample")
     for job_id in selected_ids:
         command.extend(["--silver-job-id", str(job_id)])
     if apply:
@@ -442,7 +294,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reviewed-by", default="jens")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--approval-token")
-    parser.add_argument("--demo-learning-sample", action="store_true")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     return parser
 
@@ -463,19 +314,9 @@ def main() -> int:
             "invalid Product V1 assessment-cohort approval token",
         )
 
-    frozen_ids: tuple[int, ...] = ()
-    frozen_source: str | None = None
-    if args.demo_learning_sample:
-        frozen_ids, frozen_source = _load_frozen_demo_ids(args.candidate_cap)
-    selected, selection_diagnostics = _selection(
-        args.candidate_cap,
-        demo_learning_sample=args.demo_learning_sample,
-        frozen_ids=frozen_ids,
-    )
+    selected, selection_diagnostics = _selection(args.candidate_cap)
     selected_id_tuple = tuple(int(row["silver_job_id"]) for row in selected)
     selected_ids = set(selected_id_tuple)
-    if args.demo_learning_sample and args.apply and not FROZEN_DEMO_COHORT.is_file():
-        _write_frozen_demo_cohort(selected, recovered_from=frozen_source)
     enough_candidates = len(selected) >= args.evaluated_target
 
     authority_exit = 0
@@ -485,7 +326,6 @@ def main() -> int:
             top5_target=args.top5_target,
             reviewed_by=reviewed_by,
             apply=args.apply,
-            demo_learning_sample=args.demo_learning_sample,
             selected_ids=selected_id_tuple,
         )
 
@@ -513,8 +353,6 @@ def main() -> int:
         "selection": {
             "selected_count": len(selected),
             "enough_candidates": enough_candidates,
-            "frozen": bool(args.demo_learning_sample),
-            "frozen_source": frozen_source or ("new_runtime_freeze" if args.demo_learning_sample and args.apply else None),
             "jobs": [
                 {
                     "silver_job_id": int(row["silver_job_id"]),
@@ -542,15 +380,13 @@ def main() -> int:
             "selection_requires_current_employer_origin": True,
             "selection_requires_exact_live_vacancy": True,
             "selection_requires_approved_candidate_fact_match": True,
-            "top5_must_be_subset_of_selected_ten": True,
+            "top5_must_be_subset_of_selected_cohort": True,
             "candidate_fit_and_affinity_remain_separate": True,
             "candidate_fit_is_job_skills_vs_cv_skills": True,
             "numeric_candidate_fit_authority_created": True,
-            "all_ten_require_numeric_candidate_fit": True,
-            "all_ten_require_authoritative_affinity": True,
-            "demo_cohort_frozen": bool(args.demo_learning_sample),
+            "all_selected_require_numeric_candidate_fit": True,
+            "all_selected_require_authoritative_affinity": True,
             "combined_score_authority_created": False,
-            "demo_learning_sample": bool(args.demo_learning_sample),
             "canonical_role_classifier_unchanged": True,
         },
     }

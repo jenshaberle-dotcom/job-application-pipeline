@@ -20,11 +20,11 @@ The foundation is no longer entirely hypothetical:
   source-connector final-approval action;
 - job-review labels append reviewed evidence through a bounded action and do not
   mutate ranking, Top-5 membership, lifecycle or application state;
-- the DEMO-001 Application Workspace exposes one explicit review-draft generation
+- the Product Application Workspace exposes one explicit review-draft generation
   action, but that action grants no application approval, submission or send
   authority;
 - the wider candidate/gate repair action set described below remains planned and
-  must not be added to the 2026-09-03 demo critical path merely for presentation.
+  must not be added to the product path merely for presentation.
 
 The Jinja2 Search Intelligence Control Center remains an operational fallback.
 Its Agent Monitor is now DB-backed Agent Monitor v1, but it still summarizes
@@ -63,7 +63,7 @@ Already implemented examples:
 
 - reviewed source-connector final approval through the narrow React/API allowlist;
 - append-only Product V1 job-review labels;
-- explicit DEMO-001 `draft_for_review` generation after a ready Application
+- explicit Product `draft_for_review` generation after a ready Application
   Workspace, with no submission/send authority.
 
 Remaining recommended candidates are review actions that already have clear
@@ -91,14 +91,13 @@ Preferred language includes:
 - `historical pass superseded`;
 - `no runtime-health signal yet` when speaking specifically about runtime health.
 
-The demo should not introduce a second Agent Monitor dependency into the canonical
+The Product runtime should not introduce a second Agent Monitor dependency into the canonical
 Product V1 launcher. Agent Monitor v1 is supporting operational/backup evidence;
-the canonical DEMO-001 presentation remains the React Product V1 journey.
+the canonical operator surface remains the React Product V1 journey.
 
 ## Post-application boundary
 
 APP-TRACK-001 / issue #737 extends the future product journey beyond manual
 submission. Gmail communication classification will be evidence/event-candidate
-input, not silent application-state authority. It remains outside the DEMO-001
-readiness path and must not add Gmail/runtime dependencies before the 2026-09-03
-demo.
+input, not silent application-state authority. It remains outside the current readiness path and must not add Gmail/runtime dependencies
+without an explicit product contract.

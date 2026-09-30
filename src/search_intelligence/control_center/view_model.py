@@ -666,7 +666,7 @@ def orchestrator_items(orchestrator_steps: list[object]) -> list[dict[str, str]]
     return items
 
 
-def demo_chain_sections(candidates: list[object]) -> list[dict[str, str]]:
+def connector_chain_sections(candidates: list[object]) -> list[dict[str, str]]:
     success = next((candidate for candidate in candidates if is_active(candidate)), None)
     blocked = next((candidate for candidate in candidates if is_blocked(candidate)), None)
     return [
@@ -691,7 +691,7 @@ def demo_chain_sections(candidates: list[object]) -> list[dict[str, str]]:
             "company": "Search Intelligence loop",
             "status": "Controlled",
             "tone": "ok",
-            "story": "The demo shows discovery, evidence, gated connector decisions and feedback, not a blind crawler.",
+            "story": "The product chain shows discovery, evidence, gated connector decisions and feedback, not a blind crawler.",
             "boundary": "No auto-PR, no source activation, no Bronze write and no scheduler mutation without explicit gates.",
         },
     ]
@@ -897,7 +897,7 @@ def build_control_center_view_model(
         {"tab": "agent-monitor", "label": "Agent Monitor", "count": None},
         {"tab": "gaps", "label": "Intelligence", "count": None},
         {"tab": "jobs", "label": "Jobs & Applications", "count": None},
-        {"tab": "demo-chain", "label": "Demo", "count": None},
+        {"tab": "connector-chain", "label": "Connector Chain", "count": None},
     ]
 
     agent_cards = build_agent_monitor_cards(candidates, orchestrator_steps, gate_reviews)
@@ -914,7 +914,7 @@ def build_control_center_view_model(
         "is_agent_monitor": active_tab == "agent-monitor",
         "is_gap_analysis": active_tab == "gaps",
         "is_jobs": active_tab == "jobs",
-        "is_demo_chain": active_tab == "demo-chain",
+        "is_connector_chain": active_tab == "connector-chain",
         "stylesheet": stylesheet,
         "flash_message": flash_message,
         "legacy_view_html": legacy_view_html,
@@ -960,7 +960,7 @@ def build_control_center_view_model(
         "review_queue_summary": review_summary,
         "action_runs": [action_run_card(run) for run in action_runs],
         "orchestrator_items": orchestrator_items(orchestrator_steps),
-        "demo_chain_sections": demo_chain_sections(candidates),
+        "connector_chain_sections": connector_chain_sections(candidates),
         "planned_gap_sections": planned_gap_sections(),
         "planned_job_sections": planned_job_sections(),
     }

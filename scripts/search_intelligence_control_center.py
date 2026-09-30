@@ -593,8 +593,8 @@ def render_jobs_tab() -> str:
 
 
 
-def render_demo_rule_cycle_visual() -> str:
-    """Render a demo-oriented Search Intelligence rule-cycle visual.
+def render_connector_rule_cycle_visual() -> str:
+    """Render a Search Intelligence rule-cycle visual.
 
     This is intentionally HTML/CSS-only: no external assets, no JavaScript,
     no hidden pipeline side effects. It visualizes the existing control loop
@@ -650,7 +650,7 @@ def render_demo_rule_cycle_visual() -> str:
             "</article>"
         )
     return (
-        "<section class='panel demo-cycle-panel'>"
+        "<section class='panel connector-cycle-panel'>"
         "<div class='cycle-header'>"
         "<div><span class='eyebrow'>Intelligent product loop</span>"
         "<h2>Market signal → origin source → connector → feedback</h2>"
@@ -677,11 +677,11 @@ def render_orchestrator_tab(orchestrator_steps: list[OrchestratorAttentionStep])
     )
 
 
-def render_demo_chain_tab(candidates: list[ControlCenterCandidate], *, reviewed_by: str, target_location: str, write_actions_enabled: bool) -> str:
+def render_connector_chain_tab(candidates: list[ControlCenterCandidate], *, reviewed_by: str, target_location: str, write_actions_enabled: bool) -> str:
     return (
-        "<section class='tab-view' data-view='demo'><div class='view-head'><span class='eyebrow'>Demo Chain</span><h1>Discovered company → approved connector</h1>"
-        "<p class='muted'>The end-to-end story for the demo: discovery, candidate, learning pressure, origin exploration, connector build approval and registration gate.</p></div>"
-        f"{render_demo_rule_cycle_visual()}"
+        "<section class='tab-view' data-view='connector-chain'><div class='view-head'><span class='eyebrow'>Connector Chain</span><h1>Discovered company → approved connector</h1>"
+        "<p class='muted'>The end-to-end connector chain: discovery, candidate, learning pressure, origin exploration, connector build approval and registration gate.</p></div>"
+        f"{render_connector_rule_cycle_visual()}"
         f"{render_candidate_chain(candidates, reviewed_by=reviewed_by, target_location=target_location, write_actions_enabled=write_actions_enabled)}</section>"
     )
 
@@ -716,7 +716,7 @@ def render_control_center(
     }
     active_tab = tab_aliases.get(active_tab, active_tab)
 
-    allowed_tabs = {"dashboard", "health", "review-queue", "connectors", "approvals", "orchestrator", "agent-monitor", "gaps", "jobs", "demo-chain"}
+    allowed_tabs = {"dashboard", "health", "review-queue", "connectors", "approvals", "orchestrator", "agent-monitor", "gaps", "jobs", "connector-chain"}
     if active_tab not in allowed_tabs:
         active_tab = "dashboard"
 
@@ -743,8 +743,8 @@ def render_control_center(
         legacy_view_html = render_gap_tab()
     elif active_tab == "jobs":
         legacy_view_html = render_jobs_tab()
-    elif active_tab == "demo-chain":
-        legacy_view_html = render_demo_chain_tab(
+    elif active_tab == "connector-chain":
+        legacy_view_html = render_connector_chain_tab(
             candidates,
             reviewed_by=reviewed_by,
             target_location=target_location,

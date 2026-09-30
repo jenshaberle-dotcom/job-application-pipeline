@@ -6,6 +6,7 @@ from src.search_intelligence.source_connector_overview import (
 )
 
 
+ROOT = Path(__file__).resolve().parents[1]
 API = Path("scripts/run_product_v1_control_center.py")
 APP = Path("frontend/control-center/src/App.tsx")
 WORKSPACE = Path("frontend/control-center/src/OperatorWorkspace.tsx")
@@ -36,6 +37,8 @@ def test_product_payload_embeds_read_only_source_connector_overview() -> None:
         "no_scheduler_mutation": True,
         "unknown_is_not_success": True,
         "registration_is_not_activation": True,
+        "active_profile_is_not_recurring_ingestion_authority": True,
+        "recurring_ingestion_requires_explicit_profile_authority": True,
         "sensor_gates_are_role_specific": True,
         "sensor_catalog_is_not_activation": True,
         "historical_layers_are_not_live_sensor_health": True,
@@ -111,3 +114,20 @@ def test_operator_sources_surface_verified_discovery_yield_without_product_promo
     assert "Employer verification pending" in source
     assert "Discovery evidence only" in source
     assert "No candidate creation, connector activation, Bronze/Silver write or Product-job promotion" in source
+
+
+def test_source_overview_exposes_recurring_ingestion_authority() -> None:
+    source = (ROOT / "src" / "search_intelligence" / "source_connector_overview.py").read_text(encoding="utf-8")
+    base = (ROOT / "scripts" / "product_v1_control_center_base.py").read_text(encoding="utf-8")
+    workspace = WORKSPACE.read_text(encoding="utf-8")
+
+    assert 'SCHEMA_VERSION = "pipeline.source_connector_overview.v6"' in source
+    assert '"recurring_authorized"' in source
+    assert '"manual_only"' in source
+    assert '"employer_origin_recurring_authorized_count"' in source
+    assert '"employer_origin_manual_only_count"' in source
+    assert "recurring_ingestion_enabled" in base
+    assert "recurring_profile_count" in base
+    assert "Ingestion authority" in workspace
+    assert "Recurring authorized" in workspace
+    assert "Manual execution only" in workspace

@@ -34,7 +34,7 @@ concurrency:
 
 jobs:
   assess:
-    name: Reusable 10-job Fit cohort and Top 5
+    name: Reusable Product assessment cohort and Top 5
     runs-on:
       - self-hosted
       - ${{ inputs.rcc_facade_label }}
@@ -63,9 +63,13 @@ jobs:
           test "$RUNNER_NAME" = "$RCC_EXPECTED_FACADE"
           [[ "$RCC_ASSIGNMENT_LABEL" =~ ^rcc-assignment-proof-[0-9a-f]{32}$ ]]
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$EVALUATED_TARGET" = "10"
-          test "$TOP5_TARGET" = "5"
-          test "$CANDIDATE_CAP" = "10"
+          [[ "$EVALUATED_TARGET" =~ ^[0-9]+$ ]]
+          [[ "$TOP5_TARGET" =~ ^[0-9]+$ ]]
+          [[ "$CANDIDATE_CAP" =~ ^[0-9]+$ ]]
+          test "$EVALUATED_TARGET" -ge 1
+          test "$EVALUATED_TARGET" -le 25
+          test "$TOP5_TARGET" -eq 5
+          test "$CANDIDATE_CAP" -eq "$EVALUATED_TARGET"
           printf 'RCC_ASSIGNED_RUNNER=%s\n' "$RUNNER_NAME" >> "$GITHUB_ENV"
           echo "ASSESSMENT_COHORT_RCC_HANDOFF=PASS facade=$RCC_EXPECTED_FACADE assignment=$RCC_ASSIGNMENT_LABEL runner=$RUNNER_NAME"
 
@@ -161,7 +165,7 @@ jobs:
           print("ASSESSMENT_COHORT_IMPORTS=PASS")
           PY
 
-      - name: Read-only plan 10-job Fit cohort
+      - name: Read-only plan Product assessment cohort
         shell: bash
         run: |
           set -euo pipefail
@@ -197,14 +201,23 @@ jobs:
           if payload.get("target_met") is not True:
               raise SystemExit("ASSESSMENT_COHORT_TARGET_NOT_MET")
           final = payload.get("final") or {}
-          if int(final.get("profile_fit_complete_count") or 0) < 10:
-              raise SystemExit("ASSESSMENT_COHORT_COMPLETE_FIT_LT_10")
-          if int(final.get("profile_fit_passed_count") or 0) < 5:
-              raise SystemExit("ASSESSMENT_COHORT_PASSED_FIT_LT_5")
-          if int(final.get("rankable_job_count") or 0) < 5:
-              raise SystemExit("ASSESSMENT_COHORT_RANKABLE_LT_5")
-          if int(final.get("top_job_count") or 0) != 5:
-              raise SystemExit("ASSESSMENT_COHORT_TOP5_NOT_EXACTLY_5")
+          targets = payload.get("targets") or {}
+          evaluated_target = int(targets.get("evaluated_jobs") or 0)
+          top5_target = int(targets.get("top5_jobs") or 0)
+          if evaluated_target < 1 or top5_target != 5:
+              raise SystemExit("ASSESSMENT_COHORT_TARGET_CONTRACT_INVALID")
+          if int(final.get("profile_fit_complete_count") or 0) < evaluated_target:
+              raise SystemExit("ASSESSMENT_COHORT_COMPLETE_FIT_BELOW_TARGET")
+          if int(final.get("candidate_fit_authoritative_count") or 0) < evaluated_target:
+              raise SystemExit("ASSESSMENT_COHORT_CANDIDATE_FIT_BELOW_TARGET")
+          if int(final.get("affinity_authoritative_count") or 0) < evaluated_target:
+              raise SystemExit("ASSESSMENT_COHORT_AFFINITY_BELOW_TARGET")
+          if int(final.get("profile_fit_passed_count") or 0) < top5_target:
+              raise SystemExit("ASSESSMENT_COHORT_PASSED_FIT_BELOW_TOP5_TARGET")
+          if int(final.get("rankable_job_count") or 0) < top5_target:
+              raise SystemExit("ASSESSMENT_COHORT_RANKABLE_BELOW_TOP5_TARGET")
+          if int(final.get("top_job_count") or 0) != top5_target:
+              raise SystemExit("ASSESSMENT_COHORT_TOP5_COUNT_MISMATCH")
           if final.get("top5_authority_violations"):
               raise SystemExit("ASSESSMENT_COHORT_TOP5_AUTHORITY_VIOLATION")
           print("ASSESSMENT_COHORT_PRODUCT_TRUTH=PASS")

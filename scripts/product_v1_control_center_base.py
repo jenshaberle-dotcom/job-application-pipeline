@@ -457,9 +457,18 @@ def _load_search_profile_summary(
                 count(DISTINCT profile.id) FILTER (
                     WHERE profile.is_active
                 ) AS active_profile_count,
+                count(DISTINCT profile.id) FILTER (
+                    WHERE profile.is_active
+                      AND profile.recurring_ingestion_enabled
+                ) AS recurring_profile_count,
                 count(term.id) FILTER (
                     WHERE profile.is_active AND term.is_active
-                ) AS active_search_term_count
+                ) AS active_search_term_count,
+                count(term.id) FILTER (
+                    WHERE profile.is_active
+                      AND profile.recurring_ingestion_enabled
+                      AND term.is_active
+                ) AS recurring_search_term_count
             FROM search_profiles profile
             LEFT JOIN search_terms term
               ON term.search_profile_id = profile.id
@@ -474,7 +483,11 @@ def _load_search_profile_summary(
             source_name,
             count(*) AS profile_count,
             count(*) FILTER (WHERE is_active) AS active_profile_count,
-            0::bigint AS active_search_term_count
+            count(*) FILTER (
+                WHERE is_active AND recurring_ingestion_enabled
+            ) AS recurring_profile_count,
+            0::bigint AS active_search_term_count,
+            0::bigint AS recurring_search_term_count
         FROM search_profiles
         GROUP BY source_name
         ORDER BY source_name

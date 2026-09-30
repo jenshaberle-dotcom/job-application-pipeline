@@ -3,7 +3,6 @@ from pathlib import Path
 
 MIGRATION = Path("db/migrations/111_restore_pd051_threshold_and_create_affinity_authority.sql")
 AFFINITY_RUNNER = Path("scripts/run_f4b_affinity_authority.py")
-HISTORICAL_TOP5 = Path("scripts/run_product_v1_top5_policy_review.py")
 SERVICE = Path("src/search_intelligence/product_v1_service.py")
 
 
@@ -62,13 +61,6 @@ def test_c1_runner_writes_no_fit_combined_or_top5_authority() -> None:
     assert "provider_or_llm_requests\": 0" in source
     assert "exact_persisted_revision" in source
     assert "affinity_authority\": \"pd-052\"" in source
-
-
-def test_historical_demo_60_mutation_is_retired() -> None:
-    source = HISTORICAL_TOP5.read_text(encoding="utf-8")
-    assert "PD-051_REAFFIRMED_70" in source
-    assert "HISTORICAL_AUDIT_ONLY" in source
-    assert "UPDATE product_v1_ranking_policy" not in source
 
 
 def test_payload_separates_affinity_fit_and_combined_truth() -> None:

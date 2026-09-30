@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNTIME = ROOT / "scripts/run_product_v1_demo_control_center.py"
+RUNTIME = ROOT / "scripts/run_product_v1_operator_control_center.py"
 MAIN = ROOT / "frontend/control-center/src/main.tsx"
 SURFACE = ROOT / "frontend/control-center/src/F4cSourceHealthSurface.tsx"
 STYLE = ROOT / "frontend/control-center/src/f4c-source-health-surface.css"

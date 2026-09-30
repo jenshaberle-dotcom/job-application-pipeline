@@ -38,7 +38,7 @@ from src.search_intelligence.product_v1_ranking_evidence import (
 
 REPORT_SCHEMA = "job_application_pipeline.product_v1_ranking_score_review.v1"
 APPROVAL_TOKEN = "PRODUCT-V1-RANKING-SCORE-REVIEW-001"
-LOCK_PREFIX = "DEMO-001:product_v1_ranking_score_review"
+LOCK_PREFIX = "PRODUCT-V1:product_v1_ranking_score_review"
 EXPECTED_WEIGHT_KEYS = frozenset(
     {"profile_direction", "reliability_focus", "data_focus", "evidence_quality"}
 )

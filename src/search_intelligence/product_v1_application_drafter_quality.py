@@ -1,4 +1,4 @@
-"""Quality-hardened Product V1 application drafting for DEMO-001.
+"""Quality-hardened Product V1 application drafting for operator review.
 
 This module keeps the bounded OpenAI campaign and Candidate-Fact / employer-origin
 authority rules. At the operator's explicit Generate action, the text of the two

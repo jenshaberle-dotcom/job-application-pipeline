@@ -38,7 +38,7 @@ def test_control_center_owns_one_mailbox_sync_endpoint() -> None:
     source = (
         __import__("pathlib").Path(__file__).parents[1]
         / "scripts"
-        / "run_product_v1_demo_control_center.py"
+        / "run_product_v1_operator_control_center.py"
     ).read_text(encoding="utf-8")
     assert 'MAILBOX_SYNC_PATH = "/api/v1/product-v1/mailbox-sync"' in source
     assert 'sync_mailbox(reason="operator_refresh")' in source

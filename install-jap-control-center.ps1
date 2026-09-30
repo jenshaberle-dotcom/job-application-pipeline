@@ -143,7 +143,7 @@ function Assert-BundleIdentity(
 
     foreach ($required in @(
         (Join-Path $DesktopStage "JAP.ControlCenter.Desktop.exe"),
-        (Join-Path $RuntimeStage "scripts\run_product_v1_live_demo.py"),
+        (Join-Path $RuntimeStage "scripts\run_jap_control_center_runtime.py"),
         (Join-Path $RuntimeStage "scripts\run_jap_windows_control_center.sh"),
         (Join-Path $RuntimeStage "scripts\ensure_pinned_local_oss_runtime.sh"),
         (Join-Path $RuntimeStage "vendor\codex\codex"),

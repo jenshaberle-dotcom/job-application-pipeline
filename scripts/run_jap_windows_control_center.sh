@@ -48,7 +48,7 @@ managed_pid() {
   pid="$(tr -dc '0-9' < "$PID_FILE")"
   [[ -n "$pid" && -r "/proc/$pid/cmdline" ]] || return 1
   cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
-  [[ "$cmdline" == *"scripts/run_product_v1_live_demo.py"* ]] || return 1
+  [[ "$cmdline" == *"scripts/run_jap_control_center_runtime.py"* ]] || return 1
   printf '%s' "$pid"
 }
 
@@ -119,7 +119,7 @@ fi
 [[ -x "$PROJECT_ROOT/.venv/bin/python" ]] || fail canonical_venv_missing
 [[ -f "$PROJECT_ROOT/.env" ]] || fail canonical_env_missing
 [[ -f "$RUNTIME_INFO" ]] || fail runtime_info_missing
-[[ -f "$RUNTIME_ROOT/scripts/run_product_v1_live_demo.py" ]] || fail demo_launcher_missing
+[[ -f "$RUNTIME_ROOT/scripts/run_jap_control_center_runtime.py" ]] || fail demo_launcher_missing
 [[ -f "$RUNTIME_ROOT/scripts/ensure_pinned_local_oss_runtime.sh" ]] || fail local_oss_provisioner_missing
 [[ -f "$RUNTIME_ROOT/requirements.txt" ]] || fail pinned_requirements_missing
 [[ -f "$CODEX_BINARY" ]] || fail bundled_codex_missing
@@ -227,7 +227,7 @@ export JAP_CONTROL_CENTER_PROJECT_ROOT="$PROJECT_ROOT"
 export JAP_CODEX_EXECUTABLE="$CODEX_BINARY"
 
 cd "$RUNTIME_ROOT"
-launcher=(python -u scripts/run_product_v1_live_demo.py --installed-runtime --reuse-frontend)
+launcher=(python -u scripts/run_jap_control_center_runtime.py --installed-runtime --reuse-frontend)
 
 printf 'JAP_WINDOWS_APP_RUNTIME_BUNDLE=%s\n' "$RUNTIME_ROOT"
 printf 'JAP_WINDOWS_APP_DOCUMENT_ROOT=%s\n' "$PRODUCT_V1_PRIVATE_DOCUMENT_ROOT"

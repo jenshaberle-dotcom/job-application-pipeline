@@ -143,7 +143,7 @@ def test_control_center_renders_real_sidebar_tabs_and_dashboard_only_by_default(
     assert 'href="/?tab=agent-monitor"' in html
     assert 'href="/?tab=gaps"' in html
     assert 'href="/?tab=jobs"' in html
-    assert 'href="/?tab=demo-chain"' in html
+    assert 'href="/?tab=connector-chain"' in html
     assert "Search Intelligence Overview" in html
     assert "Dataflow Live" in html
     assert "Controlled evidence threads" in html
@@ -462,17 +462,17 @@ def test_control_center_renders_product_quality_candidate_gap_jobs_and_demo_tabs
     assert "Application safety boundary" in jobs_html
     assert '<section class="legacy-shell">' not in jobs_html
 
-    demo_html = render_control_center(
+    connector_html = render_control_center(
         candidates(),
         reviewed_by="jens",
         target_location="hannover",
         write_actions_enabled=False,
-        active_tab="demo-chain",
+        active_tab="connector-chain",
     )
-    assert "Discovered company → approved connector" in demo_html
-    assert "not blind crawling" in demo_html
-    assert "No auto-PR" in demo_html
-    assert '<section class="legacy-shell">' not in demo_html
+    assert "Discovered company → approved connector" in connector_html
+    assert "not blind crawling" in connector_html
+    assert "No auto-PR" in connector_html
+    assert '<section class="legacy-shell">' not in connector_html
 
 
 

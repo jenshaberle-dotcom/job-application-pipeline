@@ -2,8 +2,8 @@
 
 The action reuses the generic Product V1 assessment-cohort CLI. It does not own
 runner selection, scheduling, ranking formulas or direct Top-5 writes. The
-Control Center may request one bounded operator-triggered 10->5 evaluation; the
-existing Candidate Fit, hard-filter and ranking authorities remain authoritative.
+Control Center may request one bounded operator-triggered evaluation; the
+existing Candidate Fit, Affinity, hard-filter and ranking authorities remain authoritative.
 
 The internal cohort approval token never crosses the HTTP boundary. The child
 report is validated fail-closed before it is exposed as action evidence.
@@ -30,6 +30,17 @@ ROOT = Path(__file__).resolve().parents[1]
 REPORT_ROOT = ROOT / ".runtime" / "product"
 REPORT_PATH = REPORT_ROOT / "control_center_assessment_cohort.json"
 _ACTION_LOCK = Lock()
+DEFAULT_EVALUATED_TARGET = int(
+    os.environ.get("PRODUCT_V1_ASSESSMENT_EVALUATED_TARGET", "10")
+)
+DEFAULT_TOP5_TARGET = 5
+DEFAULT_CANDIDATE_CAP = int(
+    os.environ.get(
+        "PRODUCT_V1_ASSESSMENT_CANDIDATE_CAP",
+        str(DEFAULT_EVALUATED_TARGET),
+    )
+)
+
 
 
 class AssessmentActionStop(RuntimeError):
@@ -64,16 +75,26 @@ def _validated_report(raw: object) -> dict[str, object]:
     if raw.get("mode") != "apply":
         raise AssessmentActionStop("assessment report must prove apply mode")
     targets = raw.get("targets")
-    if not isinstance(targets, Mapping) or {
-        "evaluated_jobs": targets.get("evaluated_jobs"),
-        "top5_jobs": targets.get("top5_jobs"),
-        "candidate_cap": targets.get("candidate_cap"),
-    } != {
-        "evaluated_jobs": 10,
-        "top5_jobs": 5,
-        "candidate_cap": 10,
-    }:
+    if not isinstance(targets, Mapping):
         raise AssessmentActionStop("assessment report target contract mismatch")
+    expected_targets = {
+        "evaluated_jobs": DEFAULT_EVALUATED_TARGET,
+        "top5_jobs": DEFAULT_TOP5_TARGET,
+        "candidate_cap": DEFAULT_CANDIDATE_CAP,
+    }
+    actual_targets = {
+        "evaluated_jobs": int(targets.get("evaluated_jobs") or 0),
+        "top5_jobs": int(targets.get("top5_jobs") or 0),
+        "candidate_cap": int(targets.get("candidate_cap") or 0),
+    }
+    if actual_targets != expected_targets:
+        raise AssessmentActionStop(
+            "assessment report target contract mismatch: "
+            + json.dumps(
+                {"expected": expected_targets, "actual": actual_targets},
+                sort_keys=True,
+            )
+        )
 
     boundaries = raw.get("boundaries")
     if not isinstance(boundaries, Mapping):
@@ -89,15 +110,13 @@ def _validated_report(raw: object) -> dict[str, object]:
         "selection_requires_current_employer_origin": True,
         "selection_requires_exact_live_vacancy": True,
         "selection_requires_approved_candidate_fact_match": True,
-        "top5_must_be_subset_of_selected_ten": True,
+        "top5_must_be_subset_of_selected_cohort": True,
         "candidate_fit_and_affinity_remain_separate": True,
         "candidate_fit_is_job_skills_vs_cv_skills": True,
         "numeric_candidate_fit_authority_created": True,
-        "all_ten_require_numeric_candidate_fit": True,
-        "all_ten_require_authoritative_affinity": True,
-        "demo_cohort_frozen": True,
+        "all_selected_require_numeric_candidate_fit": True,
+        "all_selected_require_authoritative_affinity": True,
         "combined_score_authority_created": False,
-        "demo_learning_sample": True,
         "canonical_role_classifier_unchanged": True,
     }
     drift = {
@@ -197,14 +216,13 @@ def _run_cohort(*, output: Path) -> subprocess.CompletedProcess[str]:
         "-m",
         "scripts.run_product_v1_assessment_cohort",
         "--evaluated-target",
-        "10",
+        str(DEFAULT_EVALUATED_TARGET),
         "--top5-target",
-        "5",
+        str(DEFAULT_TOP5_TARGET),
         "--candidate-cap",
-        "10",
+        str(DEFAULT_CANDIDATE_CAP),
         "--reviewed-by",
         "control-center:operator",
-        "--demo-learning-sample",
         "--apply",
         "--approval-token",
         APPROVAL_TOKEN,
@@ -331,7 +349,7 @@ def apply_assessment_action() -> dict[str, object]:
             "direct_top5_writes": 0,
             "candidate_fit_numeric_score_created": True,
             "combined_score_created": False,
-            "mutation_scope": "frozen_demo_candidate_fit_affinity_hard_filter_and_ranking_authorities",
+            "mutation_scope": "bounded_candidate_fit_affinity_hard_filter_and_ranking_authorities",
         }
     except OSError as exc:
         raise AssessmentActionStop("assessment local runtime/storage failure") from exc

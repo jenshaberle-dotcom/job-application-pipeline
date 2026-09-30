@@ -197,12 +197,11 @@ def test_numeric_hours_are_refreshed_not_operator_closed(monkeypatch) -> None:
     assert diagnostics[0]["reason"] == "numeric_weekly_hours_requires_assessment_refresh"
 
 
-def test_closer_has_no_demo_or_job_specific_authority() -> None:
+def test_closer_has_no_presentation_or_job_specific_authority() -> None:
     source = open(closer.__file__, encoding="utf-8").read()
 
     for forbidden in (
         "TARGET_IDS",
-        "DEMO-001",
         "personio:",
         "Hannover Re",
         "Hornetsecurity",
