@@ -103,18 +103,35 @@ def _candidate_evidence_index(
         if candidate_id in evidence:
             continue
         payload = dict(row.get("evidence") or {})
-        if not payload and int(row.get("evidence_count") or 0) < 1:
+        sample_titles = payload.get("sample_titles")
+        if isinstance(sample_titles, (list, tuple)):
+            titles = [
+                str(value).strip()
+                for value in sample_titles
+                if str(value).strip()
+            ]
+        else:
+            fallback_title = str(
+                payload.get("job_title") or payload.get("title") or ""
+            ).strip()
+            titles = [fallback_title] if fallback_title else []
+        if not titles:
             continue
         source_name = str(row.get("source_name") or "").strip()
         sensor = _sensor_name(source_name)
         evidence[candidate_id] = {
-            "origin_kind": "CANDIDATE_PROMOTION_EVIDENCE",
+            "origin_kind": "CANDIDATE_PROMOTION_JOB_EVIDENCE",
             "classic_relation": "candidate_promotion_review_items",
             "classic_row_id": int(row["evidence_id"]),
             "source_name": source_name,
             "sensor_key": sensor,
+            "observed_job_titles": titles,
             "evidence": payload,
-            "observed_at": _evidence_timestamp(row, "created_at"),
+            "observed_at": _evidence_timestamp(
+                row,
+                "latest_job_observed_at",
+                "created_at",
+            ),
         }
 
     for row in market_rows:
@@ -123,7 +140,7 @@ def _candidate_evidence_index(
             continue
         title = str(row.get("title") or "").strip()
         evidence_url = str(row.get("evidence_url") or "").strip()
-        if not title or not evidence_url:
+        if not title:
             continue
         source_name = str(row.get("source_name") or "").strip()
         sensor = _sensor_name(source_name)
@@ -134,7 +151,7 @@ def _candidate_evidence_index(
             "source_name": source_name,
             "sensor_key": sensor,
             "title": title,
-            "evidence_url": evidence_url,
+            "evidence_url": evidence_url or None,
             "evidence": dict(row.get("evidence") or {}),
             "observed_at": _evidence_timestamp(
                 row,
@@ -567,17 +584,24 @@ def _load_live_export_inputs(conn: Any) -> dict[str, Any]:
             promotion_rows = _rows(
                 cur,
                 """
-                SELECT DISTINCT ON (created_candidate_id)
-                    created_candidate_id AS candidate_id,
-                    id AS evidence_id,
-                    source_name,
-                    evidence_count,
-                    evidence,
-                    created_at
-                FROM candidate_promotion_review_items
-                WHERE created_candidate_id = ANY(%s)
-                  AND promotion_decision = 'promotion_recommended'
-                ORDER BY created_candidate_id, created_at, id
+                SELECT DISTINCT ON (promotion.created_candidate_id)
+                    promotion.created_candidate_id AS candidate_id,
+                    promotion.id AS evidence_id,
+                    promotion.source_name,
+                    promotion.evidence_count,
+                    promotion.evidence,
+                    expansion.latest_observed_at AS latest_job_observed_at,
+                    promotion.created_at
+                FROM candidate_promotion_review_items promotion
+                JOIN candidate_expansion_review_items expansion
+                  ON expansion.id = promotion.candidate_expansion_item_id
+                WHERE promotion.created_candidate_id = ANY(%s)
+                  AND promotion.promotion_decision = 'promotion_recommended'
+                ORDER BY
+                    promotion.created_candidate_id,
+                    expansion.latest_observed_at,
+                    promotion.created_at,
+                    promotion.id
                 """,
                 (candidate_ids,),
             )
@@ -602,7 +626,6 @@ def _load_live_export_inputs(conn: Any) -> dict[str, Any]:
                   ON evidence.normalized_company_key = candidate.company_key
                 WHERE candidate.id = ANY(%s)
                   AND NULLIF(btrim(evidence.title), '') IS NOT NULL
-                  AND NULLIF(btrim(evidence.evidence_url), '') IS NOT NULL
                 ORDER BY
                     candidate.id,
                     coalesce(evidence.source_seen_at, evidence.observed_at),
