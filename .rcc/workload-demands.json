@@ -1,5 +1,5 @@
 {
-  "schema_version": "ped.rcc_workload_demands.v2",
+  "schema_version": "jap.rcc_workload_demands.v2",
   "repository_id": 1230805345,
   "repository": "jenshaberle-dotcom/job-application-pipeline",
   "authority": {
@@ -27,17 +27,40 @@
   "demand_profiles": {
     "linux-base": {
       "platform": "linux-wsl",
-      "runtime": ["python-project"],
+      "runtime": [
+        "python-project"
+      ],
       "capabilities": []
+    },
+    "windows-release": {
+      "platform": "windows",
+      "runtime": [
+        "python-project"
+      ],
+      "capabilities": [
+        "dotnet-sdk-8",
+        "node-22"
+      ]
     }
   },
   "workflow_demands": {
     "pr-validation.yml": "linux-base",
-    "product-v1-assessment-cohort.yml": "linux-base"
+    "product-v1-assessment-cohort.yml": "linux-base",
+    "jap-windows-desktop-host-release.yml": "windows-release"
   },
   "persistent_state_boundary": {
-    "allowed": ["generated-artifacts", "data-only-env", "local-service-endpoints"],
-    "forbidden": ["source-authority", "python-executable", "toolchain-executable", "runner-selection", "runner-lifecycle"]
+    "allowed": [
+      "generated-artifacts",
+      "data-only-env",
+      "local-service-endpoints"
+    ],
+    "forbidden": [
+      "source-authority",
+      "python-executable",
+      "toolchain-executable",
+      "runner-selection",
+      "runner-lifecycle"
+    ]
   },
   "ownership": {
     "demand_declaration": "JAP",
