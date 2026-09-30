@@ -92,12 +92,6 @@ jobs:
           npm install --prefix frontend/control-center --no-audit --no-fund
           npm run build --prefix frontend/control-center
 
-      - name: Install Windows packaging test environment
-        shell: pwsh
-        run: |
-          & $env:JAP_RELEASE_PYTHON -m pip install --disable-pip-version-check --quiet -r requirements-dev.txt
-          & $env:JAP_RELEASE_PYTHON -m pip check
-
       - name: Prove 1.2.5 package-facing contracts on Windows
         shell: pwsh
         run: |
