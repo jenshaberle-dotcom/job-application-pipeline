@@ -1,6 +1,6 @@
 {
   "schema_version": "jap.connector_fleet_policy.v1",
-  "status": "proposed_for_acceptance",
+  "status": "accepted",
   "issue": 1150,
   "lifecycle": {
     "accepted_candidate_requires_connector_disposition": true,
