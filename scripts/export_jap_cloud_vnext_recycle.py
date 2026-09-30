@@ -281,21 +281,43 @@ def build_candidate_artifacts(
 
         evidence = evidence_index.get(candidate_id)
         if evidence is None:
+            observed_at = str(row.get("created_at") or "")
+            if not observed_at:
+                raise ValueError(
+                    f"candidate_legacy_coverage_timestamp_missing:{candidate_id}"
+                )
+            evidence = {
+                "origin_kind": "LEGACY_CLASSIC_CANDIDATE",
+                "classic_relation": "employer_origin_source_candidates",
+                "classic_row_id": candidate_id,
+                "source_name_candidate": source_name_candidate or None,
+                "classic_status": str(row.get("status") or ""),
+                "observed_at": observed_at,
+                "migration_note": (
+                    "Current Classic Employer Candidate preserved as accepted "
+                    "coverage intent; no historical job observation is invented."
+                ),
+            }
+            admission_reason = "LEGACY_CLASSIC_COVERAGE"
             gaps.append(
                 {
                     "candidate_id": candidate_id,
                     "company_key": company_key,
                     "company_name": company_name,
-                    "gap": "REAL_JOB_OBSERVED_PROVENANCE_NOT_RECONSTRUCTED",
+                    "diagnostic": "LEGACY_CLASSIC_COVERAGE_USED",
                     "classic_status": str(row.get("status") or ""),
                     "source_name_candidate": source_name_candidate,
                 }
             )
-            continue
-
-        observed_at = str(evidence.get("observed_at") or row.get("created_at") or "")
-        if not observed_at:
-            raise ValueError(f"candidate_evidence_timestamp_missing:{candidate_id}")
+        else:
+            observed_at = str(
+                evidence.get("observed_at") or row.get("created_at") or ""
+            )
+            if not observed_at:
+                raise ValueError(
+                    f"candidate_evidence_timestamp_missing:{candidate_id}"
+                )
+            admission_reason = "REAL_JOB_OBSERVED"
 
         if company_key not in seen_company_keys:
             seen_company_keys.add(company_key)
@@ -318,11 +340,8 @@ def build_candidate_artifacts(
         candidate_exports.append(
             {
                 "company_key": company_key,
-                "admission_reason": "REAL_JOB_OBSERVED",
-                # Admission time is evidence time, not candidate-row creation time.
-                # Candidate rows can be created after the job observation that
-                # justified them.
-                "first_observed_at": observed_at,
+                "admission_reason": admission_reason,
+                "first_evidence_at": observed_at,
                 "latest_evidence_at": observed_at,
                 "admission_evidence": admission_evidence,
             }
@@ -898,30 +917,13 @@ def main() -> int:
         detail_rows=inputs["detail_rows"],
         silver_rows=inputs["silver_evidence_rows"],
     )
-    companies, candidates, gaps = build_candidate_artifacts(
-        candidates=inputs["candidates"],
-        evidence_index=evidence,
-        classic_sha=classic_sha,
-    )
-
-    if gaps:
-        args.output_dir.mkdir(parents=True, exist_ok=True)
-        gap_payload = {
-            "schema_version": "jap_classic.vnext_recycle_evidence_gaps.v1",
-            "classic_repository_sha": classic_sha,
-            "candidate_count": len(inputs["candidates"]),
-            "gap_count": len(gaps),
-            "gaps": gaps,
-            "import_manifest_created": False,
-        }
-        (args.output_dir / "evidence_gaps.json").write_text(
-            json.dumps(gap_payload, indent=2, ensure_ascii=False, sort_keys=True)
-            + "\n",
-            encoding="utf-8",
+    companies, candidates, legacy_coverage_diagnostics = (
+        build_candidate_artifacts(
+            candidates=inputs["candidates"],
+            evidence_index=evidence,
+            classic_sha=classic_sha,
         )
-        print(json.dumps(gap_payload, indent=2, ensure_ascii=False, sort_keys=True))
-        print("JAP_CLOUD_VNEXT_EXPORT=BLOCKED_EVIDENCE_GAPS")
-        return 2
+    )
 
     sources = build_source_artifacts(
         inputs["active_sources"],
@@ -957,6 +959,7 @@ def main() -> int:
         "employer_source_count": len(sources),
         "current_vacancy_count": len(vacancies),
         "current_vacancy_fact_count": len(facts),
+        "legacy_classic_coverage_count": len(legacy_coverage_diagnostics),
         "market_sensor_count_excluded_from_employer_sources": len(CORE_SENSORS),
         "manifest_sha256": manifest["manifest_sha256"],
         "database_access": "READ_ONLY",
