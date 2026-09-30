@@ -1,6 +1,6 @@
 # ADR-037: Close the Connector Fleet Lifecycle
 
-Status: Proposed for acceptance
+Status: Accepted by operator direction
 Date: 2026-09-30
 Canonical issue: #1150
 
