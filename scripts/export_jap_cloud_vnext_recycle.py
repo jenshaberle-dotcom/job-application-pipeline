@@ -421,18 +421,6 @@ def build_vacancy_artifacts(
             for item in locations_by_silver_id.get(int(row["silver_job_id"]), ())
             if str(item.get("city") or "").strip()
         ]
-        if not locations and str(row.get("city") or "").strip():
-            country = str(row.get("country") or "DE").strip().upper()
-            locations = [
-                {
-                    "city": str(row["city"]).strip(),
-                    "country_code": country[:2] if len(country) >= 2 else "DE",
-                    "is_primary": True,
-                    "evidence_source": "silver_jobs.city",
-                    "evidence_text": str(row["city"]).strip(),
-                }
-            ]
-
         first_seen = str(
             row.get("first_seen_at")
             or row.get("raw_created_at")
