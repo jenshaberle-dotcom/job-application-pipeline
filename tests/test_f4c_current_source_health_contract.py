@@ -292,9 +292,28 @@ def test_fleet_light_red_when_last_success_is_overdue() -> None:
     assert row["fleet_status"]["reason"] == "scheduled_execution_overdue"
 
 
-def test_fleet_light_neutral_until_recurring_monitoring_is_admitted() -> None:
+def test_active_connector_without_recurring_monitoring_is_red() -> None:
     result = project_current_source_health(
         payload_for(),
+        schedule_evidence=accepted_schedule(recurring=0),
+        operator_evidence=operator_evidence(),
+        observed_at=NOW,
+    )
+
+    row = source(result)
+    assert row["fleet_status"]["light"] == "red"
+    assert row["fleet_status"]["reason"] == "recurring_monitoring_not_admitted"
+    assert row["fleet_status"]["technical_state"] == "execution_blocked"
+
+
+def test_pre_operational_connector_lifecycle_remains_neutral() -> None:
+    payload = payload_for()
+    raw = payload["source_connector_overview"]["sources"][0]
+    raw["activation"] = {"active": False, "status": "not_activated"}
+    raw["lifecycle"]["activation"] = "not_activated"
+
+    result = project_current_source_health(
+        payload,
         schedule_evidence=accepted_schedule(recurring=0),
         operator_evidence=operator_evidence(),
         observed_at=NOW,
@@ -321,3 +340,21 @@ def test_fleet_summary_counts_traffic_lights() -> None:
     assert result["boundaries"][
         "connector_fleet_raw_loaded_count_is_not_relevance_authority"
     ] is True
+
+
+def test_active_connector_with_broken_registration_is_red() -> None:
+    payload = payload_for()
+    raw = payload["source_connector_overview"]["sources"][0]
+    raw["connector"]["code_backed_registered"] = False
+    raw["lifecycle"]["registration"] = "not_registered"
+
+    result = project_current_source_health(
+        payload,
+        schedule_evidence=accepted_schedule(),
+        operator_evidence=operator_evidence(),
+        observed_at=NOW,
+    )
+
+    row = source(result)
+    assert row["fleet_status"]["light"] == "red"
+    assert row["fleet_status"]["reason"] == "registration_broken"
