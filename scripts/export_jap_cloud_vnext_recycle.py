@@ -119,6 +119,8 @@ def _candidate_evidence_index(
             continue
         source_name = str(row.get("source_name") or "").strip()
         sensor = _sensor_name(source_name)
+        if sensor is None:
+            continue
         evidence[candidate_id] = {
             "origin_kind": "CANDIDATE_PROMOTION_JOB_EVIDENCE",
             "classic_relation": "candidate_promotion_review_items",
@@ -144,6 +146,8 @@ def _candidate_evidence_index(
             continue
         source_name = str(row.get("source_name") or "").strip()
         sensor = _sensor_name(source_name)
+        if sensor is None:
+            continue
         evidence[candidate_id] = {
             "origin_kind": "MARKET_JOB_EVIDENCE",
             "classic_relation": "market_evidence",
@@ -165,15 +169,29 @@ def _candidate_evidence_index(
         if candidate_id in evidence:
             continue
         source_url = str(row.get("source_url") or "").strip()
-        if not source_url:
+        payload = dict(row.get("evidence") or {})
+        title = str(
+            row.get("page_title")
+            or payload.get("title")
+            or payload.get("job_title")
+            or ""
+        ).strip()
+        if not source_url or not title:
             continue
         evidence[candidate_id] = {
             "origin_kind": "EMPLOYER_ORIGIN_JOB_DETAIL_EVIDENCE",
             "classic_relation": "employer_origin_job_detail_evidence",
             "classic_row_id": int(row["evidence_id"]),
             "source_url": source_url,
-            "evidence": dict(row.get("evidence") or {}),
-            "observed_at": _evidence_timestamp(row, "created_at", "updated_at"),
+            "title": title,
+            "status_code": row.get("status_code"),
+            "confidence": (
+                None
+                if row.get("confidence") is None
+                else str(row.get("confidence"))
+            ),
+            "evidence": payload,
+            "observed_at": _evidence_timestamp(row, "updated_at", "created_at"),
         }
 
     for row in silver_rows:
