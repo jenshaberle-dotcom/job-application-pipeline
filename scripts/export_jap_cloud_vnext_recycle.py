@@ -89,6 +89,28 @@ def _evidence_timestamp(row: Mapping[str, Any], *fields: str) -> str | None:
     return None
 
 
+def _is_manual_job_observation(
+    row: Mapping[str, Any],
+    payload: Mapping[str, Any],
+) -> bool:
+    markers = {
+        str(row.get("evidence_kind") or "").strip().casefold(),
+        str(row.get("evidence_source") or "").strip().casefold(),
+        str(payload.get("input_mode") or "").strip().casefold(),
+        str(payload.get("observation_origin") or "").strip().casefold(),
+    }
+    return bool(
+        {
+            "manual_market_observation",
+            "manual_market_observation_backfill",
+            "manual_market_evidence",
+            "external_market_observation",
+            "manual_aggregator_sighting",
+        }
+        & markers
+    )
+
+
 def _candidate_evidence_index(
     *,
     promotion_rows: Sequence[Mapping[str, Any]] = (),
@@ -119,14 +141,19 @@ def _candidate_evidence_index(
             continue
         source_name = str(row.get("source_name") or "").strip()
         sensor = _sensor_name(source_name)
-        if sensor is None:
-            continue
+        manual = _is_manual_job_observation(row, payload)
         evidence[candidate_id] = {
-            "origin_kind": "CANDIDATE_PROMOTION_JOB_EVIDENCE",
+            "origin_kind": (
+                "LEGACY_MANUAL_JOB_OBSERVATION"
+                if manual or sensor is None
+                else "CANDIDATE_PROMOTION_JOB_EVIDENCE"
+            ),
             "classic_relation": "candidate_promotion_review_items",
             "classic_row_id": int(row["evidence_id"]),
             "source_name": source_name,
             "sensor_key": sensor,
+            "discovery_channel": source_name or None,
+            "automatic_sensor_authority": sensor is not None and not manual,
             "observed_job_titles": titles,
             "evidence": payload,
             "observed_at": _evidence_timestamp(
@@ -145,18 +172,24 @@ def _candidate_evidence_index(
         if not title:
             continue
         source_name = str(row.get("source_name") or "").strip()
+        payload = dict(row.get("evidence") or {})
         sensor = _sensor_name(source_name)
-        if sensor is None:
-            continue
+        manual = _is_manual_job_observation(row, payload)
         evidence[candidate_id] = {
-            "origin_kind": "MARKET_JOB_EVIDENCE",
+            "origin_kind": (
+                "LEGACY_MANUAL_JOB_OBSERVATION"
+                if manual or sensor is None
+                else "MARKET_JOB_EVIDENCE"
+            ),
             "classic_relation": "market_evidence",
             "classic_row_id": int(row["evidence_id"]),
             "source_name": source_name,
             "sensor_key": sensor,
+            "discovery_channel": source_name or None,
+            "automatic_sensor_authority": sensor is not None and not manual,
             "title": title,
             "evidence_url": evidence_url or None,
-            "evidence": dict(row.get("evidence") or {}),
+            "evidence": payload,
             "observed_at": _evidence_timestamp(
                 row,
                 "source_seen_at",
@@ -623,6 +656,7 @@ def _load_live_export_inputs(conn: Any) -> dict[str, Any]:
                 SELECT DISTINCT ON (candidate.id)
                     candidate.id AS candidate_id,
                     evidence.id AS evidence_id,
+                    evidence.evidence_kind,
                     evidence.evidence_source,
                     evidence.source_name,
                     evidence.title,
@@ -634,13 +668,6 @@ def _load_live_export_inputs(conn: Any) -> dict[str, Any]:
                 JOIN market_evidence evidence
                   ON evidence.normalized_company_key = candidate.company_key
                 WHERE candidate.id = ANY(%s)
-                  AND evidence.source_name = ANY(%s)
-                  AND evidence.evidence_kind <> 'manual_market_observation'
-                  AND evidence.evidence_source <> 'manual_market_observation'
-                  AND coalesce(
-                        evidence.evidence ->> 'input_mode',
-                        ''
-                      ) <> 'manual_market_observation'
                   AND NULLIF(btrim(evidence.title), '') IS NOT NULL
                 ORDER BY
                     candidate.id,
@@ -650,7 +677,7 @@ def _load_live_export_inputs(conn: Any) -> dict[str, Any]:
                     ) DESC,
                     evidence.id DESC
                 """,
-                (candidate_ids, list(CORE_SENSORS)),
+                (candidate_ids,),
             )
 
         detail_rows: list[dict[str, Any]] = []
