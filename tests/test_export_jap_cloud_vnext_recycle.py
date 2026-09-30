@@ -305,21 +305,31 @@ def test_market_job_title_is_sufficient_even_when_sensor_does_not_store_job_url(
     assert evidence[1]["observed_at"] == "2026-09-01T07:30:00+00:00"
 
 
-def test_non_core_market_source_does_not_prove_candidate_admission() -> None:
+def test_real_manual_linkedin_observation_is_preserved_without_sensor_authority() -> None:
     evidence = _candidate_evidence_index(
         market_rows=[
             {
                 "candidate_id": 1,
                 "evidence_id": 10,
-                "source_name": "manual_market_observation",
+                "evidence_kind": "manual_market_observation",
+                "evidence_source": "manual_market_observation",
+                "source_name": "linkedin",
                 "title": "Data Engineer",
-                "evidence_url": "https://example.test/job/1",
-                "evidence": {},
+                "evidence_url": "https://www.linkedin.com/jobs/view/123",
+                "evidence": {
+                    "input_mode": "manual_market_observation",
+                    "observation_origin": "external_market_observation",
+                },
                 "observed_at": "2026-09-01T08:00:00+00:00",
             }
         ]
     )
-    assert evidence == {}
+    row = evidence[1]
+    assert row["origin_kind"] == "LEGACY_MANUAL_JOB_OBSERVATION"
+    assert row["title"] == "Data Engineer"
+    assert row["discovery_channel"] == "linkedin"
+    assert row["sensor_key"] is None
+    assert row["automatic_sensor_authority"] is False
 
 
 def test_detail_evidence_requires_job_title_and_prefers_updated_timestamp() -> None:
@@ -356,3 +366,44 @@ def test_detail_evidence_requires_job_title_and_prefers_updated_timestamp() -> N
         ]
     )
     assert missing_title == {}
+
+
+def test_non_catalog_job_observation_with_title_is_recycled_as_legacy_discovery() -> None:
+    evidence = _candidate_evidence_index(
+        market_rows=[
+            {
+                "candidate_id": 1,
+                "evidence_id": 11,
+                "evidence_kind": "manual_aggregator_sighting",
+                "evidence_source": "manual_market_observation",
+                "source_name": "some_future_board",
+                "title": "Platform Engineer",
+                "evidence_url": None,
+                "evidence": {"input_mode": "manual_market_evidence"},
+                "observed_at": "2026-09-03T08:00:00+00:00",
+            }
+        ]
+    )
+    row = evidence[1]
+    assert row["origin_kind"] == "LEGACY_MANUAL_JOB_OBSERVATION"
+    assert row["sensor_key"] is None
+    assert row["automatic_sensor_authority"] is False
+
+
+def test_manual_observation_without_job_title_still_does_not_prove_candidate() -> None:
+    evidence = _candidate_evidence_index(
+        market_rows=[
+            {
+                "candidate_id": 1,
+                "evidence_id": 12,
+                "evidence_kind": "manual_market_observation",
+                "evidence_source": "manual_market_observation",
+                "source_name": "linkedin",
+                "title": "",
+                "evidence_url": "https://www.linkedin.com/company/example",
+                "evidence": {"input_mode": "manual_market_observation"},
+                "observed_at": "2026-09-04T08:00:00+00:00",
+            }
+        ]
+    )
+    assert evidence == {}
