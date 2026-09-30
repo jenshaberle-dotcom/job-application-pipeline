@@ -10,6 +10,19 @@ from src.search_intelligence.market_sensor_catalog import CORE_SENSOR_CATALOG_BY
 
 SCHEMA_VERSION = "pipeline.source_connector_overview.v5"
 GENERIC_SOURCE_PREFIX = "generic_origin:"
+CONNECTOR_COMMITMENT_STATES = frozenset(
+    {
+        "connector_candidate",
+        "build_approval_required",
+        "connector_artifact_generated",
+        "validation_required",
+        "approval_required",
+        "active_controlled",
+    }
+)
+EXPLICIT_NONRUNNABLE_CONNECTOR_DISPOSITIONS = frozenset(
+    {"manual_review_required", "rejected_or_parked"}
+)
 
 
 class ConnectorRegistryLike(Protocol):
@@ -327,6 +340,7 @@ def _issues(
 
 def _next_action(
     implemented: bool,
+    candidate_status: str,
     validation: Mapping[str, Any],
     approval: Mapping[str, Any],
     registered: bool,
@@ -361,11 +375,20 @@ def _next_action(
             issues[0], "Resolve lifecycle truth inconsistency"
         )
 
-    # A known but intentionally unimplemented candidate is inventory, not an
-    # operational incident.  This distinction keeps the Sources attention count
-    # meaningful instead of turning the long candidate tail into 70+ false alerts.
+    # Weak/pre-connector candidates remain inventory until evidence admits them.
+    # Once the lifecycle has committed to connector candidacy, however, the
+    # accepted fleet policy requires an explicit connector disposition. Such a
+    # candidate may no longer disappear into passive inventory.
     if not implemented:
-        return None, "Known source candidate; implement only when selected for adoption"
+        if candidate_status in CONNECTOR_COMMITMENT_STATES:
+            return (
+                "connector_disposition_required",
+                "Build a reusable connector/profile definition or record an explicit "
+                "evidence-backed block, review or rejection",
+            )
+        if candidate_status in EXPLICIT_NONRUNNABLE_CONNECTOR_DISPOSITIONS:
+            return None, "Explicit non-runnable connector disposition recorded"
+        return None, "Pre-connector candidate; continue bounded evidence lifecycle"
 
     origin_gates_required = source_role != "sensor"
     generic_origin = source_name.startswith(GENERIC_SOURCE_PREFIX)
@@ -429,6 +452,55 @@ def _next_action(
     )
 
 
+def _connector_disposition(
+    *,
+    source_role: str,
+    candidate_status: str,
+    implemented: bool,
+    registered: bool,
+    activated: bool | None,
+) -> dict[str, object]:
+    if source_role == "sensor":
+        return {
+            "status": "not_applicable",
+            "requires_action": False,
+            "reason": "market_sensor_is_not_employer_connector",
+        }
+    if activated is True and registered:
+        return {
+            "status": "operational_connector",
+            "requires_action": False,
+            "reason": "registered_and_active",
+        }
+    if implemented:
+        return {
+            "status": "runnable_definition",
+            "requires_action": not registered,
+            "reason": (
+                "implementation_present_registration_pending"
+                if not registered
+                else "implementation_present"
+            ),
+        }
+    if candidate_status in EXPLICIT_NONRUNNABLE_CONNECTOR_DISPOSITIONS:
+        return {
+            "status": candidate_status,
+            "requires_action": candidate_status == "manual_review_required",
+            "reason": "explicit_nonrunnable_disposition",
+        }
+    if candidate_status in CONNECTOR_COMMITMENT_STATES:
+        return {
+            "status": "connector_definition_required",
+            "requires_action": True,
+            "reason": "accepted_candidate_has_no_runnable_connector_definition",
+        }
+    return {
+        "status": "preconnector_evidence",
+        "requires_action": False,
+        "reason": "candidate_not_yet_admitted_to_connector_build",
+    }
+
+
 def empty_source_connector_overview() -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
@@ -464,7 +536,8 @@ def empty_source_connector_overview() -> dict[str, Any]:
             "sensor_catalog_is_not_activation": True,
             "historical_layers_are_not_live_sensor_health": True,
             "active_is_not_delivery": True,
-            "not_implemented_is_inventory_not_attention": True,
+            "preconnector_unimplemented_is_inventory_not_attention": True,
+            "accepted_connector_candidate_requires_explicit_disposition": True,
             "discovery_snapshot_is_not_product_authority": True,
             "generic_origin_source_validity_gate": "proof=PASS",
             "generic_origin_final_approval_gate": "retired",
@@ -590,6 +663,7 @@ def build_source_connector_overview(
         )
         blocker, next_action = _next_action(
             implemented,
+            candidate_status,
             validation,
             approval,
             bool(registration["registered"]),
@@ -662,6 +736,13 @@ def build_source_connector_overview(
                     ),
                     "coverage_target": sensor_catalog is not None,
                 },
+                "connector_disposition": _connector_disposition(
+                    source_role=source_role,
+                    candidate_status=candidate_status,
+                    implemented=implemented,
+                    registered=bool(registration["registered"]),
+                    activated=activated,
+                ),
                 "connector": {
                     "implemented": implemented,
                     "implementation_status": (
