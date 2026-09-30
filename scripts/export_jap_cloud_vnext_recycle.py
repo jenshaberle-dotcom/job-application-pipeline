@@ -286,7 +286,10 @@ def build_candidate_artifacts(
             {
                 "company_key": company_key,
                 "admission_reason": "REAL_JOB_OBSERVED",
-                "first_observed_at": str(row.get("created_at") or observed_at),
+                # Admission time is evidence time, not candidate-row creation time.
+                # Candidate rows can be created after the job observation that
+                # justified them.
+                "first_observed_at": observed_at,
                 "latest_evidence_at": observed_at,
                 "admission_evidence": admission_evidence,
             }
