@@ -89,13 +89,6 @@ const dateTime = (value: string | null | undefined) => {
   });
 };
 
-function scanTone(value: string | null | undefined) {
-  const normalized = (value || "").toLowerCase();
-  if (normalized === "ok") return "good";
-  if (normalized === "failed") return "bad";
-  return "warn";
-}
-
 function scanLabel(value: string | null | undefined) {
   switch ((value || "").toLowerCase()) {
     case "ok":
