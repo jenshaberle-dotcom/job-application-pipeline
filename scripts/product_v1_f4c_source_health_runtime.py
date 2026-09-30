@@ -562,7 +562,6 @@ def _fleet_status(
     active = activation.get("active") is True
     recurring = schedule.get("recurring_ingestion_eligible") is True
     health_status = str(health.get("status") or "unknown")
-    registration = str(lifecycle.get("registration") or "unknown")
     validation = str(lifecycle.get("validation") or "unknown")
 
     # Once an Employer-Origin source is active, missing registration, validation
