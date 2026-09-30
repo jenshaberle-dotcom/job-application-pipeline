@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from scripts.run_current_employer_connector_census import build_census
+from scripts.run_current_employer_connector_census import _relation_exists, build_census
 
 
 def _candidate(
@@ -105,6 +105,9 @@ def test_census_excludes_market_sensors_and_partitions_current_candidates() -> N
     assert summary["builder_audit_schema"] == (
         "jap.deterministic_connector_builder_layer_audit.v6"
     )
+    assert summary["builder_covered_candidate_count"] == 4
+    assert summary["builder_unknown_candidate_count"] == 0
+    assert summary["builder_population_complete"] is False
     assert {
         row["company_key"]: row["disposition"] for row in result["candidates"]
     } == {
@@ -199,3 +202,55 @@ def test_v6_results_shape_is_consumed_without_inventing_capability_gap() -> None
     }
     assert result["summary"]["source_resolution_gap_count"] == 1
     assert result["summary"]["capability_gap_count"] == 1
+
+
+def test_prefixed_market_sensor_source_identity_fails_closed() -> None:
+    with pytest.raises(
+        ValueError,
+        match="market_sensor_leaked_into_employer_candidate_population",
+    ):
+        build_census(
+            candidate_rows=[
+                _candidate(
+                    1,
+                    "sensor_leak",
+                    source_name="market_sensor:stepstone",
+                )
+            ]
+        )
+
+
+def test_relation_exists_accepts_dict_row_cursor() -> None:
+    class Cursor:
+        def __init__(self, value):
+            self.value = value
+            self.executed = None
+
+        def execute(self, query, params):
+            self.executed = (query, params)
+
+        def fetchone(self):
+            return {"relation_name": self.value}
+
+    present = Cursor("generic_employer_origin_active_sources")
+    missing = Cursor(None)
+    assert _relation_exists(present, "generic_employer_origin_active_sources") is True
+    assert _relation_exists(missing, "generic_employer_origin_active_sources") is False
+    assert "AS relation_name" in present.executed[0]
+
+
+def test_builder_coverage_reports_complete_and_unknown_rows() -> None:
+    result = build_census(
+        candidate_rows=[_candidate(1, "alpha")],
+        builder_audit={
+            "schema": "jap.deterministic_connector_builder_layer_audit.v6",
+            "results": [
+                {"company_key": "alpha", "recipe_ready": True},
+                {"company_key": "stale_candidate", "recipe_ready": True},
+            ],
+        },
+    )
+    summary = result["summary"]
+    assert summary["builder_covered_candidate_count"] == 1
+    assert summary["builder_unknown_candidate_count"] == 1
+    assert summary["builder_population_complete"] is True
