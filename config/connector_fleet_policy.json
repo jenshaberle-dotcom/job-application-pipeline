@@ -1,0 +1,63 @@
+{
+  "schema_version": "jap.connector_fleet_policy.v1",
+  "status": "proposed_for_acceptance",
+  "issue": 1150,
+  "lifecycle": {
+    "accepted_candidate_requires_connector_disposition": true,
+    "active_controlled_requires_recurring_monitoring_admission": true,
+    "allowed_connector_dispositions": [
+      "runnable_definition",
+      "blocked_with_evidence",
+      "manual_review_required",
+      "rejected_with_evidence"
+    ],
+    "bespoke_connector_per_employer_required": false
+  },
+  "scheduling": {
+    "default_cadence_minutes": 1440,
+    "recent_yield_window_minutes": 10080,
+    "overdue_grace_minutes": 360,
+    "deterministic_slot_strategy": "sha256_source_profile_mod_cadence",
+    "max_global_concurrency": 5,
+    "default_provider_or_host_concurrency": 2,
+    "retry": {
+      "max_attempts_per_due_run": 3,
+      "backoff_minutes": [60, 240, 720]
+    }
+  },
+  "health": {
+    "technical_current_requires": [
+      "registered_connector_or_runnable_profile",
+      "recurring_monitoring_admitted",
+      "latest_due_execution_not_failed",
+      "not_overdue_beyond_cadence_plus_grace"
+    ],
+    "green": {
+      "technical_state": "current",
+      "minimum_relevant_current_job_observations_in_window": 1
+    },
+    "yellow": {
+      "technical_state": "current",
+      "maximum_relevant_current_job_observations_in_window": 0
+    },
+    "red_reasons": [
+      "latest_due_execution_failed",
+      "overdue_beyond_cadence_plus_grace",
+      "registration_broken",
+      "validation_broken",
+      "execution_blocked"
+    ],
+    "non_operational_lifecycle_state": "neutral"
+  },
+  "yield": {
+    "raw_loaded_count_is_not_relevance_authority": true,
+    "signal": "authoritative_current_job_attributable_to_source_and_search_profile",
+    "window_minutes": 10080
+  },
+  "authority": {
+    "product_semantics_repository": "jenshaberle-dotcom/job-application-pipeline",
+    "classic_execution_repository": "jenshaberle-dotcom/job-pipeline-runtime",
+    "cloud_adaptation_repository": "jenshaberle-dotcom/jap-cloud-based",
+    "classic_execution_admission": "RCC"
+  }
+}
