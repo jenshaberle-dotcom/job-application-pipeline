@@ -6,7 +6,7 @@ import json
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 import psycopg
 from psycopg.rows import dict_row
@@ -599,9 +599,9 @@ def _load_live_export_inputs(conn: Any) -> dict[str, Any]:
                   AND promotion.promotion_decision = 'promotion_recommended'
                 ORDER BY
                     promotion.created_candidate_id,
-                    expansion.latest_observed_at,
-                    promotion.created_at,
-                    promotion.id
+                    expansion.latest_observed_at DESC NULLS LAST,
+                    promotion.created_at DESC,
+                    promotion.id DESC
                 """,
                 (candidate_ids,),
             )
@@ -625,13 +625,23 @@ def _load_live_export_inputs(conn: Any) -> dict[str, Any]:
                 JOIN market_evidence evidence
                   ON evidence.normalized_company_key = candidate.company_key
                 WHERE candidate.id = ANY(%s)
+                  AND evidence.source_name = ANY(%s)
+                  AND evidence.evidence_kind <> 'manual_market_observation'
+                  AND evidence.evidence_source <> 'manual_market_observation'
+                  AND coalesce(
+                        evidence.evidence ->> 'input_mode',
+                        ''
+                      ) <> 'manual_market_observation'
                   AND NULLIF(btrim(evidence.title), '') IS NOT NULL
                 ORDER BY
                     candidate.id,
-                    coalesce(evidence.source_seen_at, evidence.observed_at),
-                    evidence.id
+                    coalesce(
+                        evidence.source_seen_at,
+                        evidence.observed_at
+                    ) DESC,
+                    evidence.id DESC
                 """,
-                (candidate_ids,),
+                (candidate_ids, list(CORE_SENSORS)),
             )
 
         detail_rows: list[dict[str, Any]] = []
@@ -642,15 +652,35 @@ def _load_live_export_inputs(conn: Any) -> dict[str, Any]:
                 SELECT DISTINCT ON (candidate_id)
                     candidate_id,
                     id AS evidence_id,
-                    source_url,
+                    coalesce(final_url, source_url) AS source_url,
+                    page_title,
+                    status_code,
+                    confidence,
                     evidence,
                     created_at,
                     updated_at
                 FROM employer_origin_job_detail_evidence
                 WHERE candidate_id = ANY(%s)
                   AND relevance_decision = 'relevant'
-                  AND NULLIF(btrim(source_url), '') IS NOT NULL
-                ORDER BY candidate_id, created_at, id
+                  AND NULLIF(
+                        btrim(coalesce(final_url, source_url)),
+                        ''
+                      ) IS NOT NULL
+                  AND NULLIF(
+                        btrim(
+                            coalesce(
+                                page_title,
+                                evidence ->> 'title',
+                                evidence ->> 'job_title'
+                            )
+                        ),
+                        ''
+                      ) IS NOT NULL
+                ORDER BY
+                    candidate_id,
+                    updated_at DESC,
+                    created_at DESC,
+                    id DESC
                 """,
                 (candidate_ids,),
             )
