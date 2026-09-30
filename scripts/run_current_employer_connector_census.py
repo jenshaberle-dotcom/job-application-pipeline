@@ -40,7 +40,9 @@ def _latest_distinct_candidates(rows: Sequence[Mapping[str, Any]]) -> list[dict[
 def _builder_failure_map(builder_audit: Mapping[str, Any] | None) -> dict[str, str]:
     if not builder_audit:
         return {}
-    candidates = builder_audit.get("candidates")
+    candidates = builder_audit.get("results")
+    if not isinstance(candidates, list):
+        candidates = builder_audit.get("candidates")
     if not isinstance(candidates, list):
         candidates = builder_audit.get("assessments")
     if not isinstance(candidates, list):
@@ -90,7 +92,9 @@ def build_census(
         "active_recurring_connector_count": 0,
         "connector_materialized_nonrecurring_count": 0,
         "recipe_ready_not_materialized_count": 0,
+        "source_resolution_gap_count": 0,
         "capability_gap_count": 0,
+        "qualification_gap_count": 0,
         "resolution_required_count": 0,
         "broken_active_connector_count": 0,
     }
@@ -124,9 +128,18 @@ def build_census(
         elif builder_state == "RECIPE_READY":
             disposition = "RECIPE_READY_NOT_MATERIALIZED"
             counts["recipe_ready_not_materialized_count"] += 1
-        elif builder_state:
+        elif builder_state in {"identity", "origin", "origin_reachability", "delegation"}:
+            disposition = "SOURCE_RESOLUTION_GAP"
+            counts["source_resolution_gap_count"] += 1
+        elif builder_state in {"provider", "inventory", "detail", "recipe"}:
             disposition = "CAPABILITY_GAP"
             counts["capability_gap_count"] += 1
+        elif builder_state == "proof":
+            disposition = "QUALIFICATION_GAP"
+            counts["qualification_gap_count"] += 1
+        elif builder_state:
+            disposition = "BUILDER_GAP_UNCLASSIFIED"
+            counts["resolution_required_count"] += 1
         else:
             disposition = "RESOLUTION_REQUIRED"
             counts["resolution_required_count"] += 1
@@ -155,7 +168,9 @@ def build_census(
             "active_recurring_connector_count",
             "connector_materialized_nonrecurring_count",
             "recipe_ready_not_materialized_count",
+            "source_resolution_gap_count",
             "capability_gap_count",
+            "qualification_gap_count",
             "resolution_required_count",
         )
     )
@@ -177,6 +192,11 @@ def build_census(
                 if builder_audit is not None
                 else "not_measured_no_capability_gap_inference"
             ),
+            "builder_audit_schema": (
+                str(builder_audit.get("schema") or builder_audit.get("schema_version") or "unknown")
+                if builder_audit is not None
+                else None
+            ),
         },
         "candidates": records,
         "boundaries": {
@@ -185,6 +205,15 @@ def build_census(
             "historical_65_candidate_benchmark_not_population_authority": True,
             "source_overview_union_not_candidate_denominator": True,
             "missing_builder_measurement_is_resolution_required_not_capability_gap": True,
+            "builder_failure_layer_is_not_automatically_capability_gap": True,
+            "capability_gap_layers": ["provider", "inventory", "detail", "recipe"],
+            "source_resolution_gap_layers": [
+                "identity",
+                "origin",
+                "origin_reachability",
+                "delegation"
+            ],
+            "qualification_gap_layers": ["proof"],
             "bespoke_connector_per_employer_required": False,
         },
     }
