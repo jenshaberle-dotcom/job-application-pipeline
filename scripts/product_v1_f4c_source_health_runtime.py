@@ -512,12 +512,70 @@ def _fleet_status(
     connector = _mapping(source.get("connector"))
     activation = _mapping(source.get("activation"))
 
-    operational = (
-        role == "employer_origin"
-        and connector.get("code_backed_registered") is True
-        and activation.get("active") is True
-        and schedule.get("recurring_ingestion_eligible") is True
-    )
+    if role != "employer_origin":
+        return {
+            "light": "neutral",
+            "reason": "fleet_light_applies_to_employer_origin_connectors",
+            "technical_state": "not_applicable",
+            "yield_state": "not_evaluated",
+            "relevant_job_count": int(operator.get("relevant_current_job_count") or 0),
+            "latest_relevant_job_observed_at": _iso(
+                _utc(operator.get("latest_relevant_job_observed_at"))
+            ),
+            "yield_window_minutes": yield_window_minutes,
+            "truth_source": "connector lifecycle + canonical fleet policy",
+        }
+
+    registered = connector.get("code_backed_registered") is True
+    active = activation.get("active") is True
+    recurring = schedule.get("recurring_ingestion_eligible") is True
+    health_status = str(health.get("status") or "unknown")
+    registration = str(lifecycle.get("registration") or "unknown")
+    validation = str(lifecycle.get("validation") or "unknown")
+
+    # Once an Employer-Origin source is active, missing registration, validation
+    # or recurring admission is an operational defect, not a neutral build state.
+    if active and not registered:
+        return {
+            "light": "red",
+            "reason": "registration_broken",
+            "technical_state": "registration_broken",
+            "yield_state": "not_authoritative_while_technical_red",
+            "relevant_job_count": int(operator.get("relevant_current_job_count") or 0),
+            "latest_relevant_job_observed_at": _iso(
+                _utc(operator.get("latest_relevant_job_observed_at"))
+            ),
+            "yield_window_minutes": yield_window_minutes,
+            "truth_source": "connector lifecycle + canonical fleet policy",
+        }
+    if active and validation not in {"passed", "not_applicable"}:
+        return {
+            "light": "red",
+            "reason": "validation_broken",
+            "technical_state": "validation_broken",
+            "yield_state": "not_authoritative_while_technical_red",
+            "relevant_job_count": int(operator.get("relevant_current_job_count") or 0),
+            "latest_relevant_job_observed_at": _iso(
+                _utc(operator.get("latest_relevant_job_observed_at"))
+            ),
+            "yield_window_minutes": yield_window_minutes,
+            "truth_source": "connector lifecycle + canonical fleet policy",
+        }
+    if active and not recurring:
+        return {
+            "light": "red",
+            "reason": "recurring_monitoring_not_admitted",
+            "technical_state": "execution_blocked",
+            "yield_state": "not_authoritative_while_technical_red",
+            "relevant_job_count": int(operator.get("relevant_current_job_count") or 0),
+            "latest_relevant_job_observed_at": _iso(
+                _utc(operator.get("latest_relevant_job_observed_at"))
+            ),
+            "yield_window_minutes": yield_window_minutes,
+            "truth_source": "connector lifecycle + canonical fleet policy",
+        }
+
+    operational = registered and active and recurring
     if not operational:
         return {
             "light": "neutral",
@@ -532,14 +590,7 @@ def _fleet_status(
             "truth_source": "connector lifecycle + canonical fleet policy + Product readiness",
         }
 
-    health_status = str(health.get("status") or "unknown")
-    registration = str(lifecycle.get("registration") or "unknown")
-    validation = str(lifecycle.get("validation") or "unknown")
-    if (
-        registration != "registered"
-        or validation not in {"passed", "not_applicable"}
-        or health_status in {"degraded", "stale"}
-    ):
+    if health_status in {"degraded", "stale"}:
         return {
             "light": "red",
             "reason": (
