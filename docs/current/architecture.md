@@ -17,7 +17,12 @@ Market Sensors
   -> Gates and Stopper Reassessment
   -> Connector Candidate / Build / Validation / Approval
   -> Active Controlled Source
+  -> Recurring Monitoring Admission
+  -> Deterministic Due-Work Schedule
+  -> Connector Execution
   -> Bronze / Silver / Gold / Control Center
+  -> Fleet Health + Yield
+  -> next due execution
 ```
 
 ## Core boundaries
@@ -60,6 +65,19 @@ Connector candidacy, artifact generation, validation, registration planning,
 final approval and active controlled operation are separate stages. Connector
 artifacts are not activation.
 
+Accepted Employer-Origin candidates must now receive an explicit connector
+disposition: runnable definition, evidence-backed block/review, or evidence-backed
+rejection. An active-controlled source is not fleet-complete until recurring
+monitoring has an explicit disposition.
+
+The canonical fleet policy is `config/connector_fleet_policy.json`. It defines
+24-hour default cadence, deterministic staggering, bounded concurrency and the
+shared GREEN/YELLOW/RED operator semantics. Technical execution health and recent
+relevant-job yield remain separate evidence dimensions; zero yield alone is not a
+technical failure.
+
+See `../decisions/adr/037_close_connector_fleet_lifecycle.md`.
+
 ### Job data layers
 
 - Bronze keeps bounded raw acquisition and lineage.
@@ -93,10 +111,12 @@ See `../decisions/adr/034_define_shared_jap_product_and_runtime_coexistence.md`.
 
 ## Current maturity note
 
-The documentation structure is now stable enough for product work again, but the
-pipeline itself is not closed-loop yet. The biggest product blockers remain
-StepStone discovery rotation, candidate promotion quality, URL/detail evidence
-generics and repair/stop taxonomy.
+The documentation structure is now stable enough for product work again. The
+connector-fleet contract closes the architectural discovery-to-recurring-monitoring
+loop, but implementation remains incomplete until Candidate -> Connector disposition,
+due-work execution and shared fleet-health projection are enforced end to end.
+The biggest adjacent product blockers remain StepStone discovery rotation, candidate
+promotion quality, URL/detail evidence generics and repair/stop taxonomy.
 
 Detailed references live under `../reference/`. Diagrams live in
 `system-diagrams.md`.
