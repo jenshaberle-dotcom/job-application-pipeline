@@ -9,9 +9,8 @@ F6 is the final package of the current frozen Product campaign.
 ## Current application-generation authority — 2026-10-01 GPT-6.1 Sol hardcut
 
 The active Quality-AI path has one model authority: **`gpt-6.1-sol`** through the
-ChatGPT-authenticated bundled Codex runtime. GPT-5.6 Sol is retired from F6 application
-generation and may not be restored by environment variables, UI defaults or caller
-overrides.
+ChatGPT-authenticated bundled Codex runtime. No alternate application-generation model,
+environment override, API-key provider path or caller-selectable model authority exists.
 
 The quality path is deliberately multi-stage:
 
@@ -288,7 +287,7 @@ Post-write proof is deliberately narrow:
 - Top-5 forced = 0;
 - application/submission/send authority remains absent.
 
-A subsequent read-only live probe using the canonical private-document root proves the same Silver #626 now yields Application Workspace `READY`, blocked reasons `[]`, 2 grounded claim-plan entries, exact observation reuse with zero detail HTTP GETs, and F6 template authority `ready`. With the provider explicitly disabled, the canonical draft path reaches `draft_for_review` in `deterministic_evidence_first` mode with provider requests 0 and all DB/application/submission/send writes 0.
+A subsequent read-only live probe using the canonical private-document root proved the same Silver #626 could reach Application Workspace `READY` with grounded claim-plan entries and verified template authority. The former automatic provider-free draft fallback from that historical proof has been physically removed; provider-free operation is now only the explicit local manual-edit mode, not a second automatic CV/letter generator.
 
 ### F6 design mandate — preserve layout maximally, change only what is necessary
 
