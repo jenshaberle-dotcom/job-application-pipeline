@@ -352,14 +352,13 @@ def main() -> int:
     print("============================================")
     print(f"STATUS={str(payload.get('status') or 'unknown').upper()}")
     print(f"SILVER_JOB_ID={args.silver_job_id}")
-    print(f"DRAFT_MODE={payload.get('draft_mode', 'NONE')}")
     print(f"PROVIDER_REQUESTS={payload.get('provider_requests', 0)}")
     print(f"DATABASE_WRITES={payload.get('database_writes', 0)}")
     print(f"SUBMISSION_WRITES={payload.get('submission_writes', 0)}")
     print(f"SEND_ACTIONS={payload.get('send_actions', 0)}")
     print(f"artifact={args.output.resolve()}")
     print("PRODUCT_V1_APPLICATION_WORKSPACE=COMPLETE")
-    return 0 if payload.get("status") in {"ready", "draft_for_review"} else 2
+    return 0 if payload.get("status") == "ready" else 2
 
 
 if __name__ == "__main__":
