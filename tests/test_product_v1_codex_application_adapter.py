@@ -307,28 +307,17 @@ def test_embedded_codex_maps_complete_letter_identity_without_template_leak(
     ]
 
 
-def test_application_model_is_hardcut_to_gpt_6_1_sol(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("JAP_CODEX_DRAFT_MODEL", "gpt-5.6-sol")
-    monkeypatch.setenv("JAP_CODEX_REASONING_EFFORT", "low")
+def test_application_generation_has_single_physical_model_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(adapter, "_resolve_codex", lambda: None)
 
     status = adapter.inspect_codex_runtime_status()
 
     assert status.model == "gpt-6.1-sol"
     assert status.reasoning_effort == "staged_quality"
-
-
-def test_explicit_legacy_application_model_fails_closed_before_codex() -> None:
-    result = adapter.request_codex_application_adaptation(
-        context=_context(),
-        model="gpt-5.6-sol",
-    )
-
-    assert result.status == "failed_closed"
-    assert result.reason_code == "codex_application_model_policy_violation"
-    assert result.attempted is False
-    assert result.model == "gpt-6.1-sol"
-    assert result.request_count == 0
+    assert "model" not in adapter.inspect_codex_runtime_status.__annotations__
+    assert "reasoning_effort" not in adapter.inspect_codex_runtime_status.__annotations__
 
 
 def test_codex_capacity_exhaustion_returns_no_low_quality_fallback(
