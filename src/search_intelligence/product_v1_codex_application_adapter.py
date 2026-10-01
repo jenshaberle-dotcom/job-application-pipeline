@@ -531,13 +531,7 @@ def _codex_login_status(executable: str) -> tuple[bool, str]:
     )
 
 
-def inspect_codex_runtime_status(
-    *,
-    model: str | None = None,
-    reasoning_effort: str | None = None,
-) -> CodexRuntimeStatus:
-    # F6 hardcut: application drafting has one model authority. Environment
-    # variables may not resurrect GPT-5.6 or a second reasoning policy.
+def inspect_codex_runtime_status() -> CodexRuntimeStatus:
     selected_model = DEFAULT_MODEL
     selected_reasoning_effort = DEFAULT_REASONING_EFFORT
     executable = _resolve_codex()
@@ -1347,25 +1341,10 @@ def request_codex_application_adaptation(
     *,
     context: ProductV1ApplicationContext,
     as_of_date: date | None = None,
-    model: str | None = None,
-    reasoning_effort: str | None = None,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     layout_feedback: tuple[str, ...] = (),
     previous_package: Mapping[str, object] | None = None,
 ) -> CodexApplicationDraftResult:
-    # F6 model hardcut. An old environment variable or caller cannot silently
-    # move application generation back to GPT-5.6.
-    if model is not None and model.strip() != DEFAULT_MODEL:
-        return CodexApplicationDraftResult(
-            status="failed_closed",
-            attempted=False,
-            model=DEFAULT_MODEL,
-            reasoning_effort=DEFAULT_REASONING_EFFORT,
-            reason_code="codex_application_model_policy_violation",
-            reason=f"F6 application drafting is hard-pinned to {DEFAULT_MODEL}.",
-            package=None,
-            request_count=0,
-        )
     selected_model = DEFAULT_MODEL
     selected_reasoning_effort = DEFAULT_REASONING_EFFORT
 
