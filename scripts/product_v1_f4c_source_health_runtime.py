@@ -9,12 +9,28 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import datetime, timedelta, timezone
+import json
+from pathlib import Path
 from typing import Any, Mapping
 
 import psycopg
 from psycopg.rows import dict_row
 
 from scripts.run_employer_origin_candidate_queue_agent import DatabaseConfig
+
+
+CONNECTOR_FLEET_POLICY_PATH = (
+    Path(__file__).resolve().parents[1] / "config" / "connector_fleet_policy.json"
+)
+
+
+def load_connector_fleet_policy() -> dict[str, object]:
+    payload = json.loads(CONNECTOR_FLEET_POLICY_PATH.read_text(encoding="utf-8"))
+    if payload.get("schema_version") != "jap.connector_fleet_policy.v1":
+        raise RuntimeError("unsupported connector fleet policy schema")
+    if payload.get("status") != "accepted":
+        raise RuntimeError("connector fleet policy is not accepted")
+    return payload
 
 
 def _mapping(value: object) -> Mapping[str, Any]:
@@ -51,7 +67,16 @@ def _age_hours(value: object, *, observed_at: datetime) -> float | None:
 
 
 def load_source_schedule_evidence() -> dict[str, dict[str, object]]:
-    """Load recurring-ingestion eligibility without inventing a cadence."""
+    """Load recurring eligibility plus the accepted connector-fleet cadence."""
+
+    policy = load_connector_fleet_policy()
+    scheduling = _mapping(policy.get("scheduling"))
+    default_cadence = int(scheduling.get("default_cadence_minutes") or 0)
+    overdue_grace = int(scheduling.get("overdue_grace_minutes") or 0)
+    if default_cadence <= 0:
+        raise RuntimeError("connector fleet default cadence is invalid")
+    if overdue_grace < 0:
+        raise RuntimeError("connector fleet overdue grace is invalid")
 
     with psycopg.connect(
         DatabaseConfig.from_environment().dsn(),
@@ -95,19 +120,29 @@ def load_source_schedule_evidence() -> dict[str, dict[str, object]]:
                 rows = tuple(cur.fetchall())
         conn.rollback()
 
-    return {
-        str(row["source_name"]): {
+    result: dict[str, dict[str, object]] = {}
+    for row in rows:
+        source_name = str(row.get("source_name") or "").strip()
+        if not source_name:
+            continue
+        recurring_count = int(row["recurring_enabled_profile_count"] or 0)
+        result[source_name] = {
             "profile_count": int(row["profile_count"] or 0),
             "active_profile_count": int(row["active_profile_count"] or 0),
-            "recurring_enabled_profile_count": int(
-                row["recurring_enabled_profile_count"] or 0
+            "recurring_enabled_profile_count": recurring_count,
+            "expected_cadence_minutes": (
+                default_cadence if recurring_count > 0 else None
             ),
-            "expected_cadence_minutes": None,
-            "cadence_truth_source": None,
+            "overdue_grace_minutes": (
+                overdue_grace if recurring_count > 0 else None
+            ),
+            "cadence_truth_source": (
+                "config/connector_fleet_policy.json"
+                if recurring_count > 0
+                else None
+            ),
         }
-        for row in rows
-        if str(row.get("source_name") or "").strip()
-    }
+    return result
 
 
 def _relation_exists(cur: psycopg.Cursor[Any], relation_name: str) -> bool:
@@ -135,6 +170,7 @@ def load_source_operator_evidence() -> dict[str, dict[str, object]]:
                 has_runs = _relation_exists(cur, "ingestion_runs")
                 has_observations = _relation_exists(cur, "job_observations")
                 has_current = _relation_exists(cur, "gold_current_job_opportunities")
+                has_readiness = _relation_exists(cur, "gold_product_v1_job_readiness")
                 if not has_runs:
                     return {}
 
@@ -157,6 +193,39 @@ def load_source_operator_evidence() -> dict[str, dict[str, object]]:
                                     "current_job_count": int(row["current_job_count"] or 0),
                                     "latest_current_job_observed_at": row.get(
                                         "latest_current_job_observed_at"
+                                    ),
+                                }
+                            )
+
+                if has_readiness:
+                    cur.execute(
+                        """
+                        SELECT
+                            source_name,
+                            count(*) FILTER (
+                                WHERE origin_validation_status = 'validated'
+                                  AND activity_status = 'active'
+                                  AND hard_filter_status = 'passed'
+                            )::integer AS relevant_current_job_count,
+                            max(last_positive_observed_at) FILTER (
+                                WHERE origin_validation_status = 'validated'
+                                  AND activity_status = 'active'
+                                  AND hard_filter_status = 'passed'
+                            ) AS latest_relevant_job_observed_at
+                        FROM gold_product_v1_job_readiness
+                        GROUP BY source_name
+                        """
+                    )
+                    for row in cur.fetchall():
+                        name = str(row.get("source_name") or "").strip()
+                        if name:
+                            evidence.setdefault(name, {}).update(
+                                {
+                                    "relevant_current_job_count": int(
+                                        row["relevant_current_job_count"] or 0
+                                    ),
+                                    "latest_relevant_job_observed_at": row.get(
+                                        "latest_relevant_job_observed_at"
                                     ),
                                 }
                             )
@@ -310,6 +379,8 @@ def load_source_operator_evidence() -> dict[str, dict[str, object]]:
 
 def _schedule_projection(
     evidence: Mapping[str, object] | None,
+    *,
+    default_overdue_grace_minutes: int,
 ) -> dict[str, object]:
     if evidence is None:
         return {
@@ -317,7 +388,9 @@ def _schedule_projection(
             "recurring_ingestion_eligible": None,
             "recurring_enabled_profile_count": None,
             "expected_cadence_minutes": None,
+            "overdue_grace_minutes": None,
             "next_expected_run_at": None,
+            "overdue_at": None,
             "cadence_authority": False,
             "truth_source": "not_projected",
         }
@@ -330,6 +403,18 @@ def _schedule_projection(
         cadence = None
     if cadence is not None and cadence <= 0:
         cadence = None
+
+    raw_grace = evidence.get("overdue_grace_minutes")
+    try:
+        grace = (
+            int(raw_grace)
+            if raw_grace is not None
+            else int(default_overdue_grace_minutes)
+        )
+    except (TypeError, ValueError):
+        grace = int(default_overdue_grace_minutes)
+    if grace < 0:
+        grace = int(default_overdue_grace_minutes)
 
     cadence_source = str(evidence.get("cadence_truth_source") or "").strip() or None
     cadence_authority = cadence is not None and cadence_source is not None
@@ -346,7 +431,9 @@ def _schedule_projection(
         "recurring_ingestion_eligible": recurring_count > 0,
         "recurring_enabled_profile_count": recurring_count,
         "expected_cadence_minutes": cadence if cadence_authority else None,
+        "overdue_grace_minutes": grace if cadence_authority else None,
         "next_expected_run_at": None,
+        "overdue_at": None,
         "cadence_authority": cadence_authority,
         "truth_source": (
             "search_profiles.recurring_ingestion_enabled"
@@ -374,12 +461,20 @@ def _current_health(
 
     cadence = schedule.get("expected_cadence_minutes")
     cadence_minutes = int(cadence) if isinstance(cadence, int) and cadence > 0 else None
+    grace = schedule.get("overdue_grace_minutes")
+    grace_minutes = int(grace) if isinstance(grace, int) and grace >= 0 else 0
     next_expected = (
         run_at + timedelta(minutes=cadence_minutes)
         if run_at is not None and cadence_minutes is not None
         else None
     )
+    overdue_at = (
+        next_expected + timedelta(minutes=grace_minutes)
+        if next_expected is not None
+        else None
+    )
     schedule["next_expected_run_at"] = _iso(next_expected)
+    schedule["overdue_at"] = _iso(overdue_at)
 
     if latest == "failed":
         status, reason, freshness = "degraded", "latest_attempt_failed", "unknown_without_success"
@@ -399,10 +494,10 @@ def _current_health(
         )
     elif run_at is None:
         status, reason, freshness = "unknown", "successful_run_timestamp_missing", "unknown"
-    elif next_expected is not None and observed_at > next_expected:
+    elif overdue_at is not None and observed_at > overdue_at:
         status, reason, freshness = (
             "stale",
-            "successful_run_overdue_for_explicit_cadence",
+            "successful_run_overdue_for_explicit_cadence_and_grace",
             "overdue",
         )
     else:
@@ -431,6 +526,153 @@ def _current_health(
         "truth_source": "not_measured",
     }
     return health, reachability
+
+
+def _fleet_status(
+    source: Mapping[str, object],
+    *,
+    schedule: Mapping[str, object],
+    health: Mapping[str, object],
+    operator: Mapping[str, object],
+    observed_at: datetime,
+    yield_window_minutes: int,
+) -> dict[str, object]:
+    """Derive the operator traffic light from technical health + relevant yield."""
+
+    role = str(source.get("source_role") or "unknown")
+    lifecycle = _mapping(source.get("lifecycle"))
+    connector = _mapping(source.get("connector"))
+    activation = _mapping(source.get("activation"))
+
+    if role != "employer_origin":
+        return {
+            "light": "neutral",
+            "reason": "fleet_light_applies_to_employer_origin_connectors",
+            "technical_state": "not_applicable",
+            "yield_state": "not_evaluated",
+            "relevant_job_count": int(operator.get("relevant_current_job_count") or 0),
+            "latest_relevant_job_observed_at": _iso(
+                _utc(operator.get("latest_relevant_job_observed_at"))
+            ),
+            "yield_window_minutes": yield_window_minutes,
+            "truth_source": "connector lifecycle + canonical fleet policy",
+        }
+
+    registered = connector.get("code_backed_registered") is True
+    active = activation.get("active") is True
+    recurring = schedule.get("recurring_ingestion_eligible") is True
+    health_status = str(health.get("status") or "unknown")
+    validation = str(lifecycle.get("validation") or "unknown")
+
+    # Once an Employer-Origin source is active, missing registration, validation
+    # or recurring admission is an operational defect, not a neutral build state.
+    if active and not registered:
+        return {
+            "light": "red",
+            "reason": "registration_broken",
+            "technical_state": "registration_broken",
+            "yield_state": "not_authoritative_while_technical_red",
+            "relevant_job_count": int(operator.get("relevant_current_job_count") or 0),
+            "latest_relevant_job_observed_at": _iso(
+                _utc(operator.get("latest_relevant_job_observed_at"))
+            ),
+            "yield_window_minutes": yield_window_minutes,
+            "truth_source": "connector lifecycle + canonical fleet policy",
+        }
+    if active and validation not in {"passed", "not_applicable"}:
+        return {
+            "light": "red",
+            "reason": "validation_broken",
+            "technical_state": "validation_broken",
+            "yield_state": "not_authoritative_while_technical_red",
+            "relevant_job_count": int(operator.get("relevant_current_job_count") or 0),
+            "latest_relevant_job_observed_at": _iso(
+                _utc(operator.get("latest_relevant_job_observed_at"))
+            ),
+            "yield_window_minutes": yield_window_minutes,
+            "truth_source": "connector lifecycle + canonical fleet policy",
+        }
+    if active and not recurring:
+        return {
+            "light": "red",
+            "reason": "recurring_monitoring_not_admitted",
+            "technical_state": "execution_blocked",
+            "yield_state": "not_authoritative_while_technical_red",
+            "relevant_job_count": int(operator.get("relevant_current_job_count") or 0),
+            "latest_relevant_job_observed_at": _iso(
+                _utc(operator.get("latest_relevant_job_observed_at"))
+            ),
+            "yield_window_minutes": yield_window_minutes,
+            "truth_source": "connector lifecycle + canonical fleet policy",
+        }
+
+    operational = registered and active and recurring
+    if not operational:
+        return {
+            "light": "neutral",
+            "reason": "connector_not_operationally_admitted",
+            "technical_state": "not_operational",
+            "yield_state": "not_evaluated",
+            "relevant_job_count": int(operator.get("relevant_current_job_count") or 0),
+            "latest_relevant_job_observed_at": _iso(
+                _utc(operator.get("latest_relevant_job_observed_at"))
+            ),
+            "yield_window_minutes": yield_window_minutes,
+            "truth_source": "connector lifecycle + canonical fleet policy + Product readiness",
+        }
+
+    if health_status in {"degraded", "stale"}:
+        return {
+            "light": "red",
+            "reason": (
+                "technical_runtime_or_lifecycle_failure"
+                if health_status != "stale"
+                else "scheduled_execution_overdue"
+            ),
+            "technical_state": health_status,
+            "yield_state": "not_authoritative_while_technical_red",
+            "relevant_job_count": int(operator.get("relevant_current_job_count") or 0),
+            "latest_relevant_job_observed_at": _iso(
+                _utc(operator.get("latest_relevant_job_observed_at"))
+            ),
+            "yield_window_minutes": yield_window_minutes,
+            "truth_source": "connector lifecycle + ingestion runs + canonical fleet policy",
+        }
+
+    if health_status != "healthy":
+        return {
+            "light": "neutral",
+            "reason": "current_technical_health_not_yet_authoritative",
+            "technical_state": health_status,
+            "yield_state": "pending",
+            "relevant_job_count": int(operator.get("relevant_current_job_count") or 0),
+            "latest_relevant_job_observed_at": _iso(
+                _utc(operator.get("latest_relevant_job_observed_at"))
+            ),
+            "yield_window_minutes": yield_window_minutes,
+            "truth_source": "connector lifecycle + ingestion runs + canonical fleet policy",
+        }
+
+    latest_relevant = _utc(operator.get("latest_relevant_job_observed_at"))
+    cutoff = observed_at - timedelta(minutes=yield_window_minutes)
+    current_count = int(operator.get("relevant_current_job_count") or 0)
+    recent = latest_relevant is not None and latest_relevant >= cutoff and current_count > 0
+    return {
+        "light": "green" if recent else "yellow",
+        "reason": (
+            "technical_current_and_recent_relevant_job"
+            if recent
+            else "technical_current_without_recent_relevant_job"
+        ),
+        "technical_state": "current",
+        "yield_state": "recent_relevant_job" if recent else "no_recent_relevant_job",
+        "relevant_job_count": current_count,
+        "latest_relevant_job_observed_at": _iso(latest_relevant),
+        "yield_window_minutes": yield_window_minutes,
+        "truth_source": (
+            "gold_product_v1_job_readiness + ingestion runs + canonical fleet policy"
+        ),
+    }
 
 
 def _scan_status(latest: str) -> tuple[str, str]:
@@ -470,6 +712,18 @@ def project_current_source_health(
         return result
 
     schedules = schedule_evidence or {}
+    fleet_policy = load_connector_fleet_policy()
+    fleet_scheduling = _mapping(fleet_policy.get("scheduling"))
+    yield_window_minutes = int(
+        fleet_scheduling.get("recent_yield_window_minutes") or 0
+    )
+    overdue_grace_minutes = int(
+        fleet_scheduling.get("overdue_grace_minutes") or 0
+    )
+    if yield_window_minutes <= 0:
+        raise RuntimeError("connector fleet yield window is invalid")
+    if overdue_grace_minutes < 0:
+        raise RuntimeError("connector fleet overdue grace is invalid")
     operator_rows = (
         load_source_operator_evidence()
         if operator_evidence is None
@@ -483,6 +737,7 @@ def project_current_source_health(
     zero_yield_success_count = 0
     reachability_not_checked_count = 0
     disappeared_comparable_count = 0
+    fleet_light_counts: Counter[str] = Counter()
 
     for raw_source in raw_sources:
         if not isinstance(raw_source, Mapping):
@@ -490,7 +745,10 @@ def project_current_source_health(
             continue
         source = dict(raw_source)
         source_name = str(source.get("source_name") or "").strip()
-        schedule = _schedule_projection(schedules.get(source_name))
+        schedule = _schedule_projection(
+            schedules.get(source_name),
+            default_overdue_grace_minutes=overdue_grace_minutes,
+        )
         health, reachability = _current_health(
             source,
             schedule=schedule,
@@ -515,11 +773,25 @@ def project_current_source_health(
             "truth_source": "ingestion_runs",
         }
         source["reachability"] = reachability
+        source["fleet_status"] = _fleet_status(
+            source,
+            schedule=schedule,
+            health=health,
+            operator=operator,
+            observed_at=current_time,
+            yield_window_minutes=yield_window_minutes,
+        )
         source["delivery"] = {
             "latest_run_loaded": loaded,
             "latest_run_inserted": inserted,
             "latest_success_zero_yield": zero_yield,
             "current_job_count": int(operator.get("current_job_count") or 0),
+            "relevant_current_job_count": int(
+                operator.get("relevant_current_job_count") or 0
+            ),
+            "latest_relevant_job_observed_at": _iso(
+                _utc(operator.get("latest_relevant_job_observed_at"))
+            ),
             "last_job_delivery_at": _iso(_utc(operator.get("last_job_delivery_at"))),
             "last_job_delivery_loaded": int(
                 operator.get("last_job_delivery_loaded") or 0
@@ -567,6 +839,7 @@ def project_current_source_health(
             reachability_not_checked_count += 1
         if operator.get("disappeared_comparison_available") is True:
             disappeared_comparable_count += 1
+        fleet_light_counts[str(source["fleet_status"]["light"])] += 1
 
     overview["sources"] = projected_sources
     summary = dict(overview.get("summary") or {})
@@ -586,6 +859,10 @@ def project_current_source_health(
             "reachability_not_checked_count": reachability_not_checked_count,
             "reachability_unknown_count": reachability_not_checked_count,
             "disappeared_comparable_source_count": disappeared_comparable_count,
+            "fleet_green_count": fleet_light_counts["green"],
+            "fleet_yellow_count": fleet_light_counts["yellow"],
+            "fleet_red_count": fleet_light_counts["red"],
+            "fleet_neutral_count": fleet_light_counts["neutral"],
         }
     )
     overview["summary"] = summary
@@ -604,6 +881,9 @@ def project_current_source_health(
             "f4c_source_health_projection_is_read_only": True,
             "f4c_source_health_projection_has_no_ranking_authority": True,
             "f4c_source_health_projection_has_no_application_authority": True,
+            "connector_fleet_technical_health_is_separate_from_yield": True,
+            "connector_fleet_raw_loaded_count_is_not_relevance_authority": True,
+            "connector_fleet_relevance_requires_current_validated_hard_filter_pass": True,
         }
     )
     result["boundaries"] = boundaries
@@ -611,6 +891,7 @@ def project_current_source_health(
 
 
 __all__ = [
+    "load_connector_fleet_policy",
     "load_source_operator_evidence",
     "load_source_schedule_evidence",
     "project_current_source_health",

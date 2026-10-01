@@ -269,3 +269,65 @@ def test_market_discovery_catalog_surfaces_all_core_boards_without_fake_activati
     stepstone = source_by_name(payload, "stepstone")
     assert bundesagentur["connector"]["implemented"] is True
     assert stepstone["connector"]["implemented"] is True
+
+
+def test_accepted_connector_candidate_without_definition_requires_disposition() -> None:
+    source_name = "candidate:needs-connector"
+    candidate = approved_candidate(source_name, "Needs Connector")
+    candidate["connector_implemented"] = False
+
+    payload = build_source_connector_overview(
+        registry=FakeRegistry(),
+        candidates=[candidate],
+    )
+
+    source = source_by_name(payload, source_name)
+    assert source["connector_disposition"]["status"] == "connector_definition_required"
+    assert source["connector_disposition"]["requires_action"] is True
+    assert source["current_blocker"] == "connector_disposition_required"
+    assert "Build a reusable connector/profile definition" in source["next_action"]
+    assert payload["summary"]["attention_count"] >= 1
+
+
+def test_manual_review_is_an_explicit_nonrunnable_connector_disposition() -> None:
+    source_name = "candidate:review"
+    candidate = approved_candidate(source_name, "Review Candidate")
+    candidate.update(
+        {
+            "candidate_status": "manual_review_required",
+            "connector_implemented": False,
+        }
+    )
+
+    payload = build_source_connector_overview(
+        registry=FakeRegistry(),
+        candidates=[candidate],
+    )
+
+    source = source_by_name(payload, source_name)
+    assert source["connector_disposition"]["status"] == "manual_review_required"
+    assert source["connector_disposition"]["requires_action"] is True
+    assert source["current_blocker"] == "connector_manual_review_required"
+    assert source["next_action"].startswith("Review the explicit connector blocker")
+    assert payload["summary"]["attention_count"] >= 1
+
+
+def test_discovered_candidate_remains_preconnector_evidence_not_false_incident() -> None:
+    source_name = "candidate:discovered"
+    candidate = approved_candidate(source_name, "Discovery Candidate")
+    candidate.update(
+        {
+            "candidate_status": "discovered",
+            "connector_implemented": False,
+        }
+    )
+
+    payload = build_source_connector_overview(
+        registry=FakeRegistry(),
+        candidates=[candidate],
+    )
+
+    source = source_by_name(payload, source_name)
+    assert source["connector_disposition"]["status"] == "preconnector_evidence"
+    assert source["connector_disposition"]["requires_action"] is False
+    assert source["current_blocker"] is None

@@ -25,6 +25,20 @@ def payload_for(
                 {
                     "source_name": SOURCE,
                     "source_role": "employer_origin",
+                    "connector": {
+                        "implemented": True,
+                        "code_backed_registered": True,
+                        "registration_status": "registered",
+                    },
+                    "activation": {"active": True, "status": "active"},
+                    "lifecycle": {
+                        "implementation": "implemented",
+                        "validation": "passed",
+                        "final_approval": "not_applicable",
+                        "registration": "registered",
+                        "activation": "active",
+                        "ingestion": "ingested",
+                    },
                     "operational_health": {
                         "status": historical_health,
                         "latest_run_status": latest_status,
@@ -51,6 +65,8 @@ def operator_evidence(**overrides: object) -> dict[str, dict[str, object]]:
         "last_job_delivery_loaded": 4,
         "last_job_delivery_inserted": 1,
         "latest_job_observed_at": "2026-09-16T08:30:00+00:00",
+        "relevant_current_job_count": 2,
+        "latest_relevant_job_observed_at": "2026-09-16T08:30:00+00:00",
         "disappeared_comparison_available": True,
         "disappeared_since_previous_success": 2,
         "previous_successful_execution_at": "2026-09-15T08:00:00+00:00",
@@ -195,3 +211,181 @@ def test_projection_is_read_only_and_publishes_operator_boundaries() -> None:
     assert boundaries["historical_run_success_is_not_current_source_health"] is True
     assert boundaries["source_scan_result_is_not_live_reachability"] is True
     assert boundaries["disappeared_count_requires_two_successful_correlated_executions"] is True
+
+
+def accepted_schedule(*, recurring: int = 1) -> dict[str, dict[str, object]]:
+    return {
+        SOURCE: {
+            "recurring_enabled_profile_count": recurring,
+            "expected_cadence_minutes": 1440 if recurring else None,
+            "overdue_grace_minutes": 360 if recurring else None,
+            "cadence_truth_source": (
+                "config/connector_fleet_policy.json" if recurring else None
+            ),
+        }
+    }
+
+
+def test_fleet_light_green_requires_current_technical_health_and_recent_relevant_job() -> None:
+    result = project_current_source_health(
+        payload_for(),
+        schedule_evidence=accepted_schedule(),
+        operator_evidence=operator_evidence(),
+        observed_at=NOW,
+    )
+
+    row = source(result)
+    assert row["operational_health"]["status"] == "healthy"
+    assert row["fleet_status"]["light"] == "green"
+    assert row["fleet_status"]["relevant_job_count"] == 2
+    assert row["fleet_status"]["yield_state"] == "recent_relevant_job"
+
+
+def test_fleet_light_yellow_for_healthy_connector_without_recent_relevant_job() -> None:
+    result = project_current_source_health(
+        payload_for(loaded=12, inserted=4),
+        schedule_evidence=accepted_schedule(),
+        operator_evidence=operator_evidence(
+            relevant_current_job_count=0,
+            latest_relevant_job_observed_at=None,
+        ),
+        observed_at=NOW,
+    )
+
+    row = source(result)
+    assert row["source_scan"]["status"] == "ok"
+    assert row["delivery"]["latest_run_loaded"] == 12
+    assert row["fleet_status"]["light"] == "yellow"
+    assert row["fleet_status"]["reason"] == "technical_current_without_recent_relevant_job"
+    assert row["fleet_status"]["relevant_job_count"] == 0
+
+
+def test_fleet_light_red_for_current_technical_failure_even_with_recent_jobs() -> None:
+    result = project_current_source_health(
+        payload_for(
+            latest_status="failed",
+            historical_health="failed",
+            loaded=0,
+            inserted=0,
+        ),
+        schedule_evidence=accepted_schedule(),
+        operator_evidence=operator_evidence(),
+        observed_at=NOW,
+    )
+
+    row = source(result)
+    assert row["fleet_status"]["light"] == "red"
+    assert row["fleet_status"]["technical_state"] == "degraded"
+    assert row["fleet_status"]["yield_state"] == "not_authoritative_while_technical_red"
+
+
+def test_fleet_light_red_when_last_success_is_overdue() -> None:
+    result = project_current_source_health(
+        payload_for(finished_at="2026-09-14T08:00:00+00:00"),
+        schedule_evidence=accepted_schedule(),
+        operator_evidence=operator_evidence(),
+        observed_at=NOW,
+    )
+
+    row = source(result)
+    assert row["operational_health"]["status"] == "stale"
+    assert row["fleet_status"]["light"] == "red"
+    assert row["fleet_status"]["reason"] == "scheduled_execution_overdue"
+
+
+def test_active_connector_without_recurring_monitoring_is_red() -> None:
+    result = project_current_source_health(
+        payload_for(),
+        schedule_evidence=accepted_schedule(recurring=0),
+        operator_evidence=operator_evidence(),
+        observed_at=NOW,
+    )
+
+    row = source(result)
+    assert row["fleet_status"]["light"] == "red"
+    assert row["fleet_status"]["reason"] == "recurring_monitoring_not_admitted"
+    assert row["fleet_status"]["technical_state"] == "execution_blocked"
+
+
+def test_pre_operational_connector_lifecycle_remains_neutral() -> None:
+    payload = payload_for()
+    raw = payload["source_connector_overview"]["sources"][0]
+    raw["activation"] = {"active": False, "status": "not_activated"}
+    raw["lifecycle"]["activation"] = "not_activated"
+
+    result = project_current_source_health(
+        payload,
+        schedule_evidence=accepted_schedule(recurring=0),
+        operator_evidence=operator_evidence(),
+        observed_at=NOW,
+    )
+
+    row = source(result)
+    assert row["fleet_status"]["light"] == "neutral"
+    assert row["fleet_status"]["reason"] == "connector_not_operationally_admitted"
+
+
+def test_fleet_summary_counts_traffic_lights() -> None:
+    result = project_current_source_health(
+        payload_for(),
+        schedule_evidence=accepted_schedule(),
+        operator_evidence=operator_evidence(),
+        observed_at=NOW,
+    )
+
+    overview = result["source_connector_overview"]
+    assert overview["summary"]["fleet_green_count"] == 1
+    assert overview["summary"]["fleet_yellow_count"] == 0
+    assert overview["summary"]["fleet_red_count"] == 0
+    assert overview["summary"]["fleet_neutral_count"] == 0
+    assert result["boundaries"][
+        "connector_fleet_raw_loaded_count_is_not_relevance_authority"
+    ] is True
+
+
+def test_active_connector_with_broken_registration_is_red() -> None:
+    payload = payload_for()
+    raw = payload["source_connector_overview"]["sources"][0]
+    raw["connector"]["code_backed_registered"] = False
+    raw["lifecycle"]["registration"] = "not_registered"
+
+    result = project_current_source_health(
+        payload,
+        schedule_evidence=accepted_schedule(),
+        operator_evidence=operator_evidence(),
+        observed_at=NOW,
+    )
+
+    row = source(result)
+    assert row["fleet_status"]["light"] == "red"
+    assert row["fleet_status"]["reason"] == "registration_broken"
+
+
+def test_connector_stays_current_inside_overdue_grace_window() -> None:
+    result = project_current_source_health(
+        payload_for(finished_at="2026-09-15T06:00:00+00:00"),
+        schedule_evidence=accepted_schedule(),
+        operator_evidence=operator_evidence(),
+        observed_at=datetime(2026, 9, 16, 9, 0, tzinfo=timezone.utc),
+    )
+
+    row = source(result)
+    assert row["scheduling"]["next_expected_run_at"] == "2026-09-16T06:00:00+00:00"
+    assert row["scheduling"]["overdue_at"] == "2026-09-16T12:00:00+00:00"
+    assert row["operational_health"]["status"] == "healthy"
+    assert row["fleet_status"]["light"] == "green"
+
+
+def test_connector_turns_red_after_cadence_plus_overdue_grace() -> None:
+    result = project_current_source_health(
+        payload_for(finished_at="2026-09-15T02:00:00+00:00"),
+        schedule_evidence=accepted_schedule(),
+        operator_evidence=operator_evidence(),
+        observed_at=datetime(2026, 9, 16, 9, 0, tzinfo=timezone.utc),
+    )
+
+    row = source(result)
+    assert row["scheduling"]["next_expected_run_at"] == "2026-09-16T02:00:00+00:00"
+    assert row["scheduling"]["overdue_at"] == "2026-09-16T08:00:00+00:00"
+    assert row["operational_health"]["status"] == "stale"
+    assert row["fleet_status"]["light"] == "red"
