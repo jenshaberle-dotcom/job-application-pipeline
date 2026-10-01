@@ -154,7 +154,7 @@ def run_workspace_probe(
 
 
 def run_workspace_probe_single_fetch(*, silver_job_id: int) -> dict[str, object]:
-    """Load one canonical workspace and carry its deterministic draft proof forward."""
+    """Load one canonical workspace and return readiness evidence only."""
     try:
         context, final_url, fetched_title, evidence_mode, job_detail_http_gets = (
             load_application_workspace(silver_job_id)
