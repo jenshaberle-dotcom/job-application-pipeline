@@ -110,7 +110,67 @@ def _model_output() -> dict[str, object]:
             "Gerne erläutere ich Ihnen im Gespräch, wie ich diese Erfahrung bei accompio einbringen kann.",
         ],
         "rationale": "Auf die nachgewiesenen Python-, Daten- und System-Engineering-Bezüge fokussiert.",
+        "claim_provenance": [
+            {
+                "claim": "Python und PostgreSQL werden in eigenen Data-Engineering-Projekten eingesetzt.",
+                "fact_keys": ["python"],
+                "job_evidence": ["Python", "PostgreSQL"],
+            }
+        ],
     }
+
+
+def _stage_output(stage: str) -> dict[str, object]:
+    if stage == "evidence":
+        return {
+            "status": "evidence_ready",
+            "job_priorities": ["Python", "PostgreSQL", "AI Automation"],
+            "candidate_evidence": ["python: Python und PostgreSQL in eigenen Data-Engineering-Projekten"],
+            "gaps": [],
+            "risk_notes": ["Keine unbelegten Erfahrungsjahre oder Produktionsmetriken behaupten."],
+        }
+    if stage == "strategy":
+        return {
+            "status": "strategy_ready",
+            "positioning_options": [
+                "Data Engineering mit belastbarer System-Engineering-Transferleistung.",
+                "AI Automation mit Python/PostgreSQL und strukturierter technischer Verantwortung.",
+            ],
+            "selected_positioning": "AI Automation mit Python/PostgreSQL und strukturierter technischer Verantwortung.",
+            "cv_focus_fact_keys": ["python"],
+            "letter_focus_fact_keys": ["python"],
+            "avoid_claims": ["keine unbelegten MLOps-Jahre"],
+            "keywords": ["Python", "PostgreSQL", "AI Automation"],
+        }
+    if stage == "cv":
+        final = _model_output()
+        return {
+            "status": "cv_draft_ready",
+            "cv_short_profile": final["cv_short_profile"],
+            "cv_competency_profile": final["cv_competency_profile"],
+            "rationale": "Evidence-first CV adaptation.",
+        }
+    if stage == "letter":
+        final = _model_output()
+        return {
+            "status": "letter_draft_ready",
+            "language": final["language"],
+            "contact_name": final["contact_name"],
+            "salutation": final["salutation"],
+            "letter_paragraphs": final["letter_paragraphs"],
+            "rationale": "Vacancy-specific letter draft.",
+        }
+    if stage == "critic":
+        return {
+            "status": "critique_ready",
+            "verdict": "accept",
+            "critical_issues": [],
+            "revision_instructions": [],
+            "evidence_risk": False,
+        }
+    if stage in {"final", "layout_compaction"}:
+        return _model_output()
+    raise AssertionError(f"unexpected stage {stage}")
 
 
 def test_codex_schema_carries_text_only_and_no_layout_authority() -> None:
@@ -196,18 +256,22 @@ def test_embedded_codex_maps_complete_letter_identity_without_template_leak(
     monkeypatch.setattr(adapter, "_codex_version", lambda _exe: "codex-cli 0.154.0")
     monkeypatch.setattr(adapter, "_codex_login_status", lambda _exe: (True, "Logged in using ChatGPT"))
 
+    observed_stages: list[tuple[str, str]] = []
+
     def fake_run(command, **kwargs):
         if command[1:] == ["--version"]:
             return SimpleNamespace(returncode=0, stdout="codex-cli 0.153.0", stderr="")
         output_path = Path(command[command.index("-o") + 1])
+        stage = output_path.stem
         output_path.write_text(
-            json.dumps(_model_output(), ensure_ascii=False),
+            json.dumps(_stage_output(stage), ensure_ascii=False),
             encoding="utf-8",
         )
         assert "--full-auto" not in command
         assert command[command.index("--sandbox") + 1] == "read-only"
-        assert command[command.index("--model") + 1] == "gpt-5.6-sol"
-        assert 'model_reasoning_effort="high"' in command
+        assert command[command.index("--model") + 1] == "gpt-6.1-sol"
+        effort_arg = next(value for value in command if value.startswith("model_reasoning_effort="))
+        observed_stages.append((stage, effort_arg))
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(adapter.subprocess, "run", fake_run)
@@ -231,7 +295,40 @@ def test_embedded_codex_maps_complete_letter_identity_without_template_leak(
     assert zones["base_cv"]["p1.short_profile"]
     assert zones["base_cv"]["p1.competency_profile"]
     assert zones["base_cv"]["p2.footer.date"] == "Hannover, 24. September 2026"
-    assert result.reasoning_effort == "high"
+    assert result.reasoning_effort == "staged_quality"
+    assert result.request_count == 6
+    assert observed_stages == [
+        ("evidence", 'model_reasoning_effort="medium"'),
+        ("strategy", 'model_reasoning_effort="high"'),
+        ("cv", 'model_reasoning_effort="high"'),
+        ("letter", 'model_reasoning_effort="high"'),
+        ("critic", 'model_reasoning_effort="xhigh"'),
+        ("final", 'model_reasoning_effort="high"'),
+    ]
+
+
+def test_application_model_is_hardcut_to_gpt_6_1_sol(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("JAP_CODEX_DRAFT_MODEL", "gpt-5.6-sol")
+    monkeypatch.setenv("JAP_CODEX_REASONING_EFFORT", "low")
+    monkeypatch.setattr(adapter, "_resolve_codex", lambda: None)
+
+    status = adapter.inspect_codex_runtime_status()
+
+    assert status.model == "gpt-6.1-sol"
+    assert status.reasoning_effort == "staged_quality"
+
+
+def test_explicit_legacy_application_model_fails_closed_before_codex() -> None:
+    result = adapter.request_codex_application_adaptation(
+        context=_context(),
+        model="gpt-5.6-sol",
+    )
+
+    assert result.status == "failed_closed"
+    assert result.reason_code == "codex_application_model_policy_violation"
+    assert result.attempted is False
+    assert result.model == "gpt-6.1-sol"
+    assert result.request_count == 0
 
 
 def test_codex_capacity_exhaustion_returns_no_low_quality_fallback(
@@ -314,8 +411,8 @@ def test_runtime_status_reports_non_chatgpt_auth_without_enabling_drafting(
     assert status.installed is True
     assert status.chatgpt_authenticated is False
     assert status.auth_mode == "api_key"
-    assert status.reasoning_effort == "high"
-    assert status.to_json()["reasoning_effort"] == "high"
+    assert status.reasoning_effort == "staged_quality"
+    assert status.to_json()["reasoning_effort"] == "staged_quality"
     assert status.to_json()["api_key_fallback"] is False
     assert status.to_json()["automatic_credit_purchase"] is False
 
