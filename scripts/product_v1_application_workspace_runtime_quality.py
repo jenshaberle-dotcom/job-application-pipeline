@@ -33,7 +33,9 @@ from src.search_intelligence.product_v1_codex_application_adapter import (
 )
 
 
-_MAX_CODEX_LAYOUT_ATTEMPTS = 3
+_INITIAL_CODEX_QUALITY_REQUESTS = 6
+_MAX_CODEX_LAYOUT_REPAIR_ATTEMPTS = 2
+_MAX_CODEX_REQUESTS = _INITIAL_CODEX_QUALITY_REQUESTS + _MAX_CODEX_LAYOUT_REPAIR_ATTEMPTS
 _DEFAULT_PRIVATE_DOCUMENT_ROOT = Path("private_application_sources")
 _CODEX_LAYOUT_ZONES = frozenset(
     {
@@ -63,7 +65,7 @@ def _emit_progress(
             "percent": max(0, min(100, int(percent))),
             "message": message,
             "provider_request": max(0, int(provider_request)),
-            "provider_request_limit": _MAX_CODEX_LAYOUT_ATTEMPTS,
+            "provider_request_limit": _MAX_CODEX_REQUESTS,
         }
     )
 
@@ -85,7 +87,7 @@ def _blocked_payload(*, context: object, reasons: list[str]) -> dict[str, object
         "status": "blocked",
         "blocked_reasons": reasons,
         "workspace": context.canonical_payload(),
-        "draft_mode": "codex_embedded_v1",
+        "draft_mode": "codex_quality_pipeline_v2",
         "codex_requests": 0,
         "provider_requests": 0,
         "database_writes": 0,
@@ -270,9 +272,10 @@ def _draft_unavailable_payload(
             "codex_execution_failed",
             "f6_template_fit_unresolved",
         },
-        "draft_mode": "codex_embedded_v1",
+        "draft_mode": "codex_quality_pipeline_v2",
         "codex_model": getattr(result, "model", None),
         "codex_reasoning_effort": getattr(result, "reasoning_effort", None),
+        "codex_quality_pipeline": package.get("quality_pipeline"),
         "codex_version": getattr(result, "codex_version", None),
         "codex_requests": codex_requests,
         "provider_requests": codex_requests,
@@ -506,7 +509,8 @@ def generate_application_draft_payload(
         provider_request=1,
     )
     result = request_codex_application_adaptation(context=context)
-    codex_requests = int(result.attempted)
+    codex_requests = int(getattr(result, "request_count", int(result.attempted)))
+    layout_repair_attempts = 0
     if result.package is None:
         return _draft_unavailable_payload(
             context=context,
@@ -592,7 +596,10 @@ def generate_application_draft_payload(
         )
 
     layout_overflows = _codex_repairable_overflows(layout_overflows)
-    while layout_overflows and codex_requests < _MAX_CODEX_LAYOUT_ATTEMPTS:
+    while (
+        layout_overflows
+        and layout_repair_attempts < _MAX_CODEX_LAYOUT_REPAIR_ATTEMPTS
+    ):
         next_request = codex_requests + 1
         _emit_progress(
             progress_callback,
@@ -609,7 +616,8 @@ def generate_application_draft_payload(
             layout_feedback=layout_overflows,
             previous_package=package,
         )
-        codex_requests += int(result.attempted)
+        codex_requests += int(getattr(result, "request_count", int(result.attempted)))
+        layout_repair_attempts += 1
         if result.package is None:
             return _draft_unavailable_payload(
                 context=context,
@@ -722,11 +730,11 @@ def generate_application_draft_payload(
     return {
         "schema": "job_application_pipeline.product_v1_application_draft_demo.v2",
         "status": "draft_for_review",
-        "draft_mode": "codex_embedded_v1",
+        "draft_mode": "codex_quality_pipeline_v2",
         "fallback_reason": None,
         "fallback_generated": False,
         "quality_contract": "f6_template_authority_v1",
-        "codex_adaptation_contract": "f6_codex_adaptation_v1",
+        "codex_adaptation_contract": "f6_codex_quality_pipeline_v2",
         "layout_policy": "preserve_exact_template_layout_modify_text_zones_only",
         "codex_model": result.model,
         "codex_reasoning_effort": getattr(result, "reasoning_effort", None),
@@ -735,7 +743,7 @@ def generate_application_draft_payload(
         "provider_requests": codex_requests,
         "llm_requests": codex_requests,
         "layout_fit_status": "exact_template_preflight_pass",
-        "layout_repair_attempts": max(0, codex_requests - 1),
+        "layout_repair_attempts": layout_repair_attempts,
         "layout_overflows": [],
         "automatic_layout_repairs": automatic_layout_repairs,
         "automatic_semantic_repairs": list(
