@@ -20,11 +20,10 @@ The DEMO-001 backend/runtime readiness frontier is now closed for the current lo
 ```text
 DEMO_PREFLIGHT=PASS
 DEMO_WORKSPACE_PROBE=PASS
-DEMO_DRAFT_PROBE=PASS
 PRODUCT_V1_LIVE_DEMO=READY
 ```
 
-The proof used real current PostgreSQL/Product V1 truth, one bounded current-vacancy detail GET in the workspace probe, zero draft-handoff GETs, zero preflight provider requests and zero DB/application/submission/send writes.
+The proof used real current PostgreSQL/Product V1 truth, one bounded current-vacancy detail GET in the workspace probe, zero preflight generation/provider requests and zero DB/application/submission/send writes.
 
 The READY proof was executed on exact PR head `1d460228984dc4e224ce3a4a504598e78a77c088`; that content was merged unchanged by `#779` into the current main above. The canonical launcher reruns readiness before starting the server, so presentation start remains fail-closed.
 
@@ -122,7 +121,6 @@ A genuine READY requires regenerated current artifacts:
 ```text
 .runtime/demo/product_v1_demo_preflight.json
 .runtime/demo/product_v1_demo_workspace_probe.json
-.runtime/demo/product_v1_demo_draft_probe.json
 ```
 
 and terminal result:
