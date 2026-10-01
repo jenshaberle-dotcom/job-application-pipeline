@@ -123,10 +123,6 @@ type GenerationMode = "codex_quality" | "local_private";
 
 type DraftMode =
   | "local_private_edit"
-  | "provider_validated"
-  | "provider_validated_quality_v2"
-  | "provider_validated_quality_v3"
-  | "deterministic_evidence_first"
   | "codex_quality_pipeline_v2";
 
 type CodexStatusPayload = {
@@ -248,9 +244,6 @@ function fragmentGroup(kind: string | undefined) {
 function draftModeLabel(mode: DraftMode | undefined) {
   if (mode === "codex_quality_pipeline_v2") return "GPT-6.1 SOL · QUALITY PIPELINE";
   if (mode === "local_private_edit") return "LOCAL-ONLY · NO LLM";
-  if (mode === "provider_validated_quality_v3") return "BASE-DOCUMENT ADAPTED";
-  if (mode === "provider_validated_quality_v2" || mode === "provider_validated") return "PROVIDER-VALIDATED";
-  if (mode === "deterministic_evidence_first") return "EVIDENCE-FIRST · PROVIDER-FREE";
   return "SOURCE-GROUNDED";
 }
 
@@ -824,7 +817,6 @@ export default function ApplicationWorkspace() {
                 {draft.draft_mode === "local_private_edit" && <p className="demo-provider-context-note">Local-only mode made zero LLM/provider requests. Existing descriptive wording stays local and unchanged until you edit it; JAP only prepares target/date metadata automatically, then the same exact PDF renderer verifies the result.</p>}
                 {draft.base_document_text_shared_with_provider && <p className="demo-provider-context-note">The extracted text of your two approved base documents was used for this explicit generation request as style and structure context. No submission or send action occurred.</p>}
                 {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
-                {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain grounded in approved profile evidence and the exact vacancy.</p>}
 
                 <section className="demo-application-downloads">
                   <header><strong>Document templates</strong><span>{templateAuthority?.status === "ready" ? "2/2 private PDFs verified" : "source templates required"}</span></header>
