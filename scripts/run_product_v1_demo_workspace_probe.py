@@ -1,11 +1,9 @@
 """Read-only DEMO-001 probe for the selected authoritative Application Workspace.
 
-The probe performs the canonical workspace DB reads plus one bounded employer-origin
-vacancy HTTP GET. From that same in-memory context it also builds the deterministic
-evidence-first review package used by the provider-free runtime fallback. This makes
-the downstream draft readiness proof a single-fetch handoff rather than a second
-origin request. No provider, product/application write, submission or send occurs.
+The probe verifies canonical workspace/readiness truth and the single bounded
+employer-origin vacancy fetch. It does not generate CV or letter content.
 """
+
 
 from __future__ import annotations
 
@@ -23,10 +21,6 @@ from scripts.product_v1_application_workspace_runtime import (
 )
 from src.search_intelligence.product_v1_application_workspace import ApplicationWorkspaceStop
 from src.search_intelligence.product_v1_downstream_preview import DownstreamPreviewStop
-from src.search_intelligence.product_v1_evidence_first_draft import (
-    EvidenceFirstDraftStop,
-    build_evidence_first_review_draft,
-)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -191,26 +185,10 @@ def run_workspace_probe_single_fetch(*, silver_job_id: int) -> dict[str, object]
         if report["state"] != "pass":
             return report
 
-        package = build_evidence_first_review_draft(context)
-        report["evidence_first_draft"] = {
-            "draft_mode": "deterministic_evidence_first",
-            "package": package.canonical_payload(),
-            "detail_sha256": context.target.detail_sha256,
-            "provider_requests": 0,
-            "database_writes": 0,
-            "application_writes": 0,
-            "submission_writes": 0,
-            "send_actions": 0,
-        }
-        report["checks"]["evidence_first_draft_built"] = package.status == "draft_for_review"
-        if not report["checks"]["evidence_first_draft_built"]:
-            report["state"] = "blocked"
-            report["blocking_checks"] = ["evidence_first_draft_built"]
         return report
     except (
         ApplicationWorkspaceStop,
         DownstreamPreviewStop,
-        EvidenceFirstDraftStop,
         WorkspaceProbeStop,
         psycopg.Error,
         OSError,
