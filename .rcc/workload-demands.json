@@ -46,7 +46,8 @@
   "workflow_demands": {
     "pr-validation.yml": "linux-base",
     "product-v1-assessment-cohort.yml": "linux-base",
-    "jap-windows-desktop-host-release.yml": "windows-release"
+    "jap-windows-desktop-host-release.yml": "windows-release",
+    "rcc-general-pool-proof.yml": "windows-release"
   },
   "persistent_state_boundary": {
     "allowed": [
@@ -73,5 +74,14 @@
     "qualification": "RCC",
     "persistent_cache": "RCC_VERIFIED_CONTENT_ADDRESSED_ONLY",
     "credentials": "HOST_OR_EXTERNAL_SECRET_STORE"
+  },
+  "workflow_admission": {
+    "rcc-general-pool-proof.yml": {
+      "event": "pull_request",
+      "source_binding": "pull_request_head_sha",
+      "base_branch": "main",
+      "auto_dispatch": true,
+      "effect_semantics": "validation-only"
+    }
   }
 }
