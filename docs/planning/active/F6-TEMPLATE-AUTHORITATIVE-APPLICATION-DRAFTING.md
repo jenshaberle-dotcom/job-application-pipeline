@@ -6,6 +6,37 @@ Status: COMPLETE / OPERATOR ACCEPTED FOR CURRENT COHORT — Slices A/B/C accepte
 
 F6 is the final package of the current frozen Product campaign.
 
+## Current application-generation authority — 2026-10-01 GPT-6.1 Sol hardcut
+
+The active Quality-AI path has one model authority: **`gpt-6.1-sol`** through the
+ChatGPT-authenticated bundled Codex runtime. GPT-5.6 Sol is retired from F6 application
+generation and may not be restored by environment variables, UI defaults or caller
+overrides.
+
+The quality path is deliberately multi-stage:
+
+1. Evidence extraction — `medium`
+2. two-positioning strategy generation + selection — `high`
+3. CV adaptation — `high`
+4. application-letter drafting — `high`
+5. adversarial factual/quality critique — `xhigh`
+6. final grounded rewrite — `high`
+
+A physical layout overflow may trigger at most two additional **layout-only** compaction
+passes at `high`; those passes do not replay the six semantic stages. Every final draft
+must carry claim provenance back to approved Candidate Facts. The vacancy may define what
+the employer wants, but it may never be used to infer candidate experience.
+
+The current runtime therefore reports `reasoning_effort=staged_quality` rather than one
+global reasoning level. The model/reasoning environment overrides previously used by F6
+are no longer application-generation authority. ChatGPT authentication remains mandatory;
+API-key fallback and automatic credit purchase remain disabled.
+
+Historical 1.1.x notes below describe the exact model/runtime state that existed at those
+releases. They are evidence only and are superseded by this section wherever they mention
+an older F6 model or one-pass reasoning policy.
+
+
 The application workflow may adapt **text only** inside two operator-approved private PDF layouts. The layouts themselves are immutable product authority. Candidate claims remain grounded in approved Candidate Facts and exact current Employer-Origin evidence. Human review is mandatory. F6 grants no automatic submission or send authority.
 
 ## Canonical private templates
@@ -483,7 +514,7 @@ The next operator acceptance target remains **Eraneos #511**. After 1.1.6, compl
 
 The installed 1.1.6 operator run separates two real regressions from the already-working pieces.
 
-**Codex authentication itself passes.** The official device-code flow completes inside the bundled runtime and the Product API reports `status=ready`, `auth_mode=chatgpt`, `chatgpt_authenticated=true`, `codex-cli 0.154.0`, model `gpt-5.6-sol`, API-key fallback disabled and ChatGPT allowance / eligible-credit billing authority. The remaining defect is only UI reconciliation: the polling effect updates `codexLogin` to `completed`, React cleans up that effect, and the nested status request can no longer commit the now-ready Codex status. 1.1.7 therefore keeps login-session polling and completed-runtime reconciliation in separate effects.
+**Historical 1.1.6 evidence (superseded model authority): Codex authentication itself passes.** The official device-code flow completed inside the bundled runtime and the Product API then reported `status=ready`, `auth_mode=chatgpt`, `chatgpt_authenticated=true`, `codex-cli 0.154.0`, the then-current legacy model, API-key fallback disabled and ChatGPT allowance / eligible-credit billing authority. The remaining defect is only UI reconciliation: the polling effect updates `codexLogin` to `completed`, React cleans up that effect, and the nested status request can no longer commit the now-ready Codex status. 1.1.7 therefore keeps login-session polling and completed-runtime reconciliation in separate effects.
 
 **Eraneos source-origin authority remains distinct from lifecycle-health authority.** The operator-triggered exact vacancy probe correctly produces the newer lifecycle state `active_confirmed / exact_detail_url_and_title_confirmed / exact_detail`. That later exact-detail proof must not revoke a reviewed recurring-feed observation whose exact source URL, target binding, provider, employer identity, complete-inventory contract and evidence fingerprint still prove the source is an authorized Employer-Origin. 1.1.7 therefore:
 
@@ -570,7 +601,7 @@ The first complete Eraneos output proves the rendering architecture but does not
 
 #### Quality-AI source packet and authority
 
-Embedded Codex stays on `gpt-5.6-sol` and is explicitly configured with `model_reasoning_effort="high"`. Each initial drafting request receives all four bounded source classes together:
+Historical 1.1.11 behavior used one embedded Codex drafting pass with one global high-reasoning setting. That model/reasoning authority is superseded by the current GPT-6.1 Sol staged-quality hardcut above. The source-authority split established here remains valid: each quality workflow receives all four bounded source classes together:
 
 1. exact current vacancy text — sole target employer/role/requirements/contact authority;
 2. approved Candidate Facts — candidate fact authority;
@@ -619,7 +650,7 @@ DOCX never becomes template authority because Word can reflow fonts/spacing. It 
 
 Use Eraneos #511 and the accepted Hornet application as quality benchmark. Accept only when:
 
-- audit shows `gpt-5.6-sol`, reasoning `high`, current CV + current letter + exact vacancy;
+- audit shows the configured application model/reasoning policy plus current CV + current letter + exact vacancy; for current builds this means `gpt-6.1-sol` with the staged-quality profile;
 - no stale Hornet target identity becomes factual content;
 - letter is coherent, complete and materially vacancy-specific, without malformed joins or truncated sentences;
 - CV adaptation remains bounded and the footer date is current;
@@ -648,7 +679,7 @@ A regression test deliberately returns a much larger fallback font whenever sour
 
 #### Drafting progress observability
 
-Quality-AI with `gpt-5.6-sol / high` can take materially longer than local-only preparation. 1.1.11 disabled the button but exposed no activity beyond `Preparing review text…`, which looks indistinguishable from a hung request.
+Quality-AI can take materially longer than local-only preparation; current builds execute the six-stage `gpt-6.1-sol` quality profile rather than the historical one-pass model. 1.1.11 disabled the button but exposed no activity beyond `Preparing review text…`, which looks indistinguishable from a hung request.
 
 1.1.12 adds a request-bound progress channel over the already-threaded loopback server:
 
@@ -665,7 +696,7 @@ Quality-AI with `gpt-5.6-sol / high` can take materially longer than local-only 
 On Eraneos #511:
 
 1. Quality AI visibly reports progress during the long Codex operation;
-2. model remains `gpt-5.6-sol` with reasoning `high`;
+2. model remains the current F6 authority (`gpt-6.1-sol`) with the staged-quality reasoning profile;
 3. provider request counter reflects the real bounded calls;
 4. the returned exact-template-preflighted draft creates the final PDF directly;
 5. no `p1.competency_profile` preflight/final-render divergence remains;
@@ -747,7 +778,7 @@ The next cross-job failures prove a separate semantic-validator issue, not Codex
 
 - Finanz Informatik returns a Codex draft but F6 rejects it as `not specific to the selected target`;
 - Heartbeat AI returns a Codex draft but F6 rejects the salutation as `non-grounded personal salutation`;
-- `/codex-status` remains `ready`, ChatGPT-authenticated, `gpt-5.6-sol / high`.
+- `/codex-status` remains `ready` and ChatGPT-authenticated; current model authority is `gpt-6.1-sol / staged_quality`.
 
 The specificity predicate was too literal. It required the full persisted company name (for example `Finanz Informatik GmbH & Co. KG`) or the full persisted role title including presentation markers such as `(m/w/d)` to occur verbatim in the body. High-quality human prose naturally uses the employer brand and role without legal/gender suffixes.
 
