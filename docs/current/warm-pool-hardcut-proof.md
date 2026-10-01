@@ -20,11 +20,11 @@ Integrated hardcut main: `857534c4983398202714c83387af121d1e92115a`.
    with its tests. Check workflow references and registered workload inventory
    against files that actually exist. Re-run the complete suite and doc checks.
 
-The repository retains two RCC workload targets: exact-PR repository validation and
-the reusable assessment cohort, plus one separate cardinality-blind Windows product
-release publisher. The publisher runs on
-GitHub-hosted `windows-latest` and provides packaging/publication only; it is not runner
-allocation authority. Negative guards and historical branch-disposition identifiers are
+The repository retains three RCC workload targets: exact-PR repository validation,
+the reusable assessment cohort, and the Windows product release publisher. The
+publisher is now a General-Windows Demand-v2 workload. RCC owns its execution
+capacity, exact facade/assignment, Python runtime and tool capabilities; product-local
+release semantics remain JAP authority. No GitHub-hosted release path remains. Negative guards and historical branch-disposition identifiers are
 not runnable allocation authority. Product source-health heartbeats are unrelated to runner
 capacity and retain their existing product semantics.
 
@@ -65,9 +65,10 @@ same target model instead of preserving a consumer-owned execution profile:
 | Allocation/profile | RCC-only |
 | Consumer runner profile | physically absent |
 
-For JAP `linux-base`, RCC must materialize profile
-`rcc-demand-jap-linux-base` with hash
-`b08aaffd6a5da737b20570a7ed3b5b1bfc3eea11f0efeeb216e5a9d2a030c70e`.
+RCC materializes JAP execution profiles from Demand-v2. Linux validation uses
+`linux-base`; Windows product publication uses `windows-release` with the
+`dotnet-sdk-8` and `node-22` capabilities. Consumer-side profile hashes or
+physical runner identities are not JAP authority.
 
 The contract is now structurally compatible, but live acceptance remains unproven.
 RCC must still prestage/qualify the demand profile, run the read-only registration
@@ -78,11 +79,11 @@ second scheduler while those gates are completed.
 
 JAP Classic's explicit local assessment action remains separate from runner
 authority: it owns no allocation, scheduler or dispatch path and validates the
-cohort report before accepting its result. Product release publication is likewise
-separate from workload allocation: the protected hosted Windows publisher builds and
-publishes immutable exact-source assets when `windows/JAP.ControlCenter.Desktop/VERSION`
-changes. Through the 2026-09-29 demo it must not be deleted or migrated; any post-demo
-RCC publication replacement must be proven before removing this update channel.
+cohort report before accepting its result. Product release publication remains separate from workload allocation: JAP owns
+immutable exact-source release semantics while RCC supplies qualified General-Windows
+execution. The release workflow is exact-dispatch only; PowerShell 7 is fleet baseline,
+Python is the hash-bound project runtime, and Node 22/.NET 8 are RCC capabilities.
+The former hosted Windows publisher is retired authority.
 
 ## Product acceptance follow-up
 

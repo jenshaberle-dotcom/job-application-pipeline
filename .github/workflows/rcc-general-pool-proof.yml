@@ -1,0 +1,70 @@
+name: JAP RCC Windows pool proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact JAP source SHA admitted by RCC
+        required: true
+        type: string
+      rcc_facade_label:
+        description: Exact RCC General-Windows repository facade
+        required: true
+        type: string
+      rcc_assignment_label:
+        description: Exact ephemeral RCC assignment label
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on:
+      - self-hosted
+      - ${{ inputs.rcc_facade_label }}
+      - ${{ inputs.rcc_assignment_label }}
+    timeout-minutes: 10
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      RCC_EXPECTED_FACADE: ${{ inputs.rcc_facade_label }}
+      RCC_ASSIGNMENT_LABEL: ${{ inputs.rcc_assignment_label }}
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove exact assignment and PS7 baseline
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:RUNNER_NAME -ne $env:RCC_EXPECTED_FACADE) { throw 'RCC facade mismatch' }
+          if ($env:RCC_ASSIGNMENT_LABEL -notmatch '^rcc-assignment-proof-[0-9a-f]{32}$') { throw 'RCC assignment label invalid' }
+          if ($env:SOURCE_SHA -notmatch '^[0-9a-f]{40}$') { throw 'source SHA invalid' }
+          if ((git rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'exact source mismatch' }
+          if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 fleet baseline missing' }
+          if ((& node -p "process.versions.node.split('.')[0]").Trim() -ne '22') { throw 'Node 22 capability missing' }
+          if (-not ((& dotnet --list-sdks) -match '^8\.')) { throw '.NET 8 capability missing' }
+          $contextFile = if ($env:RCC_RUNTIME_CONTEXT_FILE) { $env:RCC_RUNTIME_CONTEXT_FILE } else {
+            Join-Path $env:USERPROFILE ".config\DeepOceanInfrastructure\RCC\runtime-contexts\$($env:RCC_REPOSITORY_ID)-$($env:RUNNER_NAME).json"
+          }
+          if (-not (Test-Path -LiteralPath $contextFile)) { throw "RCC runtime context missing: $contextFile" }
+          $context = Get-Content -LiteralPath $contextFile -Raw | ConvertFrom-Json
+          if ([int64]$context.RepositoryId -ne 1230805345) { throw 'runtime repository ID mismatch' }
+          if ([string]$context.Repository -ne $env:RCC_REPOSITORY) { throw 'runtime repository mismatch' }
+          if ([string]$context.RunnerName -ne $env:RUNNER_NAME) { throw 'runtime runner mismatch' }
+          if ([string]$context.Platform -ne 'windows') { throw 'runtime platform mismatch' }
+          if ([string]$context.Status -ne 'PASS') { throw 'runtime context is not PASS' }
+          $python = [string]$context.Interpreter
+          if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'qualified Python missing' }
+          "JAP_PROOF_PYTHON=$python" >> $env:GITHUB_ENV
+
+      - name: Prove source hardcut contract
+        shell: pwsh
+        run: |
+          & $env:JAP_PROOF_PYTHON -m pytest -q tests/test_warm_pool_only_runner_authority.py

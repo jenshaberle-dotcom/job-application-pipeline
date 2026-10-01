@@ -96,26 +96,36 @@ def test_jap_has_only_current_rcc_assigned_workload_targets() -> None:
     assert "facade_runner:" not in pr_workflow
 
 
-def test_product_release_publisher_is_cardinality_blind_and_hosted() -> None:
+def test_product_release_publisher_is_exact_rcc_general_windows_workload() -> None:
     release = (WORKFLOWS / "jap-windows-desktop-host-release.yml").read_text(
         encoding="utf-8"
     )
 
     assert "name: JAP product-local Windows release" in release
     assert "workflow_dispatch:" in release
-    assert '      - "windows/JAP.ControlCenter.Desktop/VERSION"' in release
-    assert "runs-on: windows-latest" in release
+    assert "source_sha:" in release
+    assert "rcc_facade_label:" in release
+    assert "rcc_assignment_label:" in release
+    assert "- self-hosted" in release
+    assert "${{ inputs.rcc_facade_label }}" in release
+    assert "${{ inputs.rcc_assignment_label }}" in release
+    assert "rcc-assignment-proof-[0-9a-f]{32}" in release
+    assert "PowerShell 7 fleet baseline missing" in release
+    assert "Node 22 capability missing" in release
+    assert ".NET 8 capability missing" in release
+    assert "RCC runtime context missing" in release
     assert "jap-winapp-product-v" in release
     assert "JAP-Control-Center-Desktop-win-x64.zip" in release
     assert "JAP-Control-Center-Runtime.zip" in release
 
     for forbidden in (
-        "runs-on: self-hosted",
-        "- self-hosted",
-        "rcc-general-",
+        "ubuntu-latest",
+        "windows-latest",
+        "actions/setup-python",
+        "actions/setup-node",
+        "actions/setup-dotnet",
+        "pip install",
         "job-pipeline-runtime-",
-        "rcc_facade_label",
-        "rcc_assignment_label",
         "physical_runner",
         "facade_runner",
         "runs_on_json",
@@ -128,7 +138,7 @@ def test_project_owned_runner_allocation_and_profiles_are_physically_absent() ->
     assert not (ROOT / ".rcc" / "runner-profiles").exists()
 
     demand = json.loads(DEMAND.read_text(encoding="utf-8"))
-    assert demand["schema_version"] == "ped.rcc_workload_demands.v2"
+    assert demand["schema_version"] == "jap.rcc_workload_demands.v2"
     assert demand["repository_id"] == 1230805345
     assert demand["repository"] == "jenshaberle-dotcom/job-application-pipeline"
 
@@ -157,11 +167,17 @@ def test_project_owned_runner_allocation_and_profiles_are_physically_absent() ->
             "platform": "linux-wsl",
             "runtime": ["python-project"],
             "capabilities": [],
-        }
+        },
+        "windows-release": {
+            "platform": "windows",
+            "runtime": ["python-project"],
+            "capabilities": ["dotnet-sdk-8", "node-22"],
+        },
     }
     assert demand["workflow_demands"] == {
         "pr-validation.yml": "linux-base",
         "product-v1-assessment-cohort.yml": "linux-base",
+        "jap-windows-desktop-host-release.yml": "windows-release",
     }
     package = ROOT / runtime["package_set"]["path"]
     assert package.is_file()
