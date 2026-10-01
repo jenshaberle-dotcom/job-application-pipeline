@@ -66,7 +66,6 @@ REQUIRED_INSTALLED_FEATURES = {
 DEMO_ARTIFACT_ROOT = (ROOT / ".runtime" / "demo").resolve()
 DEFAULT_PREFLIGHT = DEMO_ARTIFACT_ROOT / "product_v1_demo_preflight.json"
 DEFAULT_WORKSPACE_PROBE = DEMO_ARTIFACT_ROOT / "product_v1_demo_workspace_probe.json"
-DEFAULT_DRAFT_PROBE = DEMO_ARTIFACT_ROOT / "product_v1_demo_draft_probe.json"
 _FRONTEND_LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json")
 
 
@@ -371,19 +370,6 @@ def run_workspace_probe(*, preflight: Path, output: Path) -> int:
     )
 
 
-def run_draft_probe(*, preflight: Path, workspace_probe: Path, output: Path) -> int:
-    return _run_module_with_atomic_output(
-        "scripts.run_product_v1_demo_draft_handoff",
-        arguments=[
-            "--preflight",
-            str(preflight),
-            "--workspace-probe",
-            str(workspace_probe),
-        ],
-        output=output,
-    )
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default=os.environ.get("PRODUCT_V1_UI_HOST", "127.0.0.1"))
@@ -403,7 +389,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--preflight-output", type=Path, default=DEFAULT_PREFLIGHT)
     parser.add_argument("--workspace-probe-output", type=Path, default=DEFAULT_WORKSPACE_PROBE)
-    parser.add_argument("--draft-probe-output", type=Path, default=DEFAULT_DRAFT_PROBE)
     parser.add_argument(
         "--preflight-only",
         action="store_true",
@@ -458,11 +443,9 @@ def main() -> int:
     try:
         preflight_output = _demo_artifact_path(args.preflight_output)
         workspace_probe_output = _demo_artifact_path(args.workspace_probe_output)
-        draft_probe_output = _demo_artifact_path(args.draft_probe_output)
         _invalidate_output_artifacts(
             preflight_output,
             workspace_probe_output,
-            draft_probe_output,
         )
     except RuntimeError as exc:
         print(f"DEMO_START_BLOCKED=artifact_path:{exc}", file=sys.stderr)
@@ -493,22 +476,7 @@ def main() -> int:
         return 2
 
     print("DEMO_WORKSPACE_PROBE=PASS")
-    try:
-        draft_code = run_draft_probe(
-            preflight=preflight_output,
-            workspace_probe=workspace_probe_output,
-            output=draft_probe_output,
-        )
-    except RuntimeError as exc:
-        print(f"DEMO_START_BLOCKED=draft_artifact:{exc}", file=sys.stderr)
-        return 2
-    if draft_code != 0:
-        print("DEMO_START_BLOCKED=review_draft_probe", file=sys.stderr)
-        print(f"DRAFT_PROBE_ARTIFACT={draft_probe_output}", file=sys.stderr)
-        return 2
-
-    print("DEMO_DRAFT_PROBE=PASS")
-    print("DEMO_NETWORK=single_workspace_detail_fetch,draft_handoff_offline")
+    print("DEMO_NETWORK=single_workspace_detail_fetch,no_generation_in_preflight")
     print("DEMO_BOUNDARY=no_fake_truth,no_auto_submit,no_send,no_preflight_provider")
     if args.preflight_only:
         print("PRODUCT_V1_LIVE_DEMO=READY")
