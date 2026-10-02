@@ -73,10 +73,9 @@ def test_jap_has_only_current_rcc_assigned_workload_targets() -> None:
 
     pr_workflow = (WORKFLOWS / "pr-validation.yml").read_text(encoding="utf-8")
     assert "workflow_dispatch:" in pr_workflow
-    assert "pr_number:" in pr_workflow
-    assert "expected_ref:" in pr_workflow
-    assert "expected_head_sha:" in pr_workflow
-    assert "correlation_id:" in pr_workflow
+    assert "source_sha:" in pr_workflow
+    for retired_input in ("pr_number:", "expected_ref:", "expected_head_sha:", "correlation_id:"):
+        assert retired_input not in pr_workflow
     assert "rcc_facade_label:" in pr_workflow
     assert "rcc_assignment_label:" in pr_workflow
     assert "- self-hosted" in pr_workflow
@@ -87,8 +86,7 @@ def test_jap_has_only_current_rcc_assigned_workload_targets() -> None:
     assert "check_documentation_references.py" in pr_workflow
     assert "check_documentation_architecture.py" in pr_workflow
     assert "validate_ci_contract.py" in pr_workflow
-    assert "PR_RUFF" in pr_workflow
-    assert '"$PR_RUFF" check' in pr_workflow
+    assert '"$PR_PYTHON" -m ruff check' in pr_workflow
     assert "ubuntu-" not in pr_workflow
     assert "windows-" not in pr_workflow
     assert "rcc-general-linux-0" not in pr_workflow
@@ -188,6 +186,15 @@ def test_project_owned_runner_allocation_and_profiles_are_physically_absent() ->
     assert demand["ownership"]["runner_profiles"] == "RCC"
     assert demand["ownership"]["allocation"] == "RCC"
     assert demand["ownership"]["qualification"] == "RCC"
+    assert demand["workflow_admission"] == {
+        "pr-validation.yml": {
+            "event": "pull_request",
+            "source_binding": "pull_request_head_sha",
+            "base_branch": "main",
+            "auto_dispatch": True,
+            "effect_semantics": "validation-only",
+        },
+    }
 
 
 def test_legacy_workflow_trigger_authority_is_physically_absent() -> None:

@@ -118,7 +118,9 @@ def test_product_assessment_cohort_uses_rcc_runtime_and_not_public_pip_bootstrap
 
     assert ("job-" + "pipeline-runtime-linux") not in workflow
     assert "Resolve verified RCC runtime context" in workflow
-    assert '"capability:postgresql"' in workflow
+    assert "resolve_rcc_runtime_context.py" in workflow
+    assert 'test -s "$JAP_DATA_ENV_FILE"' in workflow
+    assert workflow.index('test -s "$JAP_DATA_ENV_FILE"') < workflow.index("Read-only plan 10-job Fit cohort")
     assert "ASSESSMENT_COHORT_RCC_RUNTIME=PASS" in workflow
     assert "python3 -m venv" not in workflow
     assert "pip install -r requirements.txt" not in workflow

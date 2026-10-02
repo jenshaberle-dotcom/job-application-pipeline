@@ -29,7 +29,10 @@ The root `VERSION` and frontend package version identify other components; they 
 interchangeable release authorities. A version file never proves an installed runtime.
 
 CI targets are RCC-dispatched workflows. A pull request does not itself prove a running
-validation job; admission and execution evidence come from RCC.
+validation job; admission and execution evidence come from RCC. Automatic PR validation
+uses `pr-validation.yml` with the exact `source_sha` and RCC-assigned facade/assignment.
+It requires JAP registration in RCC's CI consumer catalog. Windows release and Product
+assessment remain separately authorized workloads.
 
 ## Start here
 

@@ -38,6 +38,37 @@ scheduler restores execution. Effect-bearing failures require terminal/audit evi
 retry. Local product operation and developer validation remain distinct from automated CI
 admission and runner authority.
 
+## Automatic admission and runtime contract
+
+Automatic PR admission is declared only for `pr-validation.yml` / `linux-base`:
+`pull_request`, exact `pull_request_head_sha`, base `main`, `auto_dispatch: true`,
+`effect_semantics: validation-only`. RCC's `.rcc/demand-v2-ci-consumers.json` must
+contain the matching `jap` repository ID, workflow and demand profile. Pool access
+alone does not enroll a consumer in automatic CI.
+
+The controller dispatches its trusted workflow from JAP `main` and checks out the
+admitted candidate SHA. The exact-source workflow must therefore be merged before
+the controller can use it; a branch-only workflow edit cannot bootstrap its own CI.
+Do not bypass that boundary with a fake assignment or hosted fallback.
+
+The Linux runtime projection supplies `RepositoryId`, `Repository`, `RunnerName`,
+`Platform`, `Status`, `PrimaryFailure`, `Interpreter`, `ProfileId`, `ProfileHash`
+and `SourceSha`. JAP verifies identity and exact source before using that interpreter;
+it does not require a persistent checkout or own the content-addressed runtime.
+The PR workflow checks Python 3.12.14, uses RCC's installed pytest/Ruff, and deletes
+its per-run source checkout even after failure. RCC removes its runtime projection,
+assignment and reservation after completion.
+
+Product assessment is not auto-admitted and still requires existing Product approval
+and an operator-configured absolute `JAP_DATA_ENV_FILE` on the execution host. This
+is a data/secret configuration file, not a checkout or interpreter authority; missing
+configuration stops before plan/apply. Windows proof and publication remain separately
+authorized Windows workloads. The Linux controller does not automatically dispatch them.
+
+Broker API/policy compatibility is checked by RCC; a documentation-only RCC commit
+does not require a broker reinstall. Exact RCC executor authority and exact JAP
+candidate source remain independently enforced.
+
 ## Acceptance
 
 Workflow/config presence proves repository integration only. Live acceptance requires run/job
