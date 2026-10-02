@@ -52,6 +52,7 @@ def test_jap_has_only_current_rcc_assigned_workload_targets() -> None:
         "jap-windows-desktop-host-release.yml",
         "pr-validation.yml",
         "product-v1-assessment-cohort.yml",
+        "rcc-general-pool-proof.yml",
     ]
 
     workflow = (WORKFLOWS / "product-v1-assessment-cohort.yml").read_text(encoding="utf-8")
@@ -94,6 +95,20 @@ def test_jap_has_only_current_rcc_assigned_workload_targets() -> None:
     assert "runs_on_json" not in pr_workflow
     assert "physical_runner:" not in pr_workflow
     assert "facade_runner:" not in pr_workflow
+
+    pool_proof = (WORKFLOWS / "rcc-general-pool-proof.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "workflow_dispatch:" in pool_proof
+    assert "source_sha:" in pool_proof
+    assert "rcc_facade_label:" in pool_proof
+    assert "rcc_assignment_label:" in pool_proof
+    assert "effect_semantics" not in pool_proof
+    assert "- self-hosted" in pool_proof
+    assert "rcc-assignment-proof-[0-9a-f]{32}" in pool_proof
+    assert "ubuntu-" not in pool_proof
+    assert "windows-" not in pool_proof
+    assert "physical_runner" not in pool_proof
 
 
 def test_product_release_publisher_is_exact_rcc_general_windows_workload() -> None:
@@ -178,6 +193,7 @@ def test_project_owned_runner_allocation_and_profiles_are_physically_absent() ->
         "pr-validation.yml": "linux-base",
         "product-v1-assessment-cohort.yml": "linux-base",
         "jap-windows-desktop-host-release.yml": "windows-release",
+        "rcc-general-pool-proof.yml": "windows-release",
     }
     package = ROOT / runtime["package_set"]["path"]
     assert package.is_file()
@@ -223,7 +239,9 @@ def test_registered_workloads_match_physical_workflows() -> None:
     contract = json.loads((ROOT / "PROJECT-DRJ.json").read_text(encoding="utf-8"))
     registered = contract["github_actions"]["managed_workflows"]
     assert {entry["path"] for entry in registered} == {
-        str(path.relative_to(ROOT)) for path in WORKFLOWS.iterdir() if path.is_file()
+        path.relative_to(ROOT).as_posix()
+        for path in WORKFLOWS.iterdir()
+        if path.is_file()
     }
     assert all(entry["manual_dispatch"] for entry in registered)
 

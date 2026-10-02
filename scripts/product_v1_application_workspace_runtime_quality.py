@@ -260,6 +260,12 @@ def _draft_unavailable_payload(
 ) -> dict[str, object]:
     resolved_reason_code = reason_code or getattr(result, "reason_code", None) or "codex_unavailable"
     resolved_reason = reason or getattr(result, "reason", None) or "Embedded Codex drafting is unavailable."
+    result_package = getattr(result, "package", None)
+    quality_pipeline = (
+        result_package.get("quality_pipeline")
+        if isinstance(result_package, Mapping)
+        else None
+    )
     return {
         "schema": "job_application_pipeline.product_v1_application_draft_demo.v2",
         "status": "draft_unavailable",
@@ -275,7 +281,7 @@ def _draft_unavailable_payload(
         "draft_mode": "codex_quality_pipeline_v2",
         "codex_model": getattr(result, "model", None),
         "codex_reasoning_effort": getattr(result, "reasoning_effort", None),
-        "codex_quality_pipeline": package.get("quality_pipeline"),
+        "codex_quality_pipeline": quality_pipeline,
         "codex_version": getattr(result, "codex_version", None),
         "codex_requests": codex_requests,
         "provider_requests": codex_requests,

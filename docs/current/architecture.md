@@ -5,10 +5,8 @@ Scope: product-level architecture after DOC-001M
 
 ## Architecture in one sentence
 
-Market signals are treated as weak evidence until they pass bounded discovery,
-origin/detail evidence checks, explicit gates and controlled approval paths.
-Only then can a source become operational input for Bronze/Silver/Gold and the
-Control Center.
+Market signals remain weak evidence until bounded discovery, origin/detail checks,
+explicit gates and controlled approval make them operational input.
 
 ```text
 Market Sensors
@@ -42,39 +40,30 @@ Market Sensors
 
 ### Market sensors
 
-Market sensors and aggregators discover companies, source targets and search
-spaces. They are intentionally bounded and defensive. Aggregators are discovery
-inputs, not canonical source truth.
+Market sensors and aggregators discover companies, source targets and search spaces.
+They are bounded discovery inputs, not canonical source truth.
 
 ### Candidate and origin discovery
 
-Candidate discovery turns signals into employer-origin candidates. Candidate
-identity, source URL evidence and duplicate handling are safety concerns: missing
-URLs stay missing, and ambiguous candidates must not be pushed through the
-pipeline as if they were validated.
+Candidate discovery turns signals into employer-origin candidates. Missing URLs stay
+missing, and ambiguous candidates must not be treated as validated.
 
 ### Detail evidence and gates
 
-Origin/detail evidence is required before connector work. Gates decide whether
-evidence is enough to progress. Stops must include a reason, next safe action and
-a manual-review path.
+Origin/detail evidence precedes connector work. Gates decide progression; stops carry
+a reason, next safe action and manual-review path.
 
 ### Connector path
 
-Connector candidacy, artifact generation, validation, registration planning,
-final approval and active controlled operation are separate stages. Connector
-artifacts are not activation.
+Connector candidacy, build, validation, registration, approval and controlled operation
+are separate stages; artifacts are not activation.
 
-Accepted Employer-Origin candidates must now receive an explicit connector
-disposition: runnable definition, evidence-backed block/review, or evidence-backed
-rejection. An active-controlled source is not fleet-complete until recurring
-monitoring has an explicit disposition.
-
-The canonical fleet policy is `config/connector_fleet_policy.json`. It defines
-24-hour default cadence, deterministic staggering, bounded concurrency and the
-shared GREEN/YELLOW/RED operator semantics. Technical execution health and recent
-relevant-job yield remain separate evidence dimensions; zero yield alone is not a
-technical failure.
+Accepted Employer-Origin candidates require an explicit connector disposition:
+runnable definition, evidence-backed block/review, or evidence-backed rejection.
+Active-controlled sources are incomplete until recurring monitoring is dispositioned.
+`config/connector_fleet_policy.json` owns cadence, deterministic staggering, bounded
+concurrency and GREEN/YELLOW/RED semantics. Technical health and recent relevant-job
+yield stay separate; zero yield alone is not a technical failure.
 
 See `../decisions/adr/037_close_connector_fleet_lifecycle.md`.
 
@@ -83,6 +72,16 @@ See `../decisions/adr/037_close_connector_fleet_lifecycle.md`.
 - Bronze keeps bounded raw acquisition and lineage.
 - Silver builds canonical job representation and quality filtering.
 - Gold provides decision, observability and Control Center read models.
+
+### Application generation
+
+F6 has one automatic CV/letter authority: `gpt-6.1-sol` through the
+ChatGPT-authenticated bundled Codex runtime. Its fixed profile is evidence `medium`,
+strategy/CV/letter `high`, adversarial critic `xhigh`, and final rewrite `high`.
+Approved Candidate Facts are mandatory provenance. At most two `high` layout-only
+compaction passes may follow; they never replay the six semantic stages.
+No model/reasoning override, API-key generator or automatic prose fallback exists.
+`local_private` is an explicit manual no-LLM mode, not a second generation truth.
 
 ### Control Center and observability
 
@@ -93,30 +92,23 @@ agent health remains future work.
 
 ## Local and cloud runtime coexistence
 
-JAP is one product with multiple runtime and presentation transports. This
-repository remains the current upstream authority for product/domain semantics;
-`jap-cloud-based` owns bounded Azure adaptation and cloud-runtime concerns.
+JAP is one product across runtime/presentation transports. This repository owns
+product semantics; `jap-cloud-based` owns bounded Azure adaptation.
 
-The local WSL/PostgreSQL/WebView2 runtime and the Azure
-PostgreSQL/FastAPI/Container-Apps runtime may coexist for as long as that is
-useful. They must converge on shared product contracts rather than independently
-reimplement ranking, gates, Top-5, application or data-layer semantics.
+Local WSL/PostgreSQL/WebView2 and Azure PostgreSQL/FastAPI/Container Apps may coexist,
+but must share product contracts instead of reimplementing semantics.
 
-The React Control Center is a portable product surface: WebView2 is one local
-presentation shell, while the same product UI may later run in a browser against
-a compatible cloud API. Cloud succession is evidence-driven and requires an
-explicit operator decision; a working cloud demo does not retire local JAP.
+The React Control Center is portable across WebView2 and a compatible cloud API.
+Cloud succession remains evidence-driven and requires explicit operator approval.
 
 See `../decisions/adr/034_define_shared_jap_product_and_runtime_coexistence.md`.
 
 ## Current maturity note
 
-The documentation structure is now stable enough for product work again. The
-connector-fleet contract closes the architectural discovery-to-recurring-monitoring
-loop, but implementation remains incomplete until Candidate -> Connector disposition,
-due-work execution and shared fleet-health projection are enforced end to end.
-The biggest adjacent product blockers remain StepStone discovery rotation, candidate
-promotion quality, URL/detail evidence generics and repair/stop taxonomy.
+The connector-fleet contract closes discovery-to-recurring-monitoring architecturally,
+but implementation still must enforce Candidate -> Connector disposition, due-work
+execution and shared fleet health end to end. Adjacent blockers remain discovery
+rotation, promotion quality, generic URL/detail evidence and repair/stop taxonomy.
 
 Detailed references live under `../reference/`. Diagrams live in
 `system-diagrams.md`.

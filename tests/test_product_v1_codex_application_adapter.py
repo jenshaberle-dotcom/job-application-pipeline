@@ -191,6 +191,30 @@ def test_codex_schema_carries_text_only_and_no_layout_authority() -> None:
     ):
         assert f'"{forbidden}"' not in encoded
 
+    provenance_items = schema["properties"]["claim_provenance"]["items"]
+    assert provenance_items["properties"]["fact_keys"]["minItems"] == 1
+
+
+def test_final_draft_rejects_claim_provenance_without_approved_fact_key() -> None:
+    output = _model_output()
+    output["claim_provenance"] = [
+        {
+            "claim": "Python supports the target role.",
+            "fact_keys": [],
+            "job_evidence": ["Python"],
+        }
+    ]
+
+    with pytest.raises(
+        adapter.CodexApplicationDraftStop,
+        match="does not reference an approved candidate fact",
+    ):
+        adapter._validate_output(
+            output,
+            context=_context(),
+            as_of_date=date(2026, 9, 24),
+        )
+
 
 def test_prompt_includes_current_cv_letter_and_vacancy_with_split_authority() -> None:
     prompt = adapter._prompt(_context())

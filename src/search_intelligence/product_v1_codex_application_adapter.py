@@ -284,7 +284,7 @@ def _schema() -> dict[str, object]:
                         "claim": {"type": "string", "minLength": 4, "maxLength": 500},
                         "fact_keys": {
                             "type": "array",
-                            "minItems": 0,
+                            "minItems": 1,
                             "maxItems": 6,
                             "items": {"type": "string", "maxLength": 160},
                         },
@@ -897,6 +897,10 @@ def _validate_output(
         if not isinstance(item, Mapping):
             raise CodexApplicationDraftStop("Codex claim provenance entry is not an object")
         fact_keys = [str(value) for value in item.get("fact_keys", [])]
+        if not fact_keys:
+            raise CodexApplicationDraftStop(
+                "Codex claim provenance does not reference an approved candidate fact"
+            )
         if any(value not in allowed_fact_keys for value in fact_keys):
             raise CodexApplicationDraftStop("Codex claim provenance references an unapproved candidate fact")
         claim = _normalized(item.get("claim"))
@@ -1454,11 +1458,18 @@ def request_codex_application_adaptation(
                     codex_version=version,
                     request_count=1,
                 )
-            package["quality_pipeline"] = {
-                "schema": "jap.f6.quality_pipeline.v2",
-                "model": selected_model,
-                "layout_compaction_only": True,
-            }
+            previous_quality = previous_package.get("quality_pipeline")
+            package["quality_pipeline"] = (
+                dict(previous_quality)
+                if isinstance(previous_quality, Mapping)
+                else {
+                    "schema": "jap.f6.quality_pipeline.v2",
+                    "model": selected_model,
+                }
+            )
+            package["quality_pipeline"]["layout_compaction_passes"] = int(
+                package["quality_pipeline"].get("layout_compaction_passes", 0)
+            ) + 1
             return CodexApplicationDraftResult(
                 status="completed",
                 attempted=True,
