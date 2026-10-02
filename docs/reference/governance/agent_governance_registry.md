@@ -1,5 +1,10 @@
 # GOV-001B Agent Governance Registry Foundation
 
+Evidence scope: retained responsibility/audit reference. Earlier generated observations and
+coverage gaps are dated snapshots, not a complete current module inventory or live runtime
+qualification. Recheck code/tests before turning an old follow-up into new work. Current
+engineering direction is `docs/planning/active/roadmap.md`.
+
 Status: foundation draft, generated from GOV-001A read-only intake.
 
 ## Purpose

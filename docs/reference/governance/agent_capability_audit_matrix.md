@@ -1,5 +1,10 @@
 # GOV-001D Agent Capability Audit Matrix
 
+Evidence scope: retained responsibility/audit reference. Earlier generated observations and
+coverage gaps are dated snapshots, not a complete current module inventory or live runtime
+qualification. Recheck code/tests before turning an old follow-up into new work. Current
+engineering direction is `docs/planning/active/roadmap.md`.
+
 Status: current governance foundation  
 Scope: documentation and governance only  
 Created from: GOV-001A static inventory intake, GOV-001B registry foundation, GOV-001C classification catalog  

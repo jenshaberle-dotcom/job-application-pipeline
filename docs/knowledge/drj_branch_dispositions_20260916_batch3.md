@@ -12,7 +12,7 @@ Authority boundary for this review: branch age, naming, inactivity, or temporary
 - semantic disposition: `DEPRECATED`
 - unique history disposition: `REJECTED`
 - unique content at review: two historical F2 acceptance workflow files, pinned to the older F2 product SHA/release context.
-- terminal evidence: the later canonical F2 implementation/acceptance path landed through PR #862 / commit `fb06e1191ae044d0c0547e9136c7860b097bdf5b`; current project truth in `docs/planning/active/f3_truth_lifecycle_hardening.md` states that F2 is operator-accepted on installed Desktop v1.0.23 and `CR-F2-001` is CLOSED. The old workflow carrier is therefore not retained as project implementation or future execution authority.
+- terminal evidence: the later canonical F2 implementation/acceptance path landed through PR #862 / commit `fb06e1191ae044d0c0547e9136c7860b097bdf5b`; current project truth in `https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/planning/active/f3_truth_lifecycle_hardening.md` states that F2 is operator-accepted on installed Desktop v1.0.23 and `CR-F2-001` is CLOSED. The old workflow carrier is therefore not retained as project implementation or future execution authority.
 - interpretation: `REJECTED` is deliberate. This record does not claim byte-for-byte canonicalization of the old workflow; it records that its remaining unique workflow implementation is obsolete after the stronger accepted canonical F2 closure.
 
 ### `agent/f2-operator-cold-e2e`

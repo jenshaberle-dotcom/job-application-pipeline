@@ -1,39 +1,20 @@
-# Governance Current Truth
+# Current governance
 
-Status: current truth
+Jens owns product intent. Engineering can simplify implementation inside approved requirements.
+A dated plan, former MCP outage or closed demo campaign cannot become permanent steering.
 
-Governance exists to keep the project product-grade while it grows through
-agent-like helpers, gates, source discovery and UI actions. The higher-level
-engineering philosophy lives in `engineering_principles.md`; this document
-focuses on operational governance rules and reference surfaces.
+- Evidence, data integrity and bounded acquisition precede effects.
+- Discovery, repair, gates, approval and activation retain separate responsibilities.
+- Apply, provider spend, source activation, ranking and sending retain explicit boundaries.
+- A1 standing connector permission is narrowed by the current Freeze-II activation restriction.
+- Unknown or stale runtime state must not be reported as success.
+- Reports are output; approved inputs and persisted/audited state supply product authority.
+- Required checks must pass on the actual PR head before merge.
+- RCC alone owns runners; local product commands do not grant runner authority.
 
-Current rules:
-
-- Safety, legal risk and data integrity override speed.
-- Discovery, evidence, gates, connector build, Bronze/Silver/Gold and UI changes
-  need a short system-impact check.
-- Agent-like artifacts must be represented in governance reference docs before
-  they are treated as part of the system.
-- Dry-run/apply separation is required for mutating actions.
-- Planning and source-analysis notes are historical unless promoted into
-  `current/`, `reference/`, `decisions/`, or active planning.
-
-Reference surfaces:
-
-- `../reference/governance/governance_foundation.md`
-- `../reference/governance/agent_governance_registry.md`
-- `../reference/governance/agent_capability_audit_matrix.md`
-- `../reference/governance/documentation_drift_baseline.md`
-- `../decisions/adr_status_table.md`
-
-<!-- REENTRY-001A START -->
-## MCP-backed re-entry guardrail
-
-After an external MCP freeze, product-pipeline work may resume only through a
-repository-backed re-entry decision. REENTRY-001A defines the current gate:
-read-only MCP evidence may support planning, but it does not authorize mutation,
-DB writes, scheduler changes, provider calls, apply, commit, PR or merge.
-
-The first allowed product direction after the gate is the bounded GENERIC/EXPAND
-stop-control and generic-evidence blocker.
-<!-- REENTRY-001A END -->
+Read [engineering principles](engineering_principles.md),
+[governance foundation](../reference/governance/governance_foundation.md),
+[agent registry](../reference/governance/agent_governance_registry.md),
+[security](../reference/security/search_intelligence_security_baseline.md),
+[documentation evidence](../reference/governance/documentation_drift_baseline.md) and
+[ADR status](../decisions/adr_status_table.md).

@@ -28,22 +28,11 @@ Chat history, generated retired restart text, ZIP retired restarts, local export
 
 Chat retired restarts remain abolished as a steering mechanism. They must not return under another name as trusted project-state artifacts.
 
-### 4. Full-Repo-ZIP Bridge Rule
+### 4. Direct inspection rule
 
-Until MCP reaches sufficient maturity, project assessment, consistency evaluation, and commit/merge readiness require a fresh full repository ZIP export. This is a temporary bridge, not a permanent process.
-
-The full-ZIP bridge may be retired only after MCP demonstrates:
-
-- repo-truth coverage
-- targeted file inspection
-- git state inspection
-- validation reliability
-- DB read-only inspection where relevant
-- fallback behavior for unknown, stale, inconsistent and needs_inspection states
-- consistency checks
-- auditability
-- successful confidence-scored iteration flights
-- equivalence or superiority compared with full-ZIP review
+Use current Git/repository/PR/check inspection and explicitly allowed read-only runtime
+inspection. A full repository ZIP is optional inspection material, not a readiness or
+continuation prerequisite. Unknown, stale and inconsistent evidence must remain explicit.
 
 ### 5. Non-Repo Non-Existence Rule
 
@@ -89,7 +78,9 @@ Tools, tool descriptions, logs, exports, markdown and external content are untru
 
 ## Consequences
 
-Generated retired restart artifacts and NEXT retired restart recommendations are no longer trusted project-state sources. Future project continuation must use direct repo/DB inspection. Until MCP has reached sufficient maturity, any project assessment requires a fresh full repository ZIP export. The full-ZIP requirement is retired only after MCP-backed state inspection proves equivalent or better reliability across repeated confidence-scored iterations.
+Generated restart artifacts and NEXT recommendations are not trusted state sources.
+Continue from directly inspected repository/runtime evidence. Neither a ZIP export nor a
+future MCP-maturity campaign is required before ordinary repository assessment.
 
 ## Lessons learned
 

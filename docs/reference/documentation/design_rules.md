@@ -85,19 +85,12 @@ Before merging visual documentation changes, ask:
 
 If the answer is mostly decorative, revise or remove the visual.
 
-## Control Center Template Rules
+## Control Center presentation boundary
 
-The Search Intelligence Control Center uses Jinja2 as a server-rendered intermediate UI layer.
+The current Control Center is React/TypeScript in `frontend/control-center/`.
+Jinja2 is historical presentation architecture, not the active product UI authority.
 
-Rules:
-
-- Templates are presentation-only.
-- Business, gate, lifecycle and source-health decisions remain in database views or Python ViewModels.
-- Template conditionals may only branch on prepared display state.
-- UI components must distinguish implemented, in-progress and planned capabilities.
-- Visual enhancements such as CSS/SVG micro-interactions are allowed only when they clarify state and remain optional.
-- A later React migration must remain possible by preserving clean ViewModel boundaries.
-
-Before merging Control Center UI changes, ask:
-
-> Could the same ViewModel be exposed as JSON to a future React frontend without moving business logic out of the template?
+UI components render prepared API state. Python/domain services and database contracts own
+Candidate Fit, hard filters, ranking, activation, source health and application decisions.
+Components must distinguish implemented capabilities, blocked evidence and future proposals.
+Private facts and credentials must not be embedded in frontend bundles or release artifacts.

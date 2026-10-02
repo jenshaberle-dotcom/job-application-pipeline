@@ -1,122 +1,57 @@
-# Current System Architecture
+# Current system architecture
 
-Status: current truth
-Scope: product-level architecture after DOC-001M
+Status: implemented Classic boundaries and approved Cloud transition direction.
 
-## Architecture in one sentence
+## Components
 
-Market signals are treated as weak evidence until they pass bounded discovery,
-origin/detail evidence checks, explicit gates and controlled approval paths.
-Only then can a source become operational input for Bronze/Silver/Gold and the
-Control Center.
+| Component | Responsibility | Source |
+|---|---|---|
+| React Control Center | Operator presentation and API calls | `frontend/control-center/` |
+| Python product runtime | API, assessment, ranking, drafting and tracking orchestration | `scripts/run_product_v1_control_center.py`, `src/search_intelligence/` |
+| PostgreSQL | Persisted product state, evidence and read models | `db/migrations/` |
+| Acquisition modules | Bounded sensors, origin/detail evidence, reusable connectors | `src/ingestion/`, `src/search_intelligence/` |
+| Windows host | WebView2, product-local update staging, consent and rollback | `windows/JAP.ControlCenter.Desktop/` |
+| WSL bridge | Run immutable product code with local private environment | `scripts/run_jap_windows_control_center.sh` |
+| RCC | General Pool admission, toolchain materialization, assignment and cleanup | `.rcc/workload-demands.json` declares JAP demand only |
 
-```text
-Market Sensors
-  -> Candidate / Source Discovery
-  -> URL / Origin / Detail Evidence
-  -> Gates and Stopper Reassessment
-  -> Connector Candidate / Build / Validation / Approval
-  -> Active Controlled Source
-  -> Recurring Monitoring Admission
-  -> Deterministic Due-Work Schedule
-  -> Connector Execution
-  -> Bronze / Silver / Gold / Control Center
-  -> Fleet Health + Yield
-  -> next due execution
-```
+Jinja2 is an earlier presentation decision, superseded for the current React product surface.
+Python/database boundaries retain business authority; templates and UI components do not.
 
-## Core boundaries
+## Evidence and acquisition
 
-| Boundary | Rule |
-|---|---|
-| Sensor vs source | Discovery signal is not active source truth. |
-| Candidate vs connector | Candidate evidence does not imply connector registration. |
-| Evidence vs approval | Repair agents can produce evidence; they do not approve themselves. |
-| Queue vs repair | Queue agents route; they do not repair. |
-| Gate vs discovery | Gates evaluate evidence; they do not discover it. |
-| Stop vs false negative | A stop is an audit input, not automatically final truth. |
-| Report vs input | Exports are reports, never hidden pipeline inputs. |
-| Current docs vs history | Historical notes must not look like current architecture. |
+Market sensors discover candidates; a signal is not an active source or verified job.
+Origin/detail evidence, validation, approval and activation are separate stages.
+Bronze retains raw acquisition and lineage; Silver canonicalizes jobs; Gold/read models
+support decisions and observability. Reports are output, never hidden input authority.
 
-## Main system areas
+Connector registration, controlled first ingestion and recurring admission are distinct.
+The fleet design in `config/connector_fleet_policy.json` defines health/yield separation,
+cadence and bounded execution. Its presence does not prove live fleet closure; proposed
+fleet-health changes must be distinguished from merged implementation.
 
-### Market sensors
+## Product decision boundary
 
-Market sensors and aggregators discover companies, source targets and search
-spaces. They are intentionally bounded and defensive. Aggregators are discovery
-inputs, not canonical source truth.
+Approved Candidate Facts support Candidate Fit. Affinity remains a separate projection.
+Hard filters and ranking own eligibility and Top 5. Drafting uses template authority and
+fact provenance. Tracking/mailbox evidence does not send applications.
 
-### Candidate and origin discovery
+## Installed runtime and releases
 
-Candidate discovery turns signals into employer-origin candidates. Candidate
-identity, source URL evidence and duplicate handling are safety concerns: missing
-URLs stay missing, and ambiguous candidates must not be pushed through the
-pipeline as if they were validated.
+The desktop and runtime archives bind exact source identities. The installed updater stages
+and verifies before consent, then applies a frozen target with transactional rollback.
+Product runtime execution is local; CI and release packaging use RCC-assigned General Pool
+members. No JAP-owned pool, physical member selection or hosted fallback is supported.
+See [execution contract](ci-max-execution.md) and [Windows guide](../guides/jap_control_center_windows_app.md).
 
-### Detail evidence and gates
+## Cloud succession
 
-Origin/detail evidence is required before connector work. Gates decide whether
-evidence is enough to progress. Stops must include a reason, next safe action and
-a manual-review path.
+One accepted product contract must survive migration. The approved target is Cloud parity,
+verified transfer/reuse of real data, then Cloud as the sole normal product path. Classic's
+local implementation is maintained for continuity and migration, not a parallel feature track.
+No live mirroring or duplicated ranking/gate authority is introduced by this documentation.
 
-### Connector path
+Cloud runtime topology belongs to the Cloud repository. Do not copy old Azure PostgreSQL,
+React or fallback assumptions into Classic as Cloud implementation facts. Cloud parity,
+deployment and migration require current Cloud evidence and operator acceptance.
 
-Connector candidacy, artifact generation, validation, registration planning,
-final approval and active controlled operation are separate stages. Connector
-artifacts are not activation.
-
-Accepted Employer-Origin candidates must now receive an explicit connector
-disposition: runnable definition, evidence-backed block/review, or evidence-backed
-rejection. An active-controlled source is not fleet-complete until recurring
-monitoring has an explicit disposition.
-
-The canonical fleet policy is `config/connector_fleet_policy.json`. It defines
-24-hour default cadence, deterministic staggering, bounded concurrency and the
-shared GREEN/YELLOW/RED operator semantics. Technical execution health and recent
-relevant-job yield remain separate evidence dimensions; zero yield alone is not a
-technical failure.
-
-See `../decisions/adr/037_close_connector_fleet_lifecycle.md`.
-
-### Job data layers
-
-- Bronze keeps bounded raw acquisition and lineage.
-- Silver builds canonical job representation and quality filtering.
-- Gold provides decision, observability and Control Center read models.
-
-### Control Center and observability
-
-The Control Center should show lifecycle state, blockers, false-negative
-pressure, gate status, next safe actions and agent/health summaries. The current
-Agent Monitor uses derived lifecycle/gate/orchestrator signals; true runtime
-agent health remains future work.
-
-## Local and cloud runtime coexistence
-
-JAP is one product with multiple runtime and presentation transports. This
-repository remains the current upstream authority for product/domain semantics;
-`jap-cloud-based` owns bounded Azure adaptation and cloud-runtime concerns.
-
-The local WSL/PostgreSQL/WebView2 runtime and the Azure
-PostgreSQL/FastAPI/Container-Apps runtime may coexist for as long as that is
-useful. They must converge on shared product contracts rather than independently
-reimplement ranking, gates, Top-5, application or data-layer semantics.
-
-The React Control Center is a portable product surface: WebView2 is one local
-presentation shell, while the same product UI may later run in a browser against
-a compatible cloud API. Cloud succession is evidence-driven and requires an
-explicit operator decision; a working cloud demo does not retire local JAP.
-
-See `../decisions/adr/034_define_shared_jap_product_and_runtime_coexistence.md`.
-
-## Current maturity note
-
-The documentation structure is now stable enough for product work again. The
-connector-fleet contract closes the architectural discovery-to-recurring-monitoring
-loop, but implementation remains incomplete until Candidate -> Connector disposition,
-due-work execution and shared fleet-health projection are enforced end to end.
-The biggest adjacent product blockers remain StepStone discovery rotation, candidate
-promotion quality, URL/detail evidence generics and repair/stop taxonomy.
-
-Detailed references live under `../reference/`. Diagrams live in
-`system-diagrams.md`.
+See [ADR-034](../decisions/adr/034_define_shared_jap_product_and_runtime_coexistence.md).

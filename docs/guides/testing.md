@@ -1,63 +1,40 @@
-# Testing
+# Validation
 
-## Purpose
+Use Python 3.12 and a project virtual environment. Dependency definitions are
+`requirements.txt`, `requirements-dev.txt` and the RCC package set. These have different
+purposes; RCC owns runner/toolchain qualification.
 
-This project uses automated tests to keep reusable parsing and connector logic stable.
+```bash
+python -m pip install -r requirements-dev.txt
+python scripts/run_validate001_unified_validation.py --profile quick
+python scripts/run_validate001_unified_validation.py --profile commit
+```
 
-Unit tests should be deterministic, fast and independent of live third-party services.
+`quick` checks engineering tooling, rules and diffs. `commit` additionally runs the full
+pytest suite. Focused tests are useful during editing but do not replace required exact-head CI.
 
-Live source-analysis scripts may contact external websites, but they are not treated as unit tests.
+## Documentation changes
 
-## Dependencies
+```bash
+python scripts/check_documentation_references.py --json
+python scripts/check_documentation_architecture.py --json
+python scripts/check_adr_rebaseline.py --json
+python scripts/check_classic_documentation_truth.py
+```
 
-Runtime dependencies are defined in:
+The reference checker checks file/path references; it does not establish semantic correctness,
+remote URL availability or Mermaid rendering. The truth guard checks current documentation
+against configured UI, workflow demands and retired active-document paths.
 
-- `requirements.txt`
+## Product and frontend
 
-Development and test dependencies are defined in:
+```bash
+python -m pytest -q
+npm ci --prefix frontend/control-center
+npm run build --prefix frontend/control-center
+```
 
-- `requirements-dev.txt`
-
-`requirements-dev.txt` includes the runtime dependencies and adds test tooling such as `pytest`.
-
-## Setup
-
-Install runtime dependencies only:
-
-    python -m pip install -r requirements.txt
-
-Install development and test dependencies:
-
-    python -m pip install -r requirements-dev.txt
-
-## Running Tests
-
-Run all tests:
-
-    python -m pytest -q
-
-Run only the StepStone result-card parser tests:
-
-    python -m pytest tests/test_stepstone_result_cards.py -q
-
-## Current StepStone Test Strategy
-
-The StepStone result-card parser is tested with a local HTML fixture:
-
-- `tests/fixtures/stepstone_result_cards_sample.html`
-- `tests/test_stepstone_result_cards.py`
-
-These tests validate parsing behavior without making live requests to StepStone.
-
-The tests currently cover:
-
-- result-card boundary detection
-- title, company, location and detail URL extraction
-- external job ID extraction
-- article ID versus detail URL ID matching
-- ignoring global detail links outside result cards
-- preserving publication, remote, employment-type and salary UI prompt hints as raw signals
-
-## Rule
-
-Unit tests should be deterministic, fast and independent of live third-party services.
+Use local fixtures for parser/connector unit tests. Separate tests from live acquisition,
+private database inspection, provider calls and productive apply. A full local test pass is
+repository evidence, not proof of live source coverage, Top 5, installed update recovery or
+RCC fleet operation.

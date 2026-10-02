@@ -9,7 +9,7 @@
     "risk_zone": "R0",
     "outcome": "A tiny, exact candidate cohort can be created through dry-run, explicit approval, audited apply and rollback proof.",
     "dependencies": ["SI-020"],
-    "evidence_paths": ["docs/planning/expand004_controlled_candidate_creation_dry_run.md", "docs/planning/expand007_controlled_candidate_creation_apply_gate_readiness.md"],
+    "evidence_paths": ["https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/planning/expand004_controlled_candidate_creation_dry_run.md", "https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/planning/expand007_controlled_candidate_creation_apply_gate_readiness.md"],
     "boundaries": ["exact_candidate_keys", "dry_run_before_apply", "operator_approval", "no_broad_wave_or_scheduler_side_effect"],
     "acceptance_criteria": ["Apply is impossible without current generic proof.", "Affected objects and rollback evidence are visible."],
     "validation": ["Targeted tests, full pytest, Ruff and DB audit evidence."],
@@ -20,7 +20,7 @@
       "id": "SI-025", "title": "Candidate Apply-Gate Design", "status": "blocked", "priority": "P1", "risk_zone": "R2",
       "outcome": "Exact candidate writes are specified with preview, approval, idempotency and rollback before code writes.",
       "dependencies": ["SI-023"],
-      "evidence_paths": ["docs/planning/expand007_controlled_candidate_creation_apply_gate_readiness.md"],
+      "evidence_paths": ["https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/planning/expand007_controlled_candidate_creation_apply_gate_readiness.md"],
       "boundaries": ["no_write_in_design_slice", "exact_candidate_scope"],
       "acceptance_criteria": ["Affected tables/rows and audit events are named.", "Approval token and rollback semantics are specified."],
       "validation": ["Design review and contract tests."], "operator_decisions": [], "parent_capability": "SI-030"

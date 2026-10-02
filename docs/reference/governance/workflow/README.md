@@ -22,6 +22,6 @@ Current active workflow references:
 Continuation rule:
 
 - Use direct repository inspection.
-- Use a fresh full-repository ZIP only as the temporary bridge until MCP maturity.
+- Use direct repository/PR/check inspection; a ZIP is optional inspection material.
 - Replace the ZIP bridge with MCP-backed state only after MCP reaches sufficient maturity.
 - Do not create or trust generated chat-continuation artifacts again.

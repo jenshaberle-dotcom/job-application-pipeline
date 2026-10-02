@@ -45,26 +45,9 @@ def test_doc001k_current_repository_has_complete_adr_status_table() -> None:
     report = build_adr_rebaseline_report(ROOT)
 
     assert report.status == "pass"
-    assert report.adr_file_count == 36
-    assert report.table_row_count == 36
+    assert report.adr_file_count == len(list((ROOT / "docs/decisions/adr").glob("[0-9]*.md")))
+    assert report.table_row_count == report.adr_file_count
     assert report.missing_table_rows == []
     assert report.extra_table_rows == []
     assert report.invalid_doc_statuses == []
     assert report.stale_repository_statuses == []
-
-
-def test_doc001k_navigation_points_to_adr_status_surface() -> None:
-    docs_readme = _read("docs/README.md")
-    governance_readme = _read("docs/reference/governance/README.md")
-    adr_readme = _read("docs/decisions/adr/README.md")
-    adr_plan = _read("docs/decisions/adr_rebaseline_plan.md")
-
-    for text in [docs_readme, governance_readme, adr_readme, adr_plan]:
-        assert "docs/decisions/adr_status_table.md" in text or "adr_status_table.md" in text
-
-    status_table = _read("docs/decisions/adr_status_table.md")
-    assert "ADR-017" in status_table
-    assert "Superseded" in status_table
-    assert "ADR-019" in status_table
-    assert "Needs rewrite" in status_table
-    assert "ADR-020" in status_table

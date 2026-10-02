@@ -28,7 +28,7 @@
     "SI-022A"
   ],
   "evidence_refs": [
-    "repo-file:docs/planning/si022a_origin_inventory_resolution.md",
+    "repo-file:https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/planning/si022a_origin_inventory_resolution.md",
     "repo-file:src/search_intelligence/origin_inventory_resolution.py",
     "repo-file:scripts/run_origin_inventory_resolution.py",
     "repo-file:tests/test_origin_inventory_resolution.py",

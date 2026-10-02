@@ -27,7 +27,7 @@ Because the first result page repeatedly exposes the same prominent company bloc
 
 Known companies are cooled down per search space rather than permanently blacklisted. The purpose is to reveal other employers while retaining the ability to rediscover known companies later.
 
-The approved ML-first search raster is defined in `docs/planning/active/canonical_target_profile.md` and versioned through migrations. A search term does not receive `NOT` waves until its StepStone stability has been separately validated.
+The approved ML-first search raster is defined in `docs/reference/product-contract/retained/canonical_target_profile.md` and versioned through migrations. A search term does not receive `NOT` waves until its StepStone stability has been separately validated.
 
 ### 2.2 Top-5 system
 

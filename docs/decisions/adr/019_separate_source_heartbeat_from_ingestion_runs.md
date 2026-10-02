@@ -99,5 +99,5 @@ It should collect lightweight operational information such as:
 ## Related Documentation
 
 - `docs/reference/observability/source_health_and_heartbeat.md`
-- `docs/archive/visualization/dashboard_vision.md`
+- `https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/archive/visualization/dashboard_vision.md`
 - `docs/reference/database/tables.md`

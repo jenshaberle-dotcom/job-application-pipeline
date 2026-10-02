@@ -76,26 +76,12 @@ def test_doc001h_database_entrypoint_and_legacy_warning_are_present():
     assert "not a complete Search Intelligence schema inventory" in tables
 
 
-def test_doc001h_archive_path_status_classifies_chaotic_paths():
-    text = read("docs/archive/documentation_path_status.md")
-
-    for phrase in [
-        "Current Truth entry",
-        "Historical by default",
-        "Archive candidate",
-        "docs/archive/planning/",
-        "docs/archive/source-analysis/",
-        "docs/archive/diagrams/",
-        "exports/project_state/",
-        "Completed physical archive moves",
-    ]:
-        assert phrase in text
 
 
 def test_doc001h_navigation_links_database_and_archive_surfaces():
     docs_readme = read("docs/README.md")
     archive_readme = read("docs/archive/README.md")
 
-    assert "docs/reference/database/schema_overview.md" in docs_readme
-    assert "docs/reference/database/schema_relationships.md" in docs_readme
-    assert "documentation_path_status.md" in archive_readme
+    assert "reference/database/schema_overview.md" in docs_readme
+    assert "reference/database/schema_relationships.md" in docs_readme
+    assert "Git history" in archive_readme

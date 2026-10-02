@@ -10,7 +10,7 @@
       "unique_history_disposition": "CANONICALIZED",
       "evidence_refs": [
         "repo:docs/knowledge/branch_salvage_704.md#agent630-workday-cxs-acquisition",
-        "repo:docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.json#workday_recovered_precedent"
+        "repo:https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/planning/active/acq_generalization_90_migration_checkpoint_20260828.json#workday_recovered_precedent"
       ]
     },
     {
@@ -179,7 +179,7 @@
       "evidence_refs": [
         "github:jenshaberle-dotcom/job-application-pipeline/pull/862",
         "git:commit:fb06e1191ae044d0c0547e9136c7860b097bdf5b",
-        "repo:docs/planning/active/f3_truth_lifecycle_hardening.md#entry-gate",
+        "repo:https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/planning/active/f3_truth_lifecycle_hardening.md#entry-gate",
         "repo:docs/knowledge/drj_branch_dispositions_20260916_batch3.md#agentf2-acceptance-cohort"
       ]
     },
@@ -191,7 +191,7 @@
       "evidence_refs": [
         "github:jenshaberle-dotcom/job-application-pipeline/pull/862",
         "git:commit:fb06e1191ae044d0c0547e9136c7860b097bdf5b",
-        "repo:docs/planning/active/f3_truth_lifecycle_hardening.md#entry-gate",
+        "repo:https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/planning/active/f3_truth_lifecycle_hardening.md#entry-gate",
         "repo:docs/knowledge/drj_branch_dispositions_20260916_batch3.md#agentf2-operator-cold-e2e"
       ]
     },

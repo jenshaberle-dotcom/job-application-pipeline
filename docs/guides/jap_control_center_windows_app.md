@@ -6,7 +6,9 @@ The installed JAP Control Center is a native Windows WebView2 shell around the l
 
 ## Canonical product boundary
 
-The current generation starts at desktop version **1.0.62** and uses:
+The product-local update generation was introduced at desktop **1.0.62**.
+The current desktop version is read from `windows/JAP.ControlCenter.Desktop/VERSION`;
+the installed identity is read from `current.json` and the live runtime. The generation uses:
 
 - install schema: `job_application_pipeline.windows_control_center_install.v3`;
 - update generation: `cgkb_product_local_v1`;
@@ -130,7 +132,7 @@ Choosing No snoozes the prompt for six hours. Before consent, a newer eligible r
 
 Routine update authority is intentionally separated:
 
-1. hosted CI builds and qualifies exact-source desktop/runtime assets;
+1. RCC-assigned General Windows execution builds and qualifies exact-source desktop/runtime assets;
 2. GitHub Release publishes one immutable product identity;
 3. the installed product-local agent discovers, downloads, extracts and verifies;
 4. the GUI owns explicit consent;

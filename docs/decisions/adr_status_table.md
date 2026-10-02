@@ -2,7 +2,7 @@
 
 Status: current ADR rebaseline control surface
 Scope: DOC-001K ADR rebaseline
-Last rebaseline: DOC-001K
+Last rebaseline: 2026-10-02 Classic documentation hardcut
 
 ## Purpose
 
@@ -33,7 +33,7 @@ are used as active architecture anchors.
 | ADR-003 | Accepted | Current | Keep; database uniqueness remains a protection layer, not the full dedupe story. | `docs/reference/database/schema_overview.md` |
 | ADR-004 | Accepted | Current | Keep; profile-based ingestion still frames bounded search. | `docs/current/architecture.md` |
 | ADR-005 | Accepted | Current | Keep. | `docs/reference/database/README.md` |
-| ADR-006 | Accepted | Current | Keep for local reproducibility. | `README.md`, `docs/guides/operator-runbook.md` |
+| ADR-006 | Accepted | Historical | Docker is an optional development setup, not the installed WSL runtime prerequisite. | `README.md`, `docs/guides/operator-runbook.md` |
 | ADR-007 | Accepted | Historical | Keep as local Git/GitHub setup history, not product architecture. | `docs/guides/operator-runbook.md` |
 | ADR-008 | Accepted | Current | Keep; environment-based configuration remains the safe default. | `README.md` |
 | ADR-009 | Accepted | Current | Keep; connectors remain the acquisition abstraction. | `docs/reference/sources/source_capabilities.md` |
@@ -44,7 +44,7 @@ are used as active architecture anchors.
 | ADR-014 | Accepted | Current | Keep; database docs were rebaselined in DOC-001H. | `docs/reference/database/README.md` |
 | ADR-015 | Accepted | Current | Keep; capabilities remain a central source boundary. | `docs/reference/sources/source_capabilities.md` |
 | ADR-016 | Accepted | Current | Keep; interpret through current Search Intelligence and aggregator boundaries. | `docs/current/architecture.md`, `docs/decisions/../decisions/adr/026_define_source_acquisition_scope_and_canonical_source_strategy.md` |
-| ADR-017 | Proposed | Superseded | Keep for future API/React direction only; current UI layer is Jinja2/ViewModel first. | `docs/decisions/adr/032_use_jinja2_as_control_center_template_layer.md` |
+| ADR-017 | Proposed | Historical | Earlier API direction; inspect current React/Python implementation. | `docs/current/architecture.md` |
 | ADR-018 | Accepted | Current | Keep; migration ordering remains protected. | `docs/guides/operator-runbook.md`, `db/migrations` |
 | ADR-019 | Proposed | Needs rewrite | Rewrite or accept/reject explicitly before dedicated heartbeat work. | `docs/reference/observability/source_health_and_heartbeat.md` |
 | ADR-020 | Proposed | Needs rewrite | Rewrite or explicitly defer before role-family implementation becomes active. | `docs/reference/scoring-and-gates/role_family_classification.md` |
@@ -56,14 +56,16 @@ are used as active architecture anchors.
 | ADR-026 | Accepted | Current | Keep as key aggregator/employer-origin/source-value boundary. | `docs/current/architecture.md` |
 | ADR-027 | Accepted | Current | Keep; source-target acquisition model remains active. | `docs/reference/sources/source_capabilities.md` |
 | ADR-028 | Accepted | Current | Keep; family/target/type separation remains active. | `docs/reference/search-intelligence/source_taxonomy.md` |
-| ADR-029 | Accepted | Current | Keep; historical burden strategy remains active. | `docs/archive/documentation_path_status.md` |
+| ADR-029 | Accepted | Current | Keep; historical burden strategy remains active. | `https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/archive/documentation_path_status.md` |
 | ADR-030 | Accepted | Current | Keep; trend/source-coverage boundary remains active. | `docs/reference/database/schema_overview.md` |
 | ADR-031 | Accepted | Current | Keep; Deep Ocean identity remains the preferred product identity. | `docs/reference/product/README.md` |
-| ADR-032 | Accepted | Current | Keep; Jinja2 is the current Control Center presentation layer. | `docs/reference/documentation/design_rules.md` |
+| ADR-032 | Superseded | Superseded | React replaces the earlier Jinja2 UI; presentation/business separation survives. | `docs/current/architecture.md`, `docs/reference/documentation/design_rules.md` |
 | ADR-033 | Accepted | Current | Keep; Search Intelligence safety/security boundary remains active. | `docs/reference/security/safety_security_state_architecture.md` |
-| ADR-034 | Accepted | Current | Keep; one JAP product may coexist across local/offline and cloud runtimes while sharing product semantics and explicit succession evidence. | `docs/current/architecture.md` |
+| ADR-034 | Accepted | Current | Cloud parity/migration then one normal Cloud runtime; maintain Classic only through the transition. | `docs/current/architecture.md` |
 | ADR-035 | Accepted for implementation | Current | Keep; scale employer-origin execution through portable work items and shared worker runtimes rather than per-employer deployments. | `docs/current/architecture.md`, `src/ingestion/connector_work_item.py` |
 | ADR-036 | Accepted | Current | Keep; external/paid tools are optional residual capabilities behind replaceable adapters, never silent core dependencies. | `docs/planning/active/LINKEDIN-DEFENSIVE-MARKET-SENSOR.md`, `src/search_intelligence/public_web_search.py` |
+
+| ADR-037 | Accepted by operator direction | Current | Connector fleet lifecycle contract; configuration is not live fleet closure proof. | `config/connector_fleet_policy.json`, `docs/current/architecture.md` |
 
 ## Immediate follow-up queue
 

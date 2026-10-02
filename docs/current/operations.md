@@ -15,8 +15,9 @@ Current operator entry points:
 - `ci-max-execution.md` for exclusive RCC workload execution authority.
 
 The former generated chat-continuation restart mechanism is retired and
-archived as a bad idea. Continuity comes from direct repository inspection,
-temporary full-repository ZIP review, and later MCP-backed state.
+archived as a bad idea. Continuity comes from direct Git/repository inspection and available read-only
+connector evidence. A full-repository ZIP is optional inspection material, not a
+required continuation or approval gate.
 
 Merge blocks must derive the PR number automatically from the current feature
 branch; they must not require manual `<PR_NUMBER>` replacement.

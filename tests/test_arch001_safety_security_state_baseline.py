@@ -61,22 +61,6 @@ def test_gate_contract_requires_diagnosis_fields() -> None:
     assert {"stop_reason", "next_safe_action", "manual_override_path", "audit_event_ref"}.issubset(required)
 
 
-def test_arch001_documents_exist_and_name_freeze_scope() -> None:
-    docs = [
-        "docs/reference/security/safety_security_state_architecture.md",
-        "docs/reference/agents/agent_permission_matrix.md",
-        "docs/current/pipeline.md",
-        "docs/reference/scoring-and-gates/gate_contract_baseline.md",
-        "docs/reference/security/search_intelligence_security_baseline.md",
-        "docs/archive/planning/architecture_freeze_maturity_campaign.md",
-        "docs/decisions/adr/033_define_search_intelligence_safety_security_boundaries.md",
-    ]
-    for doc in docs:
-        text = read(doc)
-        assert "Status:" in text or "Status: Accepted" in text
-    campaign = read("docs/archive/planning/architecture_freeze_maturity_campaign.md")
-    assert "15 to 20 points" in campaign
-    assert "White-Whale" in campaign
 
 
 def test_security_doc_mentions_ssrf_relevant_boundaries() -> None:
@@ -85,9 +69,3 @@ def test_security_doc_mentions_ssrf_relevant_boundaries() -> None:
     assert "private IP" in text
     assert "metadata" in text
     assert "secrets" in text
-
-
-def test_readme_and_roadmap_have_arch001_markers() -> None:
-    assert "ARCH-001-SAFETY-SECURITY-STATE" in read("README.md")
-    assert "ARCH-001-SAFETY-SECURITY-STATE" in read("docs/planning/active/roadmap.md")
-    assert "ARCH-001-SAFETY-SECURITY-STATE" in read("docs/reference/search-intelligence/current_state.md")

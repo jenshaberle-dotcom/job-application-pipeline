@@ -1,19 +1,13 @@
 # Planning
 
-Status: active planning navigation
+The [active roadmap](active/roadmap.md) is the single engineering direction.
+Current source and effect boundaries are in [re-entry](../current/REENTRY.md).
 
-This folder is for active planning and executable backlog truth. Historical
-work-item notes, implementation logs and superseded source-analysis plans belong
-under `../archive/`.
+`active/source-candidates/` contains generated connector review artifacts. An artifact is
+neither registered connector truth nor activation authority. It stays compatible with the
+existing generator/registration tooling.
 
-Start here:
-
-1. `active/README.md`
-2. `active/roadmap.md`
-3. `active/backlog_refinement.md`
-4. `active/backlog_catalog.json`
-
-The JSON catalog is validated by `scripts/validate_ci_contract.py`. Root-level
-planning and `future/` files are evidence sources until DOC-012 reconciles their
-implemented, superseded, conditional or parked lifecycle state; they do not
-override the active catalog.
+Accepted contracts moved to `docs/reference/product-contract/retained/`.
+`future/` and explicitly deferred ML/provider designs preserve proposals; they grant no
+provider, deployment or product-effect authority. Old campaign plans and restart snapshots
+were physically removed; consult immutable Git history only for historical investigation.

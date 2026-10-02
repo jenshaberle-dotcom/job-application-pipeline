@@ -78,5 +78,5 @@ For now, the expanded model remains documentation-first.
 ## Related Documentation
 
 - `docs/reference/sources/source_capabilities.md`
-- `docs/archive/source-analysis/source_evaluation.md`
+- `https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/archive/source-analysis/source_evaluation.md`
 - `docs/reference/observability/source_health_and_heartbeat.md`

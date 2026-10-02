@@ -5,8 +5,8 @@ Scope: GOV-001 and DOC-001 governance navigation
 
 ## Purpose
 
-This directory defines how the Search Intelligence system is governed during the
-architecture freeze and documentation rebaseline.
+This directory defines how the Search Intelligence system is governed for the current
+Classic product and Cloud transition.
 
 Governance is not decoration. It controls agent responsibilities, write
 boundaries, documentation drift, and whether a new implementation belongs in the
@@ -24,10 +24,7 @@ current maturity path or in the backlog.
 | Capability gaps | `agent_capability_gap_register.md` |
 | Documentation drift guard | `documentation_drift_guard.md` |
 | Workflow/tooling contracts | `workflow/` |
-| Documentation rebaseline | `documentation_rebaseline_strategy.md` |
-| Archive/deprecation plan | `documentation_archive_deprecation_plan.md` |
-| ADR rebaseline plan | `adr_rebaseline_plan.md` |
-| ADR status table | `adr_status_table.md` |
+| ADR status table | `docs/decisions/adr_status_table.md` |
 
 ## Current governance rules
 

@@ -1,146 +1,39 @@
-# JAP Classic re-entry
+# JAP Classic engineering re-entry
 
-Updated for the 1.2.2 runner hard cut.
+Inspected: 2026-10-02. Repository ID: `1230805345`.
+Baseline before this documentation hardcut: `effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1`.
+This is a dated inspection record, not a lock on a moving `main`.
 
-## Current product target
+## Established repository facts
 
-JAP Classic 1.2.2 is the current live-inspection/demo candidate. Publishing it does not itself prove the 10-to-5 Product target.
+- React Control Center and .NET 8/WebView2 desktop host are present.
+- Desktop version file is `1.2.6`; root `VERSION` is `1.0.61` and is not desktop identity.
+- GitHub published desktop `jap-winapp-product-v1.2.6` on 2026-09-29.
+- All four workflow targets use exact RCC assignment. Windows packaging is now an RCC
+  workload; old statements about hosted publication or no publisher are obsolete.
+- Consumer demand declares `linux-base` and `windows-release` capabilities without runner counts.
+- Freeze-II generic activation remains withheld in its current authority file.
+- Current drafting adapter defaults to `gpt-5.6-sol`. PR #1160 proposes a GPT-6.1 change;
+  it was open at inspection and is not implementation truth on this baseline.
 
-Required product proof before claiming the 1.2.2 Product target complete:
+## Evidence still required
 
-1. all seven market sensors visible in Sources with verified discovery evidence;
-2. at least 10 current Employer-Origin jobs with complete Candidate Fit decisions;
-3. at least 5 Fit-passed jobs satisfying normal hard-filter/ranking authority;
-4. authoritative Top 5 contains exactly 5 jobs;
-5. no job IDs, employers, direct rank writes or demo-only promotion bypasses.
+This inspection does not establish installed version, live database/Top-5 state, successful
+RCC production execution, physical legacy-runner retirement or Cloud parity. Obtain exact-source
+run/job evidence and current runtime identity before making those claims.
 
-The RCC workload targets are `.github/workflows/pr-validation.yml` for exact-PR repository validation and `.github/workflows/product-v1-assessment-cohort.yml` for the Product 10→5 assessment. Both declare only workload demand; RCC owns allocation, reservation, facade selection and ephemeral assignment.
-The separate `.github/workflows/jap-windows-desktop-host-release.yml` is product packaging/publication infrastructure only; it runs on GitHub-hosted `windows-latest` and owns no Warm-Pool allocation, facade or physical-runner authority.
+The 10→5 cohort is reusable product validation. Its result must meet normal Fit, hard-filter
+and ranking contracts; publishing a version does not prove cohort acceptance.
 
-Canonical Product 10→5 implementation:
+## Continue safely
 
-```text
-run_product_v1_assessment_cohort
-→ select exactly 10 current Employer-Origin jobs
-→ run_product_v1_rankable_refill_campaign
-   → generic scout / exact-detail refresh
-   → run_product_v1_rankable_refill_apply
-      → Candidate-Fact-backed capability review
-      → run_product_v1_hard_filter_evidence_close
-      → canonical ranking-score review
-→ verify 10 complete Candidate Fit decisions
-→ verify at least 5 Fit-passed + rankable jobs
-→ verify exact Top 5 is a subset of the selected 10
-```
+1. Verify live repository ID, `main`, working branch and open PR state.
+2. Inspect current code and workload demand; use [RCC execution](ci-max-execution.md).
+3. Check completed evidence on the exact current head before rerunning work.
+4. For product effects, inspect DB/audit state and applicable approval boundaries first.
+5. Continue from [roadmap](../planning/active/roadmap.md); do not replay old demo, acquisition
+   or MCP-freeze sequences from historical notes.
+6. Validate current head, review the concrete diff and merge only after required checks pass.
 
-Candidate geography/work-model preferences come first from approved private
-`operator_preference` Candidate Facts. If none exist, the tracked approved
-`config/product_v1_candidate_fit_policy.json` supplies the reusable product
-boundary (regional anchor/commute plus country-wide remote).
-
-The old `run_demo_001_rankable_refill_*` names are compatibility entrypoints only.
-The old job-specific DEMO-001 hard-filter closer is physically removed. Demo
-entrypoints must not regain Product logic or become dependencies of the canonical chain.
-
-## Runner authority hard cut
-
-The repository no longer owns workload runner allocation.
-
-Canonical chain:
-
-```text
-JAP workload demand
-→ RCC
-→ RCC admission/reservation
-→ RCC-selected Warm-Pool member
-→ exact repository facade
-→ ephemeral assignment label
-→ exact-source JAP workload
-→ RCC verification/cleanup/release
-```
-
-Physically removed from JAP:
-
-- project-owned direct self-hosted assignment workflows;
-- broad runtime labels and their freeze/fallback guards;
-- heartbeat-based routing;
-- fixed Warm-Pool member selection;
-- repository-owned hosted/warm route selection;
-- retired Blue-runner workflow archive;
-- legacy workflow trigger authority files under `.github/triggers/`;
-- project-owned runner allocation contract;
-- local Windows scheduled-pipeline runner path;
-- old workflow-specific regression tests that could restore those authorities.
-
-JAP has exactly two RCC workload targets: exact-PR repository validation and the
-Product assessment cohort. Both map through `.rcc/workload-demands.json` to the
-same RCC-owned `linux-base` demand. RCC owns profile materialization, allocation,
-facade selection and capability provisioning. The consumer-owned runner-profile
-tree is physically absent.
-
-The Windows product release publisher is intentionally outside that workload topology: it only builds exact-source immutable desktop/runtime assets and publishes the GitHub Release. It must remain cardinality-blind and must never acquire self-hosted, facade or physical-member selection.
-
-Current demand mapping:
-
-```text
-pr-validation.yml
-→ linux-base
-
-product-v1-assessment-cohort.yml
-→ linux-base
-→ platform linux-wsl
-→ runtime python-project
-→ RCC materializes rcc-demand-jap-linux-base
-→ expected materialized profile hash b08aaffd6a5da737b20570a7ed3b5b1bfc3eea11f0efeeb216e5a9d2a030c70e
-```
-
-## Current next gate
-
-The three residual scans are complete on the residual-proof candidate; see
-`docs/current/warm-pool-hardcut-proof.md` for scope, fixes and validation.
-The runner hardcut is merged on `main` as `857534c4983398202714c83387af121d1e92115a`;
-the Candidate-Fit/Top-5 projection clarification is merged as
-`717ae8654c3cff6641fdbcb1567935276cf55608`. This is repository proof, not RCC
-live execution acceptance.
-
-The repository hardcut itself is independent from runtime acceptance; keeping stale
-runner authority on `main` is not a valid substitute for external execution proof.
-RCC PR #674 has now merged the generic `RCC_WORKLOAD_DEMAND_V2 + EXACT_SOURCE_V1`
-adapter required by JAP. JAP's RCC workload consumes only
-`source_sha + rcc_facade_label + rcc_assignment_label`; it does not choose a
-physical member or persistent facade. The product release publisher is not an RCC workload and does not consume these routing inputs.
-
-No RCC execution of the JAP assessment workload has been proven yet. The remaining
-RCC operational gates are profile prestage/qualification, read-only five-member
-registration preflight, fresh operator registration authority, facade registration,
-and then one exact-source production dispatch with cleanup proof.
-
-JAP Classic may run the same generic assessment cohort locally through the explicit
-Control Center operator action `/api/v1/product-v1/assessment-cohort`. That path
-selects no runner, creates no scheduler and restores no repository allocation
-authority; it delegates only to the existing Candidate Fit, hard-filter and ranking
-authorities. Its child report must prove apply mode, exact 10/5/10 targets, zero
-provider requests, zero direct rank/Top-5 writes and no combined score before the
-Control Center accepts the result.
-
-The cohort acceptance now counts only selected, current Employer-Origin jobs.
-Failed Fit decisions count as evaluated, never passed. Duplicate Top-5 identities,
-non-contiguous ranks and failed plan authorities fail closed. These are local
-regression checks, not evidence that the live database meets the 10-to-5 target.
-
-Product sequence:
-
-1. from the installed/local Classic Control Center, explicitly run **Evaluate current jobs**
-   (or the same generic cohort CLI) against exact JAP main;
-2. repair reusable evidence blockers while retaining all Fit/hard-filter gates until
-   the validated report proves 10 complete Fit decisions, at least 5 Fit-passed/rankable
-   jobs and exactly 5 authoritative Top-5 jobs;
-3. verify the English Candidate Fit and Top 5 surfaces against that live Product truth;
-4. complete RCC demand-v2 prestage/registration and one exact-source cohort proof for
-   future automated/remote runs; keep the restored cardinality-blind hosted Windows
-   product publisher intact through the 2026-09-29 demo. Any later migration of publication
-   into RCC must prove the replacement before this update channel is removed;
-5. install and run the operator smoke for Sources, All Jobs, Candidate Fit and Top 5.
-
-Do not claim populated Top 5 or Product-target completion until the live assessment report has
-`target_met=true`. The 1.2.2 package may be published beforehand for exact-product live inspection.
+Pending proposals may contain reusable work. Open PRs #1152, #1155, #1159 and #1160 were
+visible at inspection; refresh GitHub before treating their state or contents as current.

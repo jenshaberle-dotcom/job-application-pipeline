@@ -1,86 +1,40 @@
-# Active Roadmap
+# Active roadmap
 
-Status: current planning
-Last rebaseline: Product-authority preparation after BACKLOG-REFINE-001
+Status: current engineering direction after Classic documentation hardcut, 2026-10-02.
 
-The engineering catalog supplies implementation detail. Desired product behavior
-is defined under `docs/reference/product-contract/` and has higher authority.
+## Product and migration direction
 
-## Steering principle
-```text
-Exact on WHAT.
-Adaptive on HOW.
-```
-Jens owns product semantics. DON may adapt design, slicing and sequencing inside
-approved requirements. Unresolved product behavior remains open.
+Maintain the installed Classic product, salvage reusable product capability and real data,
+complete Cloud parity/migration and then use Cloud as the sole normal product path.
+Do not restart completed Classic campaigns or build independent feature semantics in both
+products. Cloud implementation/state remains owned by its repository.
 
-## Critical path
-| Order | Block | Status | Exit gate |
-|---:|---|---|---|
-| 0 | PRD-001 Product Intent Rebaseline | current | First-slice decisions, scenarios and traceability approved. |
-| 1 | DOC-010 Planning Truth | current parallel | One sequence and CI-valid engineering catalog. |
-| 2 | SI-020 Generic Evidence Closure | next parallel | Fresh evidence returns pass or finite blockers. |
-| 3 | SI-030 Controlled Candidate Creation | blocked | Generic proof plus approved candidate semantics and rollback. |
-| 4 | CC-010 Usable V1 Job Review | blocked | Approved Top-5/ranking/review contract and safe queue. |
-| 5 | OPS-030 maturity/refactor | planned | Measurable V1 gate and staged boundary plan. |
-| 6 | Cloud/outbox/Kafka/Spark | parked | Explicit product-value evidence. |
+## Work admission
 
-## Immediate product-alignment work
-1. Confirm recorded product truths.
-2. Resolve only decisions needed for the first useful vertical slice.
-3. Approve representative acceptance scenarios.
-4. Map active candidate/V1 items to approved intent.
-5. Build a small visible slice covering filtering, ranking, evidence, uncertainty and review.
-6. Obtain operator acceptance before scaling.
+| Area | Required evidence before work/effects |
+|---|---|
+| Documentation and defects | Current code/configuration and a concrete reproducible gap |
+| RCC execution | General Pool demand, qualified exact assignment, live result and cleanup |
+| Cloud migration/reuse | Read-only source census, provenance and accepted transfer/parity contract |
+| Product assessment | Approved Candidate Facts, normal Fit/filter/ranking contract, live acceptance report |
+| Source activation | Current Freeze-II restriction plus applicable A1/readiness/approval conditions |
+| Provider/model changes | Current adapter, private-data boundary and explicit spend/transport authority |
+| Future ML/acquisition proposals | Fresh gap/value evidence; no activation by an old plan |
 
-## Engineering work allowed in parallel
-- read-only GENERIC/EXPAND evidence;
-- conditional provider-coverage decision without automatic call;
-- safety, defects, documentation and runtime stabilization;
-- CI, scheduler audit and target-profile evidence review.
+An open PR is a proposal; a test pass is repository evidence; live acceptance requires fresh
+runtime evidence. Read `docs/current/REENTRY.md` before continuing a pending slice.
 
-These lanes may not introduce candidate, Top-5, ranking, queue or action semantics
-before the relevant product decisions are approved.
+## Preserved contract anchors
 
-## Recorded target profile
-The repository records Machine Learning Engineer as foundation, Data Engineering
-and data-centric ML as focus, AI Reliability as future direction and GenAI as a
-cross-cutting competency. Operator confirmation is required before this becomes
-the approved filtering/ranking basis.
+**ARCH-001-SAFETY-SECURITY-STATE** remains active: safety, evidence, explicit transitions,
+dry-run/apply separation and private facts. **DOC-001 Governance Foundation Gate** and
+**DOC-002 Documentation Drift Baseline** remain maintenance rules, not old campaign ordering.
 
-## Explicitly not current
-Broad scaling, automatic source activation, autonomous provider runs, premature
-LLM/application generation, monolithic refactoring, cloud, Kafka and Spark.
-Product-shaping work without approved PRD traceability is also not current.
+**EO-002D-ROADMAP** identifies reusable origin-repair capability, not a next task.
+**PLAN-001 Future Readiness and Assumption Governance** retains the MARKET-003,
+ASSUMPTION-001 and WHALE-001 concepts as reference and future-value checks.
 
-## Retained anchors
-<!-- ARCH-001-SAFETY-SECURITY-STATE:START -->
-### ARCH-001-SAFETY-SECURITY-STATE
-Safety, security, data integrity, explicit transitions and dry-run/apply separation
-remain mandatory.
-<!-- ARCH-001-SAFETY-SECURITY-STATE:END -->
-
-### DOC-001 Governance Foundation Gate
-The governance foundation remains active.
-
-### DOC-002 Documentation Drift Baseline
-Current truth, product contract, planning truth and history remain separate.
-
-### EO-002B Candidate Reprocessing & URL Finder Validation
-EO-002B remains bounded evidence, not current steering.
-
-<!-- EO-002D-ROADMAP -->
-### EO-002D-ROADMAP
-Origin-source repair remains a regression anchor; generic benchmark work is `SI-045`.
-
-<!-- PLAN-001-ROADMAP-START -->
-### PLAN-001 Future Readiness and Assumption Governance
-- MARKET-003 Manual Market Observation Foundation
-- ASSUMPTION-001 Simplification Validation Register
-- WHALE-001 White-Whale Backlog Triage
-<!-- PLAN-001-ROADMAP-END -->
-
-## Boundaries
-All changes preserve safety, data integrity, explicit transitions, dry-run/apply
-separation and the rule that exports are not pipeline inputs. Product changes
-require operator approval and acceptance scenarios.
+Product intent is in `docs/reference/product-contract/`; implementation cannot silently
+redefine it. Open decisions must be reconciled with later accepted contracts before changing
+behavior. No combined Fit/Affinity score, direct Top-5 bypass or automated submission is
+introduced by documentation or migration work.

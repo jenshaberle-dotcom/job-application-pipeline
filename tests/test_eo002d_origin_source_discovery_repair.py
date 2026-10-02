@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 
 from src.search_intelligence.origin_source_discovery_agent import (
     OriginDiscoveryProbeResult,
@@ -74,16 +73,3 @@ def test_eon_parent_career_domains_can_be_selected_without_external_search() -> 
     assert result.decision == "origin_url_candidate_selected"
     assert result.selected_url is not None
     assert "eon.com" in result.selected_url
-
-
-def test_eo002d_docs_record_boundaries_and_next_decision() -> None:
-    doc = Path("docs/archive/planning/eo002d_origin_source_discovery_url_finder_repair.md").read_text(encoding="utf-8")
-    roadmap = Path("docs/planning/active/roadmap.md").read_text(encoding="utf-8")
-    current_state = Path("docs/reference/search-intelligence/current_state.md").read_text(encoding="utf-8")
-
-    assert "EO-002D Origin Source Discovery / URL Finder Repair" in doc
-    assert "no scheduler change" in doc
-    assert "no candidate URL write" in current_state
-    assert "EO-002D-ROADMAP" in roadmap
-    assert "Hannover Rück" in doc
-    assert "E.ON Grid Solutions" in doc
