@@ -15,6 +15,14 @@ EXPECTED_BA_REMOTE_TERMS = (
     "Data Warehouse",
     "ETL",
     "Python SQL",
+    "Product Owner",
+    "Technical Product Owner",
+    "Productowner",
+    "System Engineer",
+    "Systems Engineer",
+    "Systemingenieur",
+    "IT System Engineer",
+    "IT-Systemingenieur",
 )
 
 
