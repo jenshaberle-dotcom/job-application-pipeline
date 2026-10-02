@@ -85,10 +85,10 @@ These merges establish source integration, not live host acceptance.
 
 The first proof candidate changes this activation record only and preserves the
 merged demand, workflow and runtime contract. Run it through the existing RCC
-controller using its exact repository/PR filters after adopting current RCC source.
+controller using its exact repository and PR filters after adopting current RCC source.
 Preserve request state and consumed authority markers. Do not reinstall the broker
 for this catalog-only change, manually choose a physical member or fabricate labels.
 
 Acceptance requires the linked GitHub run, exact candidate SHA, RCC-assigned
-facade/runtime, passing full validation and the executor's terminal cleanup evidence.
+facade and runtime, passing full validation and the executor's terminal cleanup evidence.
 Until those are recorded, the first live JAP Linux proof remains pending.

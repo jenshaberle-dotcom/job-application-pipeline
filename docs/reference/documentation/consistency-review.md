@@ -30,13 +30,12 @@ A full documentation review may include:
 - `docs/reference/glossary.md`
 - `docs/data_sources/`
 - `docs/reference/database/tables.md`
-- `docs/archive/diagrams/`
+- `docs/current/system-diagrams.md`
 - `https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/archive/source-analysis/source_evaluation.md`
 - `docs/archive/source-analysis/`
 - `docs/relevance/`
 - `docs/archive/planning/`
 - `docs/observability/`
-- `docs/archive/visualization/`
 
 The review should not create new documents unless the existing structure cannot hold the information cleanly.
 
