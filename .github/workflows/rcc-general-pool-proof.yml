@@ -68,3 +68,4 @@ jobs:
         shell: pwsh
         run: |
           & $env:JAP_PROOF_PYTHON -m pytest -q tests/test_warm_pool_only_runner_authority.py
+          if ($LASTEXITCODE -ne 0) { throw 'RCC source hardcut proof failed' }

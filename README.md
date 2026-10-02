@@ -22,9 +22,14 @@ application preparation and tracking. Jens owns product intent.
 | CI and packaging | RCC General Pool; JAP declares demand and verifies exact assignment. |
 | Cloud direction | Cloud parity and verified migration, then one normal Cloud product path. |
 
-`windows/JAP.ControlCenter.Desktop/VERSION` defines the desktop product version.
+Desktop product version: **1.2.6**. Published packages are listed in
+[GitHub Releases](https://github.com/jenshaberle-dotcom/job-application-pipeline/releases).
+`windows/JAP.ControlCenter.Desktop/VERSION` defines the build version.
 The root `VERSION` and frontend package version identify other components; they are not
 interchangeable release authorities. A version file never proves an installed runtime.
+
+CI targets are RCC-dispatched workflows. A pull request does not itself prove a running
+validation job; admission and execution evidence come from RCC.
 
 ## Start here
 
@@ -52,7 +57,7 @@ interchangeable release authorities. A version file never proves an installed ru
 | `docs/reference/` | Product contracts and technical lookup. |
 | `docs/decisions/` | Decisions and their current/superseded status. |
 | `docs/planning/` | Active planning only. |
-| `docs/archive/` | Historical documentation and replaced artifacts. |
+| `docs/archive/` | Historical machine/code evidence; obsolete prose is in Git history. |
 | `exports/` | Generated review output; never hidden pipeline authority. |
 
 ## Working boundaries

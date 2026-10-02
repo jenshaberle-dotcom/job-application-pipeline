@@ -29,6 +29,10 @@ def check_truth(root: Path) -> list[str]:
     architecture = (root / 'docs/current/architecture.md').read_text()
     if 'react' in package['dependencies'] and 'React' not in architecture:
         issues.append('React implementation missing from current architecture')
+    desktop_version = (root / 'windows/JAP.ControlCenter.Desktop/VERSION').read_text().strip()
+    readme = (root / 'README.md').read_text()
+    if f'Desktop product version: **{desktop_version}**' not in readme:
+        issues.append('README desktop version differs from desktop VERSION')
     maintained = [root / 'README.md', root / '.github/RELEASE_MANAGEMENT.md']
     maintained += list((root / 'docs/current').glob('*.md'))
     maintained += list((root / 'docs/guides').glob('*.md'))
