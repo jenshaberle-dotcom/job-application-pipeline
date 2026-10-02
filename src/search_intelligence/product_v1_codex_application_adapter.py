@@ -30,9 +30,19 @@ from src.search_intelligence.product_v1_application_context import (
 )
 
 
-DEFAULT_MODEL = "gpt-5.6-sol"
-DEFAULT_REASONING_EFFORT = "high"
-DEFAULT_TIMEOUT_SECONDS = 180.0
+DEFAULT_MODEL = "gpt-6.1-sol"
+DEFAULT_REASONING_EFFORT = "staged_quality"
+DEFAULT_TIMEOUT_SECONDS = 240.0
+QUALITY_REASONING_PROFILE = {
+    "evidence": "medium",
+    "strategy": "high",
+    "cv": "high",
+    "letter": "high",
+    "critic": "xhigh",
+    "final": "high",
+    "layout_compaction": "high",
+}
+INITIAL_QUALITY_STAGE_COUNT = 6
 MAX_VACANCY_CHARS = 16_000
 MAX_CV_CHARS = 18_000
 MAX_LETTER_CHARS = 14_000
@@ -205,6 +215,7 @@ class CodexApplicationDraftResult:
     reason: str | None
     package: dict[str, object] | None
     codex_version: str | None = None
+    request_count: int = 0
 
     def to_json(self) -> dict[str, object]:
         return {
@@ -216,6 +227,7 @@ class CodexApplicationDraftResult:
             "reason": self.reason,
             "package": self.package,
             "codex_version": self.codex_version,
+            "request_count": self.request_count,
         }
 
 
@@ -232,6 +244,7 @@ def _schema() -> dict[str, object]:
             "cv_competency_profile",
             "letter_paragraphs",
             "rationale",
+            "claim_provenance",
         ],
         "properties": {
             "status": {"type": "string", "enum": ["draft_for_review"]},
@@ -259,6 +272,31 @@ def _schema() -> dict[str, object]:
                 },
             },
             "rationale": {"type": "string", "maxLength": 600},
+            "claim_provenance": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 16,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["claim", "fact_keys", "job_evidence"],
+                    "properties": {
+                        "claim": {"type": "string", "minLength": 4, "maxLength": 500},
+                        "fact_keys": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 6,
+                            "items": {"type": "string", "maxLength": 160},
+                        },
+                        "job_evidence": {
+                            "type": "array",
+                            "minItems": 0,
+                            "maxItems": 6,
+                            "items": {"type": "string", "maxLength": 500},
+                        },
+                    },
+                },
+            },
         },
     }
 
@@ -493,19 +531,9 @@ def _codex_login_status(executable: str) -> tuple[bool, str]:
     )
 
 
-def inspect_codex_runtime_status(
-    *,
-    model: str | None = None,
-    reasoning_effort: str | None = None,
-) -> CodexRuntimeStatus:
-    selected_model = (
-        model or os.environ.get("JAP_CODEX_DRAFT_MODEL") or DEFAULT_MODEL
-    ).strip()
-    selected_reasoning_effort = (
-        reasoning_effort
-        or os.environ.get("JAP_CODEX_REASONING_EFFORT")
-        or DEFAULT_REASONING_EFFORT
-    ).strip()
+def inspect_codex_runtime_status() -> CodexRuntimeStatus:
+    selected_model = DEFAULT_MODEL
+    selected_reasoning_effort = DEFAULT_REASONING_EFFORT
     executable = _resolve_codex()
     if not executable:
         return CodexRuntimeStatus(
@@ -543,7 +571,6 @@ def inspect_codex_runtime_status(
         model=selected_model,
         reasoning_effort=selected_reasoning_effort,
     )
-
 
 def _safe_error(text: str) -> str:
     compact = " ".join(text.split())
@@ -846,6 +873,7 @@ def _validate_output(
         "cv_competency_profile",
         "letter_paragraphs",
         "rationale",
+        "claim_provenance",
     }
     if set(decoded) != expected or decoded.get("status") != "draft_for_review":
         raise CodexApplicationDraftStop("Codex draft root does not match the F6 schema")
@@ -856,6 +884,39 @@ def _validate_output(
     cv_short = _normalized_blocks(decoded.get("cv_short_profile"))
     cv_competency = str(decoded.get("cv_competency_profile") or "").strip()
     rationale = _normalized(decoded.get("rationale"))
+    raw_provenance = decoded.get("claim_provenance")
+    if not isinstance(raw_provenance, list) or not raw_provenance:
+        raise CodexApplicationDraftStop("Codex returned no claim provenance")
+    allowed_fact_keys = {
+        item.fact_key
+        for item in context.approved_candidate_facts
+        if item.approval_status == "approved"
+    }
+    claim_provenance: list[dict[str, object]] = []
+    for item in raw_provenance:
+        if not isinstance(item, Mapping):
+            raise CodexApplicationDraftStop("Codex claim provenance entry is not an object")
+        fact_keys = [str(value) for value in item.get("fact_keys", [])]
+        if not fact_keys:
+            raise CodexApplicationDraftStop(
+                "Codex claim provenance does not reference an approved candidate fact"
+            )
+        if any(value not in allowed_fact_keys for value in fact_keys):
+            raise CodexApplicationDraftStop("Codex claim provenance references an unapproved candidate fact")
+        claim = _normalized(item.get("claim"))
+        if not claim:
+            raise CodexApplicationDraftStop("Codex claim provenance contains an empty claim")
+        claim_provenance.append(
+            {
+                "claim": claim,
+                "fact_keys": fact_keys,
+                "job_evidence": [
+                    _normalized(value)
+                    for value in item.get("job_evidence", [])
+                    if _normalized(value)
+                ],
+            }
+        )
     raw_paragraphs = decoded.get("letter_paragraphs")
     if language not in {"de", "en"}:
         raise CodexApplicationDraftStop("Codex returned an unsupported application language")
@@ -953,6 +1014,7 @@ def _validate_output(
         "rationale": rationale,
         "contact_name": contact_name,
         "automatic_semantic_repairs": list(automatic_semantic_repairs),
+        "claim_provenance": claim_provenance,
         "preview": {
             "cv_short_profile": cv_short,
             "cv_competency_profile": cv_competency,
@@ -973,32 +1035,323 @@ def _validate_output(
     }
 
 
+
+def _quality_context_packet(context: ProductV1ApplicationContext) -> dict[str, object]:
+    approved_facts = [
+        {
+            "fact_key": item.fact_key,
+            "statement": item.statement,
+            "limitations": list(item.limitations),
+            "capability_tags": list(item.capability_tags),
+        }
+        for item in context.approved_candidate_facts
+        if item.approval_status == "approved"
+    ]
+    claim_plan = [
+        {
+            "fact_key": item.fact_key,
+            "statement": item.statement,
+            "limitations": list(item.limitations),
+            "matched_capability_tags": list(item.matched_capability_tags),
+            "job_references": [
+                reference.canonical_payload()
+                for reference in item.job_references
+            ],
+        }
+        for item in context.claim_plan
+    ]
+    return {
+        "target": {
+            "title": context.target.title,
+            "company_name": context.target.company_name,
+            "source_url": context.target.source_url,
+            "vacancy_text": context.target.detail_text[:MAX_VACANCY_CHARS],
+        },
+        "approved_candidate_facts": approved_facts,
+        "candidate_job_claim_plan": claim_plan,
+        "current_cv": _base_cv_text(context),
+        "current_application_letter": _base_application_letter_text(context),
+        "authority": {
+            "vacancy": "current_target_fact_authority",
+            "candidate_facts": "approved_candidate_fact_authority",
+            "previous_letter": "style_structure_quality_reference_only",
+            "invented_candidate_claims": False,
+            "human_review_required": True,
+        },
+        "layout_budgets": {
+            "cv_short_profile_max_chars": CV_SHORT_PROFILE_MAX_CHARS,
+            "cv_competency_profile_max_chars": CV_COMPETENCY_PROFILE_MAX_CHARS,
+            "letter_paragraph_min_count": LETTER_PARAGRAPH_MIN_COUNT,
+            "letter_paragraph_max_count": LETTER_PARAGRAPH_MAX_COUNT,
+            "letter_paragraph_max_chars": LETTER_PARAGRAPH_MAX_CHARS,
+        },
+    }
+
+
+def _object_schema(
+    *,
+    status: str,
+    properties: Mapping[str, object],
+    required: tuple[str, ...],
+) -> dict[str, object]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["status", *required],
+        "properties": {
+            "status": {"type": "string", "enum": [status]},
+            **dict(properties),
+        },
+    }
+
+
+def _quality_stage_schema(stage: str) -> dict[str, object]:
+    string_list = {
+        "type": "array",
+        "maxItems": 16,
+        "items": {"type": "string", "maxLength": 500},
+    }
+    if stage == "evidence":
+        return _object_schema(
+            status="evidence_ready",
+            required=("job_priorities", "candidate_evidence", "gaps", "risk_notes"),
+            properties={
+                "job_priorities": string_list,
+                "candidate_evidence": string_list,
+                "gaps": string_list,
+                "risk_notes": string_list,
+            },
+        )
+    if stage == "strategy":
+        return _object_schema(
+            status="strategy_ready",
+            required=(
+                "positioning_options",
+                "selected_positioning",
+                "cv_focus_fact_keys",
+                "letter_focus_fact_keys",
+                "avoid_claims",
+                "keywords",
+            ),
+            properties={
+                "positioning_options": {
+                    "type": "array",
+                    "minItems": 2,
+                    "maxItems": 2,
+                    "items": {"type": "string", "maxLength": 800},
+                },
+                "selected_positioning": {"type": "string", "minLength": 20, "maxLength": 1200},
+                "cv_focus_fact_keys": string_list,
+                "letter_focus_fact_keys": string_list,
+                "avoid_claims": string_list,
+                "keywords": string_list,
+            },
+        )
+    if stage == "cv":
+        return _object_schema(
+            status="cv_draft_ready",
+            required=("cv_short_profile", "cv_competency_profile", "rationale"),
+            properties={
+                "cv_short_profile": {
+                    "type": "string",
+                    "minLength": 40,
+                    "maxLength": CV_SHORT_PROFILE_MAX_CHARS,
+                },
+                "cv_competency_profile": {
+                    "type": "string",
+                    "minLength": 20,
+                    "maxLength": CV_COMPETENCY_PROFILE_MAX_CHARS,
+                },
+                "rationale": {"type": "string", "maxLength": 800},
+            },
+        )
+    if stage == "letter":
+        return _object_schema(
+            status="letter_draft_ready",
+            required=("language", "contact_name", "salutation", "letter_paragraphs", "rationale"),
+            properties={
+                "language": {"type": "string", "enum": ["de", "en"]},
+                "contact_name": {"type": "string", "maxLength": 120},
+                "salutation": {"type": "string", "minLength": 2, "maxLength": 220},
+                "letter_paragraphs": {
+                    "type": "array",
+                    "minItems": LETTER_PARAGRAPH_MIN_COUNT,
+                    "maxItems": LETTER_PARAGRAPH_MAX_COUNT,
+                    "items": {
+                        "type": "string",
+                        "minLength": 20,
+                        "maxLength": LETTER_PARAGRAPH_MAX_CHARS,
+                    },
+                },
+                "rationale": {"type": "string", "maxLength": 800},
+            },
+        )
+    if stage == "critic":
+        return _object_schema(
+            status="critique_ready",
+            required=("verdict", "critical_issues", "revision_instructions", "evidence_risk"),
+            properties={
+                "verdict": {"type": "string", "enum": ["accept", "revise"]},
+                "critical_issues": string_list,
+                "revision_instructions": string_list,
+                "evidence_risk": {"type": "boolean"},
+            },
+        )
+    raise CodexApplicationDraftStop(f"unsupported quality stage: {stage}")
+
+
+def _quality_stage_prompt(
+    *,
+    stage: str,
+    source_packet: Mapping[str, object],
+    prior: Mapping[str, object],
+) -> str:
+    instructions = {
+        "evidence": (
+            "Extract the job's real priorities and map only supported candidate evidence. "
+            "Identify gaps and risks. Do not draft CV or letter text."
+        ),
+        "strategy": (
+            "Create exactly two materially different positioning strategies, then select the stronger "
+            "one for this vacancy. Select only approved fact keys. Prefer evidence and role fit over "
+            "generic keyword matching. Do not draft final prose."
+        ),
+        "cv": (
+            "Draft only the CV short profile and competency profile. Use the selected strategy and "
+            "approved evidence. Stay inside the frozen character budgets. Do not invent facts."
+        ),
+        "letter": (
+            "Draft only the application letter. Do not simply narrate the CV. Build a vacancy-specific "
+            "argument with distinct paragraphs, grounded evidence and a concise close. Respect the "
+            "frozen paragraph budgets and do not invent a contact."
+        ),
+        "critic": (
+            "Act as an adversarial application reviewer. Check CV and letter for unsupported claims, "
+            "generic LLM language, missed vacancy priorities, redundancy, keyword stuffing, seniority "
+            "mismatch, weak evidence ordering and stale employer identity. Return actionable issues only; "
+            "do not rewrite the documents."
+        ),
+    }[stage]
+    payload = {
+        "stage": stage,
+        "instructions": instructions,
+        "source_packet": source_packet,
+        "prior_stage_outputs": prior,
+    }
+    return (
+        "You are one bounded stage in JAP Classic's quality-first application pipeline. "
+        "The source packet is factual authority. Never infer candidate experience from the vacancy. "
+        "Return only the schema-constrained result.\n\n"
+        + json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    )
+
+
+def _final_quality_prompt(
+    *,
+    source_packet: Mapping[str, object],
+    evidence: Mapping[str, object],
+    strategy: Mapping[str, object],
+    cv_draft: Mapping[str, object],
+    letter_draft: Mapping[str, object],
+    critique: Mapping[str, object],
+) -> str:
+    payload = {
+        "task": "finalize_quality_application",
+        "source_packet": source_packet,
+        "evidence_map": evidence,
+        "selected_strategy": strategy,
+        "cv_draft": cv_draft,
+        "letter_draft": letter_draft,
+        "adversarial_critique": critique,
+        "requirements": {
+            "apply_only_supported_review_findings": True,
+            "preserve_fact_grounding": True,
+            "cv_and_letter_must_not_repeat_each_other": True,
+            "claim_provenance_required": True,
+            "claim_provenance_fact_keys_must_come_from_approved_candidate_facts": True,
+            "human_review_required": True,
+        },
+    }
+    return (
+        SYSTEM_TASK
+        + "\n\nQUALITY PIPELINE FINALIZATION PACKET:\n"
+        + json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    )
+
+
+def _run_codex_json_stage(
+    *,
+    executable: str,
+    root: Path,
+    stage: str,
+    schema: Mapping[str, object],
+    prompt: str,
+    model: str,
+    reasoning_effort: str,
+    timeout_seconds: float,
+) -> tuple[Mapping[str, object] | None, str | None, str | None]:
+    schema_path = root / f"{stage}.schema.json"
+    output_path = root / f"{stage}.json"
+    schema_path.write_text(
+        json.dumps(schema, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    command = [
+        executable,
+        "exec",
+        "--skip-git-repo-check",
+        "--sandbox",
+        "read-only",
+        "--model",
+        model,
+        "-c",
+        f'model_reasoning_effort="{reasoning_effort}"',
+        "--output-schema",
+        str(schema_path),
+        "-o",
+        str(output_path),
+        prompt,
+    ]
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=root,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            env=_codex_environment(),
+        )
+    except subprocess.TimeoutExpired:
+        return None, "codex_timeout", f"Codex stage {stage} timed out."
+    except OSError as exc:
+        return None, "codex_launch_failed", _safe_error(str(exc))
+
+    if completed.returncode != 0 or not output_path.is_file():
+        reason_code, reason = _classify_failure(
+            "\n".join((completed.stderr or "", completed.stdout or ""))
+        )
+        return None, reason_code, reason
+    try:
+        decoded = json.loads(output_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        return None, "codex_output_validation_failed", _safe_error(str(exc))
+    if not isinstance(decoded, Mapping):
+        return None, "codex_output_validation_failed", f"Codex stage {stage} output root is not an object."
+    return decoded, None, None
+
+
 def request_codex_application_adaptation(
     *,
     context: ProductV1ApplicationContext,
     as_of_date: date | None = None,
-    model: str | None = None,
-    reasoning_effort: str | None = None,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
     layout_feedback: tuple[str, ...] = (),
     previous_package: Mapping[str, object] | None = None,
 ) -> CodexApplicationDraftResult:
-    selected_model = (model or os.environ.get("JAP_CODEX_DRAFT_MODEL") or DEFAULT_MODEL).strip()
-    selected_reasoning_effort = (
-        reasoning_effort
-        or os.environ.get("JAP_CODEX_REASONING_EFFORT")
-        or DEFAULT_REASONING_EFFORT
-    ).strip()
-    if selected_reasoning_effort not in {"low", "medium", "high", "xhigh"}:
-        return CodexApplicationDraftResult(
-            status="failed_closed",
-            attempted=False,
-            model=selected_model,
-            reasoning_effort=selected_reasoning_effort,
-            reason_code="codex_reasoning_effort_invalid",
-            reason="JAP Codex reasoning effort must be low, medium, high or xhigh.",
-            package=None,
-        )
+    selected_model = DEFAULT_MODEL
+    selected_reasoning_effort = DEFAULT_REASONING_EFFORT
+
     executable = _resolve_codex()
     if not executable:
         return CodexApplicationDraftResult(
@@ -1009,6 +1362,7 @@ def request_codex_application_adaptation(
             reason_code="codex_not_installed",
             reason="Codex CLI is not available to the JAP runtime.",
             package=None,
+            request_count=0,
         )
     version = _codex_version(executable)
     logged_in, login_output = _codex_login_status(executable)
@@ -1027,11 +1381,7 @@ def request_codex_application_adaptation(
             attempted=False,
             model=selected_model,
             reasoning_effort=selected_reasoning_effort,
-            reason_code=(
-                "codex_chatgpt_auth_required"
-                if wrong_auth_mode
-                else "codex_auth_required"
-            ),
+            reason_code=("codex_chatgpt_auth_required" if wrong_auth_mode else "codex_auth_required"),
             reason=(
                 "Bundled Codex is available, but JAP requires ChatGPT-backed Codex "
                 "authentication so drafting uses the included allowance / eligible "
@@ -1040,14 +1390,11 @@ def request_codex_application_adaptation(
             ),
             package=None,
             codex_version=version,
+            request_count=0,
         )
 
     try:
-        prompt = _prompt(
-            context,
-            layout_feedback=layout_feedback,
-            previous_package=previous_package,
-        )
+        source_packet = _quality_context_packet(context)
     except CodexApplicationDraftStop as exc:
         return CodexApplicationDraftResult(
             status="failed_closed",
@@ -1058,69 +1405,142 @@ def request_codex_application_adaptation(
             reason=str(exc),
             package=None,
             codex_version=version,
+            request_count=0,
         )
 
     with tempfile.TemporaryDirectory(prefix="jap-codex-draft-") as tmp:
         root = Path(tmp)
-        schema_path = root / "draft.schema.json"
-        output_path = root / "draft.json"
-        schema_path.write_text(
-            json.dumps(_schema(), ensure_ascii=False, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
-        command = [
-            executable,
-            "exec",
-            "--skip-git-repo-check",
-            "--sandbox",
-            "read-only",
-            "--model",
-            selected_model,
-            "-c",
-            f'model_reasoning_effort="{selected_reasoning_effort}"',
-            "--output-schema",
-            str(schema_path),
-            "-o",
-            str(output_path),
-            prompt,
-        ]
-        try:
-            completed = subprocess.run(
-                command,
-                cwd=root,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=timeout_seconds,
-                env=_codex_environment(),
+
+        # Layout repair is intentionally a single bounded high-reasoning pass over
+        # the already-approved quality draft. It must not replay all six quality stages.
+        if layout_feedback and previous_package is not None:
+            decoded, reason_code, reason = _run_codex_json_stage(
+                executable=executable,
+                root=root,
+                stage="layout_compaction",
+                schema=_schema(),
+                prompt=_prompt(
+                    context,
+                    layout_feedback=layout_feedback,
+                    previous_package=previous_package,
+                ),
+                model=selected_model,
+                reasoning_effort=QUALITY_REASONING_PROFILE["layout_compaction"],
+                timeout_seconds=timeout_seconds,
             )
-        except subprocess.TimeoutExpired:
+            if decoded is None:
+                return CodexApplicationDraftResult(
+                    status="unavailable",
+                    attempted=True,
+                    model=selected_model,
+                    reasoning_effort=selected_reasoning_effort,
+                    reason_code=reason_code,
+                    reason=reason,
+                    package=None,
+                    codex_version=version,
+                    request_count=1,
+                )
+            try:
+                package = _validate_output(
+                    decoded,
+                    context=context,
+                    as_of_date=as_of_date or date.today(),
+                )
+            except CodexApplicationDraftStop as exc:
+                return CodexApplicationDraftResult(
+                    status="failed_closed",
+                    attempted=True,
+                    model=selected_model,
+                    reasoning_effort=selected_reasoning_effort,
+                    reason_code="codex_output_validation_failed",
+                    reason=_safe_error(str(exc)),
+                    package=None,
+                    codex_version=version,
+                    request_count=1,
+                )
+            previous_quality = previous_package.get("quality_pipeline")
+            package["quality_pipeline"] = (
+                dict(previous_quality)
+                if isinstance(previous_quality, Mapping)
+                else {
+                    "schema": "jap.f6.quality_pipeline.v2",
+                    "model": selected_model,
+                }
+            )
+            package["quality_pipeline"]["layout_compaction_passes"] = int(
+                package["quality_pipeline"].get("layout_compaction_passes", 0)
+            ) + 1
             return CodexApplicationDraftResult(
-                status="unavailable",
+                status="completed",
                 attempted=True,
                 model=selected_model,
                 reasoning_effort=selected_reasoning_effort,
-                reason_code="codex_timeout",
-                reason="Codex drafting timed out. No fallback prose was generated.",
-                package=None,
+                reason_code=None,
+                reason=None,
+                package=package,
                 codex_version=version,
-            )
-        except OSError as exc:
-            return CodexApplicationDraftResult(
-                status="unavailable",
-                attempted=True,
-                model=selected_model,
-                reasoning_effort=selected_reasoning_effort,
-                reason_code="codex_launch_failed",
-                reason=_safe_error(str(exc)),
-                package=None,
-                codex_version=version,
+                request_count=1,
             )
 
-        if completed.returncode != 0 or not output_path.is_file():
-            reason_code, reason = _classify_failure(
-                "\n".join((completed.stderr or "", completed.stdout or ""))
+        stages: dict[str, Mapping[str, object]] = {}
+        request_count = 0
+        for stage in ("evidence", "strategy", "cv", "letter", "critic"):
+            prior: dict[str, object] = {}
+            if stage in {"strategy", "cv", "letter", "critic"}:
+                prior["evidence"] = stages.get("evidence", {})
+            if stage in {"cv", "letter", "critic"}:
+                prior["strategy"] = stages.get("strategy", {})
+            if stage == "critic":
+                prior["cv"] = stages.get("cv", {})
+                prior["letter"] = stages.get("letter", {})
+            decoded, reason_code, reason = _run_codex_json_stage(
+                executable=executable,
+                root=root,
+                stage=stage,
+                schema=_quality_stage_schema(stage),
+                prompt=_quality_stage_prompt(
+                    stage=stage,
+                    source_packet=source_packet,
+                    prior=prior,
+                ),
+                model=selected_model,
+                reasoning_effort=QUALITY_REASONING_PROFILE[stage],
+                timeout_seconds=timeout_seconds,
             )
+            request_count += 1
+            if decoded is None:
+                return CodexApplicationDraftResult(
+                    status="unavailable",
+                    attempted=True,
+                    model=selected_model,
+                    reasoning_effort=selected_reasoning_effort,
+                    reason_code=reason_code,
+                    reason=reason,
+                    package=None,
+                    codex_version=version,
+                    request_count=request_count,
+                )
+            stages[stage] = decoded
+
+        decoded, reason_code, reason = _run_codex_json_stage(
+            executable=executable,
+            root=root,
+            stage="final",
+            schema=_schema(),
+            prompt=_final_quality_prompt(
+                source_packet=source_packet,
+                evidence=stages["evidence"],
+                strategy=stages["strategy"],
+                cv_draft=stages["cv"],
+                letter_draft=stages["letter"],
+                critique=stages["critic"],
+            ),
+            model=selected_model,
+            reasoning_effort=QUALITY_REASONING_PROFILE["final"],
+            timeout_seconds=timeout_seconds,
+        )
+        request_count += 1
+        if decoded is None:
             return CodexApplicationDraftResult(
                 status="unavailable",
                 attempted=True,
@@ -1130,17 +1550,15 @@ def request_codex_application_adaptation(
                 reason=reason,
                 package=None,
                 codex_version=version,
+                request_count=request_count,
             )
         try:
-            decoded = json.loads(output_path.read_text(encoding="utf-8"))
-            if not isinstance(decoded, Mapping):
-                raise CodexApplicationDraftStop("Codex output root is not an object")
             package = _validate_output(
                 decoded,
                 context=context,
                 as_of_date=as_of_date or date.today(),
             )
-        except (json.JSONDecodeError, CodexApplicationDraftStop) as exc:
+        except CodexApplicationDraftStop as exc:
             return CodexApplicationDraftResult(
                 status="failed_closed",
                 attempted=True,
@@ -1150,8 +1568,25 @@ def request_codex_application_adaptation(
                 reason=_safe_error(str(exc)),
                 package=None,
                 codex_version=version,
+                request_count=request_count,
             )
 
+    package["quality_pipeline"] = {
+        "schema": "jap.f6.quality_pipeline.v2",
+        "model": selected_model,
+        "stages": [
+            {"name": "evidence", "reasoning_effort": QUALITY_REASONING_PROFILE["evidence"]},
+            {"name": "strategy", "reasoning_effort": QUALITY_REASONING_PROFILE["strategy"]},
+            {"name": "cv", "reasoning_effort": QUALITY_REASONING_PROFILE["cv"]},
+            {"name": "letter", "reasoning_effort": QUALITY_REASONING_PROFILE["letter"]},
+            {"name": "critic", "reasoning_effort": QUALITY_REASONING_PROFILE["critic"]},
+            {"name": "final", "reasoning_effort": QUALITY_REASONING_PROFILE["final"]},
+        ],
+        "best_of_two_strategy": True,
+        "claim_provenance_required": True,
+        "critic_verdict": str(stages["critic"].get("verdict") or ""),
+        "selected_positioning": str(stages["strategy"].get("selected_positioning") or ""),
+    }
     return CodexApplicationDraftResult(
         status="completed",
         attempted=True,
@@ -1161,6 +1596,7 @@ def request_codex_application_adaptation(
         reason=None,
         package=package,
         codex_version=version,
+        request_count=request_count,
     )
 
 

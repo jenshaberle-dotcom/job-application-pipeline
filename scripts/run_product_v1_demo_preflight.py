@@ -17,7 +17,6 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import json
-import os
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -381,7 +380,6 @@ def build_demo_preflight(
     candidate_fact_readiness: Mapping[str, object],
     database_schema_readiness: Mapping[str, object],
     frontend_dist: Path,
-    openai_key_present: bool,
     authorized_employer_origin_sources: Sequence[str] | None = None,
 ) -> dict[str, object]:
     summary = payload.get("summary") if isinstance(payload.get("summary"), Mapping) else {}
@@ -476,12 +474,6 @@ def build_demo_preflight(
             passed=f"Built Control Center found at {frontend_dist}.",
             failed=f"Control Center build is missing at {frontend_dist}.",
         ),
-        _gate(
-            "draft_provider_key",
-            openai_key_present,
-            passed="OPENAI_API_KEY is present for an operator-triggered review draft.",
-            failed="OPENAI_API_KEY is not present; live draft generation is unavailable.",
-        ),
     ]
 
     blockers = [gate.name for gate in gates if gate.blocking]
@@ -509,7 +501,6 @@ def build_demo_preflight(
         "candidate_fact_readiness": dict(candidate_fact_readiness),
         "application_sources_ready": dict(application_sources),
         "frontend_dist": str(frontend_dist),
-        "openai_key_present": openai_key_present,
         "gates": [gate.to_json() for gate in gates],
         "blocking_gates": blockers,
         "operator_actions": list(operator_actions) if isinstance(operator_actions, list) else [],
@@ -546,7 +537,6 @@ def main() -> int:
         candidate_fact_readiness=candidate_fact_readiness,
         database_schema_readiness=database_schema_readiness,
         frontend_dist=args.frontend_dist.resolve(),
-        openai_key_present=bool(os.environ.get("OPENAI_API_KEY", "").strip()),
         authorized_employer_origin_sources=authorized_sources,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)

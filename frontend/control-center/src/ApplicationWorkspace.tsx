@@ -123,11 +123,7 @@ type GenerationMode = "codex_quality" | "local_private";
 
 type DraftMode =
   | "local_private_edit"
-  | "provider_validated"
-  | "provider_validated_quality_v2"
-  | "provider_validated_quality_v3"
-  | "deterministic_evidence_first"
-  | "codex_embedded_v1";
+  | "codex_quality_pipeline_v2";
 
 type CodexStatusPayload = {
   status?: "ready" | "auth_required" | "not_installed";
@@ -246,11 +242,8 @@ function fragmentGroup(kind: string | undefined) {
 }
 
 function draftModeLabel(mode: DraftMode | undefined) {
-  if (mode === "codex_embedded_v1") return "CODEX-ADAPTED";
+  if (mode === "codex_quality_pipeline_v2") return "GPT-6.1 SOL · QUALITY PIPELINE";
   if (mode === "local_private_edit") return "LOCAL-ONLY · NO LLM";
-  if (mode === "provider_validated_quality_v3") return "BASE-DOCUMENT ADAPTED";
-  if (mode === "provider_validated_quality_v2" || mode === "provider_validated") return "PROVIDER-VALIDATED";
-  if (mode === "deterministic_evidence_first") return "EVIDENCE-FIRST · PROVIDER-FREE";
   return "SOURCE-GROUNDED";
 }
 
@@ -794,9 +787,9 @@ export default function ApplicationWorkspace() {
                   <i style={{ width: `${Math.max(3, draftProgressPercent)}%` }} />
                 </div>
                 <div className="demo-drafting-telemetry">
-                  <span>{codexStatus?.model || "gpt-5.6-sol"} · reasoning {codexStatus?.reasoning_effort || "high"}</span>
+                  <span>{codexStatus?.model || "gpt-6.1-sol"} · {codexStatus?.reasoning_effort === "staged_quality" ? "staged medium/high/xhigh" : `reasoning ${codexStatus?.reasoning_effort || "staged_quality"}`}</span>
                   <span>{(draftProgress?.provider_request || 0) > 0
-                    ? `AI drafting pass ${draftProgress?.provider_request}/${draftProgress?.provider_request_limit || 3}`
+                    ? `AI drafting pass ${draftProgress?.provider_request}/${draftProgress?.provider_request_limit || 8}`
                     : "AI drafting ready"}</span>
                   <span>Elapsed {draftElapsedLabel}</span>
                 </div>
@@ -824,7 +817,6 @@ export default function ApplicationWorkspace() {
                 {draft.draft_mode === "local_private_edit" && <p className="demo-provider-context-note">Local-only mode made zero LLM/provider requests. Existing descriptive wording stays local and unchanged until you edit it; JAP only prepares target/date metadata automatically, then the same exact PDF renderer verifies the result.</p>}
                 {draft.base_document_text_shared_with_provider && <p className="demo-provider-context-note">The extracted text of your two approved base documents was used for this explicit generation request as style and structure context. No submission or send action occurred.</p>}
                 {draft.package.rationale && <p className="demo-boundary-note">{draft.package.rationale}</p>}
-                {draft.draft_mode === "deterministic_evidence_first" && draft.fallback_reason && <p className="demo-boundary-note">Fallback: {normalized(draft.fallback_reason)}. Claims remain grounded in approved profile evidence and the exact vacancy.</p>}
 
                 <section className="demo-application-downloads">
                   <header><strong>Document templates</strong><span>{templateAuthority?.status === "ready" ? "2/2 private PDFs verified" : "source templates required"}</span></header>
@@ -854,8 +846,8 @@ export default function ApplicationWorkspace() {
 
                 <details className="demo-evidence-details demo-audit-details">
                   <summary>Audit details</summary>
-                  {draft.draft_mode === "codex_embedded_v1"
-                    ? <div className="demo-claim-plan"><div><b>Embedded Codex</b><small>{draft.codex_model || "configured model"} · reasoning {draft.codex_reasoning_effort || codexStatus?.reasoning_effort || "configured"} · {draft.codex_version || "version unavailable"} · current CV + current letter + vacancy</small></div></div>
+                  {draft.draft_mode === "codex_quality_pipeline_v2"
+                    ? <div className="demo-claim-plan"><div><b>GPT-6.1 Sol quality pipeline</b><small>{draft.codex_model || "configured model"} · reasoning {draft.codex_reasoning_effort || codexStatus?.reasoning_effort || "configured"} · {draft.codex_version || "version unavailable"} · current CV + current letter + vacancy</small></div></div>
                     : <div className="demo-claim-plan">{draftFragments.map((fragment, index) => <div key={`${fragment.kind}-${index}`}><b>{fragment.kind}</b><small>{fragment.candidate_fact_keys?.join(", ") || "no candidate claim"}{fragment.job_evidence?.length ? ` · ${fragment.job_evidence.map((item) => item.evidence).filter(Boolean).join(" · ")}` : ""}</small></div>)}</div>}
                   <footer><span>AI requests: {draft.codex_requests ?? draft.provider_requests ?? 0}</span><span>Layout checks: {draft.layout_repair_attempts ?? 0} AI · {draft.automatic_layout_repairs?.length ?? 0} local</span><span>Content checks: {draft.automatic_semantic_repairs?.length ?? 0}</span><span>Submission actions: {draft.submission_writes ?? 0}</span><span>Email send actions: {draft.send_actions ?? 0}</span></footer>
                 </details>

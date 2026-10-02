@@ -74,17 +74,20 @@ def test_update_stage_and_cutover_both_verify_feature_contract() -> None:
     assert "parsedVersion >= new Version(1, 2, 5)" in applier
 
 
-def test_windows_release_is_hard_blocked_by_full_linux_validation() -> None:
+def test_windows_release_runs_full_validation_on_exact_rcc_assignment() -> None:
     workflow = _read(WORKFLOW)
 
-    assert "validate-release:" in workflow
-    assert "name: Full Linux product validation" in workflow
-    assert "runs-on: ubuntu-latest" in workflow
-    assert "python -m pytest -q" in workflow
-    assert "python -m ruff check . --select E4,E7,E9,F --ignore E402" in workflow
+    assert "release:" in workflow
+    assert "Validate and build immutable product-local Windows generation" in workflow
+    assert "${{ inputs.rcc_facade_label }}" in workflow
+    assert "${{ inputs.rcc_assignment_label }}" in workflow
+    assert "rcc-assignment-proof-[0-9a-f]{32}" in workflow
+    assert "Run full product validation on qualified Windows pool member" in workflow
+    assert "-m pytest -q" in workflow
+    assert "ruff check . --select E4,E7,E9,F --ignore E402" in workflow
     assert "npm run build --prefix frontend/control-center" in workflow
-    assert "build-release:" in workflow
-    assert "needs: validate-release" in workflow
+    assert "ubuntu-latest" not in workflow
+    assert "windows-latest" not in workflow
 
 
 def test_runtime_feature_contract_is_bom_safe_end_to_end() -> None:

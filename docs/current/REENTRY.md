@@ -1,6 +1,6 @@
 # JAP Classic re-entry
 
-Updated for the 1.2.2 runner hard cut.
+Updated for the RCC General-Pool demand hardcut and the F6 GPT-6.1 Sol hardcut.
 
 ## Current product target
 
@@ -14,8 +14,29 @@ Required product proof before claiming the 1.2.2 Product target complete:
 4. authoritative Top 5 contains exactly 5 jobs;
 5. no job IDs, employers, direct rank writes or demo-only promotion bypasses.
 
-The RCC workload targets are `.github/workflows/pr-validation.yml` for exact-PR repository validation and `.github/workflows/product-v1-assessment-cohort.yml` for the Product 10→5 assessment. Both declare only workload demand; RCC owns allocation, reservation, facade selection and ephemeral assignment.
-The separate `.github/workflows/jap-windows-desktop-host-release.yml` is product packaging/publication infrastructure only; it runs on GitHub-hosted `windows-latest` and owns no Warm-Pool allocation, facade or physical-runner authority.
+The RCC workload targets are `.github/workflows/pr-validation.yml` and
+`.github/workflows/product-v1-assessment-cohort.yml` on `linux-base`, plus the
+product-owned release semantics in `.github/workflows/jap-windows-desktop-host-release.yml`
+and the validation-only `.github/workflows/rcc-general-pool-proof.yml` on
+`windows-release`. All four declare demand only; RCC owns allocation, reservation,
+facade selection, ephemeral assignment and capability materialization.
+
+## Current F6 generation authority
+
+Automatic CV and application-letter generation has one authority:
+`gpt-6.1-sol` through the ChatGPT-authenticated bundled Codex runtime. The fixed
+six-stage profile is evidence `medium`, two-strategy generation and selection `high`,
+CV `high`, letter `high`, adversarial critic `xhigh`, and final rewrite `high`.
+Every final candidate claim must reference an approved Candidate Fact. At most two
+additional `high` passes may compact only overflowing text zones; they do not replay
+the semantic pipeline.
+
+There is no model/reasoning override, API-key drafting path, automatic provider-free
+prose fallback, demo draft handoff or read-only workspace generation authority.
+`local_private` remains an explicit manual no-LLM mode and never becomes a second
+automatic generation truth. The canonical implementation is
+`src/search_intelligence/product_v1_codex_application_adapter.py` plus
+`scripts/product_v1_application_workspace_runtime_quality.py`.
 
 Canonical Product 10→5 implementation:
 
@@ -72,13 +93,13 @@ Physically removed from JAP:
 - local Windows scheduled-pipeline runner path;
 - old workflow-specific regression tests that could restore those authorities.
 
-JAP has exactly two RCC workload targets: exact-PR repository validation and the
-Product assessment cohort. Both map through `.rcc/workload-demands.json` to the
-same RCC-owned `linux-base` demand. RCC owns profile materialization, allocation,
-facade selection and capability provisioning. The consumer-owned runner-profile
-tree is physically absent.
-
-The Windows product release publisher is intentionally outside that workload topology: it only builds exact-source immutable desktop/runtime assets and publishes the GitHub Release. It must remain cardinality-blind and must never acquire self-hosted, facade or physical-member selection.
+JAP has two Linux product workloads (exact-PR validation and Product assessment),
+one Windows product-release workload and one validation-only Windows pool proof.
+They map through `.rcc/workload-demands.json` to RCC-owned `linux-base` or
+`windows-release` demand. RCC owns profile materialization, allocation, facade
+selection and capability provisioning. The consumer-owned runner-profile tree is
+physically absent. Release content and publication semantics remain JAP authority;
+execution capacity and toolchains remain RCC authority.
 
 Current demand mapping:
 
@@ -91,7 +112,12 @@ product-v1-assessment-cohort.yml
 → platform linux-wsl
 → runtime python-project
 → RCC materializes rcc-demand-jap-linux-base
-→ expected materialized profile hash b08aaffd6a5da737b20570a7ed3b5b1bfc3eea11f0efeeb216e5a9d2a030c70e
+
+jap-windows-desktop-host-release.yml
+rcc-general-pool-proof.yml
+→ windows-release
+→ platform windows
+→ runtime python-project + dotnet-sdk-8 + node-22
 ```
 
 ## Current next gate
@@ -105,10 +131,12 @@ live execution acceptance.
 
 The repository hardcut itself is independent from runtime acceptance; keeping stale
 runner authority on `main` is not a valid substitute for external execution proof.
-RCC PR #674 has now merged the generic `RCC_WORKLOAD_DEMAND_V2 + EXACT_SOURCE_V1`
-adapter required by JAP. JAP's RCC workload consumes only
+RCC PR #674 has merged the generic `RCC_WORKLOAD_DEMAND_V2 + EXACT_SOURCE_V1`
+adapter required by JAP. A JAP RCC workload consumes only
 `source_sha + rcc_facade_label + rcc_assignment_label`; it does not choose a
-physical member or persistent facade. The product release publisher is not an RCC workload and does not consume these routing inputs.
+physical member or persistent facade. The product release publisher now follows
+the same exact-assignment input boundary while retaining only product-local
+packaging/publication authority.
 
 No RCC execution of the JAP assessment workload has been proven yet. The remaining
 RCC operational gates are profile prestage/qualification, read-only five-member
@@ -137,9 +165,8 @@ Product sequence:
    jobs and exactly 5 authoritative Top-5 jobs;
 3. verify the English Candidate Fit and Top 5 surfaces against that live Product truth;
 4. complete RCC demand-v2 prestage/registration and one exact-source cohort proof for
-   future automated/remote runs; keep the restored cardinality-blind hosted Windows
-   product publisher intact through the 2026-09-29 demo. Any later migration of publication
-   into RCC must prove the replacement before this update channel is removed;
+   future automated/remote runs; keep the cardinality-blind RCC General-Windows
+   publisher exact-source-bound and separate from product scheduling authority;
 5. install and run the operator smoke for Sources, All Jobs, Candidate Fit and Top 5.
 
 Do not claim populated Top 5 or Product-target completion until the live assessment report has

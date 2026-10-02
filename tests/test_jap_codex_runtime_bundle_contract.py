@@ -68,7 +68,7 @@ def test_control_center_exposes_codex_runtime_and_chatgpt_auth_truth() -> None:
     assert '"logged in using chatgpt" in output.casefold()' in adapter
     assert "codex_chatgpt_auth_required" in adapter
     assert '"/api/v1/product-v1/codex-status"' in workspace
-    assert "Embedded Codex" in workspace
+    assert "GPT-6.1 Sol quality pipeline" in workspace
     assert "ChatGPT Codex connection required" in workspace
     assert "JAP will not switch to API-key billing" in workspace
     assert '"/api/v1/product-v1/codex-status"' in about
