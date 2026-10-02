@@ -1,19 +1,9 @@
-# Archive
+# Historical evidence boundary
 
-Status: historical documentation navigation
+Obsolete prose, replaced diagrams and old campaign plans were physically removed in the
+Classic documentation hardcut. Their original text remains in Git history at the baseline
+recorded in `docs/reference/documentation/hardcut-20261002.json`.
 
-Archive content is useful traceability, not current truth.
-
-| Area | Purpose |
-|---|---|
-| `planning/` | Historical work-item and campaign notes. |
-| `source-analysis/` | Historical source, connector, sensor and employer-origin analyses. |
-| `diagrams/` | Legacy diagram pages replaced by current diagrams. |
-| `documentation-rebaseline/` | DOC-001 navigation/status artifacts replaced by the DOC-001L structure. |
-| `reviews/` | Historical review registries. |
-| `visualization/` | Historical visualization experiments. |
-| `legacy/` | Historical terms or artifacts kept only for traceability. |
-| `documentation_path_status.md` | DOC-001 path-status trace kept for archive/history. |
-
-Promotion rule: archive content becomes current only when it is rewritten into
-`current/`, `reference/`, `decisions/`, or active planning.
+Remaining historical machine evidence and explicitly retired code/test material are not
+current product or execution authority. Do not execute them as an operator recovery path.
+Current replacements live under `docs/current/`, `docs/guides/` and `docs/reference/`.

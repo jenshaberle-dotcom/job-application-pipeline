@@ -3,7 +3,7 @@ from pathlib import Path
 
 MIGRATION = Path("db/migrations/045_create_connector_build_candidate_queue.sql")
 SCRIPT = Path("scripts/preview_connector_build_candidate_queue.py")
-DOC = Path("docs/archive/source-analysis/connector_build_candidate_queue.md")
+DOC = Path("docs/current/pipeline.md")
 
 
 def test_connector_build_candidate_queue_migration_exists() -> None:
@@ -53,9 +53,7 @@ def test_connector_build_candidate_queue_documentation_exists() -> None:
     assert DOC.exists()
     text = DOC.read_text(encoding="utf-8")
 
-    assert "S7O" in text
-    assert "Connector Build Candidate Selection" in text
-    assert "build_candidate_recommended" in text
-    assert "origin_url_repair_required" in text
-    assert "sample_job_review_required" in text
-    assert "approval gate" in text.lower()
+    assert "connector_candidate" in text
+    assert "validation_required" in text
+    assert "approval_required" in text
+    assert "Activation requires current authorization" in text

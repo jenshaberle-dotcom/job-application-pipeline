@@ -93,60 +93,15 @@ jobs:
           set -euo pipefail
           context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_ASSIGNED_RUNNER}.json}"
           test -f "$context_file"
-          context_output="$(python3 - "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_ASSIGNED_RUNNER" <<'PY'
-          import json
-          import sys
-          from pathlib import PurePosixPath
-
-          path, repo_id, repository, runner = sys.argv[1:]
-          with open(path, encoding="utf-8") as handle:
-              context = json.load(handle)
-          if context.get("RepositoryId") != int(repo_id):
-              raise SystemExit("RUNTIME_REPOSITORY_ID_MISMATCH")
-          if context.get("Repository") != repository:
-              raise SystemExit("RUNTIME_REPOSITORY_MISMATCH")
-          if context.get("RunnerName") != runner:
-              raise SystemExit("RUNTIME_CONTEXT_STALE: runner mismatch")
-          if context.get("Platform") != "linux-wsl":
-              raise SystemExit("RUNTIME_CONTEXT_STALE: platform mismatch")
-          if context.get("Status") != "PASS" or context.get("PrimaryFailure") not in (None, ""):
-              raise SystemExit("RUNTIME_CONTEXT_NOT_PASS")
-          checks = {
-              item.get("Id"): item.get("Status")
-              for item in context.get("Checks", [])
-              if isinstance(item, dict)
-          }
-          required = {
-              "repository_identity",
-              "checkout",
-              "checkout_repository",
-              "env_file",
-              "env_keys",
-              "interpreter",
-              "interpreter_probe",
-              "capability:postgresql",
-          }
-          failed = sorted(key for key in required if checks.get(key) != "PASS")
-          if failed:
-              raise SystemExit("RUNTIME_CHECKS_NOT_PASS:" + ",".join(failed))
-          checkout = context.get("CheckoutRoot")
-          interpreter = context.get("Interpreter")
-          env_file = context.get("EnvFile")
-          root = PurePosixPath(checkout)
-          if root not in PurePosixPath(interpreter).parents:
-              raise SystemExit("INTERPRETER_OUTSIDE_QUALIFIED_CHECKOUT")
-          if root not in PurePosixPath(env_file).parents:
-              raise SystemExit("ENV_OUTSIDE_QUALIFIED_CHECKOUT")
-          print(interpreter)
-          print(env_file)
-          PY
-          )"
-          mapfile -t values <<< "$context_output"
-          test "${#values[@]}" -eq 2
-          test -x "${values[0]}"
-          test -s "${values[1]}"
-          printf 'COHORT_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
-          printf 'RUNTIME_ENV_FILE=%s\n' "${values[1]}" >> "$GITHUB_ENV"
+          python_path="$(python3 scripts/resolve_rcc_runtime_context.py "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_ASSIGNED_RUNNER" "$SOURCE_SHA")"
+          test -x "$python_path"
+          test "$("$python_path" -c 'import platform; print(platform.python_version())')" = "3.12.14"
+          # Product data/secret configuration is host-owned, separate from runtime profiles.
+          test -n "${JAP_DATA_ENV_FILE:-}"
+          [[ "$JAP_DATA_ENV_FILE" = /* ]]
+          test -s "$JAP_DATA_ENV_FILE"
+          printf 'COHORT_PYTHON=%s\n' "$python_path" >> "$GITHUB_ENV"
+          printf 'RUNTIME_ENV_FILE=%s\n' "$JAP_DATA_ENV_FILE" >> "$GITHUB_ENV"
           echo "ASSESSMENT_COHORT_RCC_RUNTIME=PASS runner=${RUNNER_NAME:-unknown}"
 
       - name: Prove reusable cohort imports

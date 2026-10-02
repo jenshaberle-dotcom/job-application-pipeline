@@ -29,8 +29,11 @@ The pipeline needs one lifecycle truth. Local scripts must not invent new state 
 
 ## Transition rules
 
-- Automatic transitions may only move into analysis or evidence-request states.
-- Any transition into active_controlled requires manual approval.
+- Unapproved automatic progression is limited to analysis/evidence-request states.
+  Any effectful transition must satisfy the separate A1/apply/activation contract.
+- Activation requires current authorization, exact readiness and an audited apply path.
+  A1 standing authorization can replace a per-connector token only within its approved
+  envelope; Freeze-II currently withholds generic activation.
 - Any transition affecting active_controlled entities requires explicit opt-in.
 - Reset and reprocess flows must show selected targets before apply.
 - Gate stops must include `stop_reason`, stop taxonomy category and `next_safe_action` context.
@@ -82,3 +85,15 @@ schema surfaces through `information_schema`, and writes JSON/Markdown reports t
 `exports/` when requested. DIAG-001B adds portfolio matrix mode so representative
 employer cases can be compared before any generic repair capability is changed.
 <!-- END DIAG-001-GENERIC-REPAIR-DIAGNOSIS -->
+
+## Product decision path
+
+Controlled connectors acquire Bronze records. Silver canonicalization and evidence projection
+feed Candidate Fit, normal hard filters and ranking. Affinity remains a separate view; it
+cannot compensate for failed Fit. Top 5 comes from ranking authority, followed by private
+application preparation and tracking. Mailbox outcomes do not grant send authority.
+
+Recurring ingestion is a separate admission from controlled first ingestion. Connector
+artifacts, zero-job previews and healthy request transport do not prove recurring fleet or
+productive job coverage. See `config/connector_fleet_policy.json` and the current effect boundary
+in `docs/current/FREEZE-II-CONNECTOR-ACTIVATION-AUTHORITY.md`.

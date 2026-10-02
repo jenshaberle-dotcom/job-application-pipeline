@@ -103,5 +103,5 @@ The implementation should include tests for representative job title examples an
 ## Related Documentation
 
 - `docs/reference/scoring-and-gates/role_family_classification.md`
-- `docs/archive/visualization/dashboard_vision.md`
+- `https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/archive/visualization/dashboard_vision.md`
 - `docs/planning/active/roadmap.md`

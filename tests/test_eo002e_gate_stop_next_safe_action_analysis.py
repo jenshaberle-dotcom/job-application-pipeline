@@ -14,8 +14,8 @@ from src.search_intelligence.eo002e_gate_stop_next_safe_analysis import (
 )
 
 SCRIPT = Path("scripts/run_eo002e_gate_stop_next_safe_action_analysis.py")
-DOC = Path("docs/archive/planning/eo002e_gate_stop_next_safe_action_evidence_analysis.md")
-SENSOR_DOC = Path("docs/archive/planning/sensor001_ba_remote_nationwide_coverage_validation.md")
+DOC = Path("docs/current/pipeline.md")
+SENSOR_DOC = Path("docs/current/FREEZE-II-CONNECTOR-ACTIVATION-AUTHORITY.md")
 
 
 def test_validated_url_report_without_persisted_url_requires_sz1_review() -> None:
@@ -202,9 +202,9 @@ def test_script_and_docs_preserve_freeze_boundaries() -> None:
     assert "read-only" in script.lower()
     assert "INSERT INTO" not in script
     assert "UPDATE " not in script
-    assert "no candidate URL write" in doc
-    assert "SENSOR-001" in sensor_doc
-    assert "must not immediately activate" in sensor_doc
+    assert "does not execute repair, write" in doc
+    assert "activation_allowed: false" in sensor_doc
+    assert "fail closed" in sensor_doc
 
 def test_persisted_url_with_initial_gates_passed_recommends_detail_evidence() -> None:
     candidate = CandidateSnapshot(

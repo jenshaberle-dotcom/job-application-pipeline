@@ -39,7 +39,7 @@ The complete row-level classification lives in
 
 Current highlights:
 
-- ADR-017 is superseded for the active UI path by ADR-032 Jinja2 Control Center Template Layer.
+- ADR-017 is historical; ADR-032 is superseded by the implemented React/Python product surface.
 - ADR-019 needs rewrite before dedicated heartbeat/source-health implementation.
 - ADR-020 needs rewrite before role-family classification becomes an active pipeline feature.
 - ADR-031, ADR-032 and ADR-033 are current anchors for visual identity, Control Center template boundaries and Search Intelligence safety/security.

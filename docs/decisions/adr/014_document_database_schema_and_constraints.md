@@ -18,7 +18,7 @@ The database is no longer only an implementation detail. It represents important
 - technical duplicate protection
 - traceability from Silver back to Bronze
 
-The existing `docs/archive/diagrams/bronze_data_model.md` documents the model visually, but the project also needs granular table and constraint documentation.
+The existing `https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/archive/diagrams/bronze_data_model.md` documents the model visually, but the project also needs granular table and constraint documentation.
 
 ## Decision
 
@@ -39,7 +39,7 @@ The documentation includes:
 
 The detailed documentation is stored in:
 
-- `docs/archive/diagrams/bronze_data_model.md`
+- `https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/archive/diagrams/bronze_data_model.md`
 - `docs/reference/database/tables.md`
 
 ## Consequences
@@ -53,5 +53,5 @@ The documentation can later support CLI parameters, GUI configuration, Silver mo
 ## DOC-001I note
 
 The former Bronze/Silver diagram page was physically archived to
-`docs/archive/diagrams/bronze_data_model.md`. The current schema relationship
+`https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/archive/diagrams/bronze_data_model.md`. The current schema relationship
 map is `docs/reference/database/schema_relationships.md`.

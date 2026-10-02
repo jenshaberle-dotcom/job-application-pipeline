@@ -76,7 +76,7 @@
     "credentials": "HOST_OR_EXTERNAL_SECRET_STORE"
   },
   "workflow_admission": {
-    "rcc-general-pool-proof.yml": {
+    "pr-validation.yml": {
       "event": "pull_request",
       "source_binding": "pull_request_head_sha",
       "base_branch": "main",

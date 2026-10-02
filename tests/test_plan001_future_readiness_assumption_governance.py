@@ -1,7 +1,7 @@
 from pathlib import Path
 
 
-DOC = Path("docs/planning/active/future_readiness_and_assumption_governance.md")
+DOC = Path("docs/reference/product-contract/retained/future_readiness_and_assumption_governance.md")
 RULES = Path("docs/reference/governance/workflow/rules001_project_rules_index.md")
 ROADMAP = Path("docs/planning/active/roadmap.md")
 
@@ -47,15 +47,15 @@ def test_plan001_is_linked_from_rules_and_roadmap() -> None:
     assert "future_readiness_and_assumption_governance.md" in rules
 
     assert "PLAN-001 Future Readiness and Assumption Governance" in roadmap
-    assert "MARKET-003 Manual Market Observation Foundation" in roadmap
-    assert "ASSUMPTION-001 Simplification Validation Register" in roadmap
-    assert "WHALE-001 White-Whale Backlog Triage" in roadmap
+    assert "MARKET-003" in roadmap
+    assert "ASSUMPTION-001" in roadmap
+    assert "WHALE-001" in roadmap
 
 
 def test_market003a_manual_company_seed_register_is_documented() -> None:
     from pathlib import Path
 
-    plan = Path("docs/planning/active/future_readiness_and_assumption_governance.md").read_text(encoding="utf-8")
+    plan = Path("docs/reference/product-contract/retained/future_readiness_and_assumption_governance.md").read_text(encoding="utf-8")
     rules = Path("docs/reference/governance/workflow/rules001_project_rules_index.md").read_text(encoding="utf-8")
 
     assert "MARKET-003A Manual Company Observation Seed Register" in plan

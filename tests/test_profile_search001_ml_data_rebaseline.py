@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 MIGRATION = Path("db/migrations/076_rebaseline_stepstone_ml_data_search_profile.sql")
-PROFILE = Path("docs/planning/active/canonical_target_profile.md")
+PROFILE = Path("docs/reference/product-contract/retained/canonical_target_profile.md")
 RELEVANCE = Path("docs/reference/scoring-and-gates/relevance_strategy.md")
 
 

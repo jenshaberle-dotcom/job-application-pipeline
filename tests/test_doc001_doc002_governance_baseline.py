@@ -29,54 +29,21 @@ def test_governance_foundation_documents_required_checks() -> None:
     assert "Gold" in text
 
 
-def test_documentation_drift_baseline_marks_wave_search_as_unvalidated() -> None:
+def test_documentation_drift_baseline_distinguishes_repository_and_runtime_evidence() -> None:
     text = read("docs/reference/governance/documentation_drift_baseline.md")
 
-    assert "PDI-3" in text
-    assert "Wave Search Intelligence" in text
-    assert "not yet operationally proven" in text
-    assert "EO-002B Candidate Reprocessing & URL Finder Validation" in text
+    assert "Operationally validated" in text
+    assert "Fresh identified live runtime/data evidence" in text
+    assert "A test pass is not live coverage/Top 5" in text
 
 
-def test_search_intelligence_current_state_contains_operational_snapshot() -> None:
-    text = read("docs/reference/search-intelligence/current_state.md")
-
-    assert "Current Operational Snapshot" in text
-    assert "Market Sensors" in text
-    assert "Candidate Promotion / Türsteher" in text
-    assert "URL Finder" in text
-    assert "Evidence Gates" in text
-    assert "Built but operationally unvalidated" in text
-
-
-def test_readme_and_roadmap_link_governance_and_eo002b() -> None:
+def test_readme_and_roadmap_link_current_governance() -> None:
     readme = read("README.md")
     roadmap = read("docs/planning/active/roadmap.md")
 
     assert "docs/reference/governance/governance_foundation.md" in readme
     assert "docs/reference/governance/documentation_drift_baseline.md" in readme
-    assert "eo002b_candidate_reprocessing_url_finder_validation.md" in readme
+    assert "docs/current/REENTRY.md" in readme
     assert "DOC-001 Governance Foundation Gate" in roadmap
     assert "DOC-002 Documentation Drift Baseline" in roadmap
-    assert "EO-002B Candidate Reprocessing & URL Finder Validation" in roadmap
-
-
-def test_eo002b_plan_defines_guest_list_metrics_and_non_goals() -> None:
-    text = read("docs/archive/planning/eo002b_candidate_reprocessing_url_finder_validation.md")
-
-    for phrase in [
-        "controlled guest-list approach",
-        "Selected URL",
-        "Alternative URLs",
-        "Rejected URLs",
-        "Confidence",
-        "Gate stop",
-        "A-Tier",
-        "B-Tier",
-        "C-Tier",
-        "Hannover Rück",
-    ]:
-        assert phrase in text
-
-    assert "does not" in text
-    assert "rewrite the Türsteher directly" in text
+    assert "RCC execution" in roadmap

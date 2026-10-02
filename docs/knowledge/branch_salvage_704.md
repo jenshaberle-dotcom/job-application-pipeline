@@ -39,7 +39,7 @@ Source: open PR #695 / `agent/676-external-deterministic-salvage`.
 
 Harvested files:
 
-- `docs/planning/active/acq676_external_deterministic_salvage.md`
+- `https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/planning/active/acq676_external_deterministic_salvage.md`
 - `scripts/run_deterministic_connector_builder_layer_audit_v6.py`
 - `src/connectors/employer_origin_provider_public_feed.py`
 - `tests/test_deterministic_connector_builder_layer_audit_v6.py`

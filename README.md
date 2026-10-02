@@ -1,90 +1,78 @@
-# Job Application Pipeline
+# JAP Classic — Job Application Pipeline
 
-Status: active portfolio project
-Project character: **A — Intent Locked**
-Theme: Deep Ocean / Search Intelligence
-Primary scope: Hannover and remote-in-Germany job-market intelligence
+Status: maintained local product and migration source for JAP Cloud.
+Project character: **A — Intent Locked**. Theme: **Deep Ocean / Search Intelligence**.
 
 ## Why this project exists
-A normal job search can find a few interesting postings. The harder problem is
-noticing what the search keeps missing: relevant employers hidden behind noisy
-aggregators, weak search terms, missing career-page evidence, strict gates or
-safe-looking stops that quietly become false negatives.
 
-This repository builds a personal Search Intelligence system around that
-problem. It is not a scraper demo and not a volume game. The value is in bounded
-acquisition, evidence, explainable stops, repair paths and controlled source
-activation.
+This is a portfolio project and a personal job-search product. It addresses false negatives:
+relevant vacancies lost behind aggregators, missing employer evidence or overly strict stops.
+It turns verified Employer-Origin jobs into explainable Candidate Fit, Affinity, Top 5,
+application preparation and tracking. Jens owns product intent.
 
-This is a portfolio project, but its desired behavior is governed like a personal product.
+## Current implementation
 
-## Product authority
-Jens owns desired product behavior. DON may adapt technical implementation but
-may not redefine target profile, geography, Top-5, ranking, review or automation
-semantics. Start with `docs/reference/product-contract/README.md`.
+| Area | Repository implementation |
+|---|---|
+| UI | React/TypeScript Control Center in `frontend/control-center/`. |
+| Local service | Python product service and HTTP API in `scripts/` and `src/search_intelligence/`. |
+| Persistence | PostgreSQL; ordered migrations in `db/migrations/`. |
+| Windows app | .NET 8/WebView2 shell; Python/private environment through WSL. |
+| Updates | Immutable desktop/runtime assets; staged verification, consent, transactional cutover. |
+| CI and packaging | RCC General Pool; JAP declares demand and verifies exact assignment. |
+| Cloud direction | Cloud parity and verified migration, then one normal Cloud product path. |
 
-## System in one sentence
-```text
-Market signals -> candidates -> origin/detail evidence -> gates/stops/repair
--> connector readiness -> controlled sources -> Bronze/Silver/Gold -> Control Center
-```
+Desktop product version: **1.2.6**. Published packages are listed in
+[GitHub Releases](https://github.com/jenshaberle-dotcom/job-application-pipeline/releases).
+`windows/JAP.ControlCenter.Desktop/VERSION` defines the build version.
+The root `VERSION` and frontend package version identify other components; they are not
+interchangeable release authorities. A version file never proves an installed runtime.
 
-## Working principles
-- Exact on product WHAT; adaptive on technical HOW.
-- Defensive acquisition over aggressive crawling.
-- Broad raw discovery, strict promotion and activation.
-- Evidence before connector build.
-- Dry-run before apply.
-- No commits on `main`.
-- Reports and exports are outputs, not source-of-truth inputs.
-- Agent-like behavior needs clear boundaries and auditability.
-- Open product decisions remain open.
+CI targets are RCC-dispatched workflows. A pull request does not itself prove a running
+validation job; admission and execution evidence come from RCC. Automatic PR validation
+uses `pr-validation.yml` with the exact `source_sha` and RCC-assigned facade/assignment.
+It requires JAP registration in RCC's CI consumer catalog. Windows release and Product
+assessment remain separately authorized workloads.
 
-## Workload execution
+## Start here
 
-RCC exclusively admits and assigns Warm-Pool workloads. JAP declares product
-work and capability requirements; it does not allocate runners. Current
-execution authority: `docs/current/ci-max-execution.md`.
-Current product gate and remaining live qualification: `docs/current/REENTRY.md`.
-
-## Documentation
-Start with `docs/README.md`.
-
-Primary entry points:
-1. `docs/reference/product-contract/README.md`
-2. `docs/current/product.md`
-3. `docs/current/architecture.md`
-4. `docs/current/pipeline.md`
-5. `docs/current/system-diagrams.md`
-6. `docs/current/governance.md`
-7. `docs/current/operations.md`
-8. `docs/guides/development-workflow.md`
+- [Documentation](docs/README.md)
+- [Product and boundaries](docs/current/product.md)
+- [Architecture](docs/current/architecture.md)
+- [Windows install and updates](docs/guides/jap_control_center_windows_app.md)
+- [Operation and recovery](docs/guides/operator-runbook.md)
+- [Development workflow](docs/guides/development-workflow.md)
+- [Current engineering evidence](docs/current/REENTRY.md)
 
 ## Repository map
+
 | Path | Purpose |
 |---|---|
-| `src/` | Production code and shared modules. |
-| `scripts/` | CLI agents, checks and operator commands. |
-| `tests/` | Regression and contract tests. |
-| `db/` | Database migrations and schema assets. |
-| `docs/current/` | Small current product, architecture, pipeline, governance and operations truth. |
-| `docs/guides/` | Practical how-to documentation. |
-| `docs/reference/` | Detailed product, database, governance, security and source contracts. |
-| `docs/decisions/` | ADRs and ADR status control. |
+| `src/` | Product, acquisition and domain code. |
+| `scripts/` | Local API, CLI commands, diagnostics and validation. |
+| `frontend/control-center/` | React UI and build. |
+| `windows/` | Native desktop host and updater. |
+| `db/` | Ordered PostgreSQL migrations. |
+| `tests/` | Product, runtime, safety and contract regression checks. |
+| `.rcc/` | Consumer demand and dependency declaration; RCC owns runners. |
+| `docs/current/` | Current product and architecture facts. |
+| `docs/guides/` | Practical operation and engineering instructions. |
+| `docs/reference/` | Product contracts and technical lookup. |
+| `docs/decisions/` | Decisions and their current/superseded status. |
 | `docs/planning/` | Active planning only. |
-| `docs/archive/` | Historical documentation and replaced artifacts. |
-| `exports/` | Generated review reports; not pipeline input. |
+| `docs/archive/` | Historical machine/code evidence; obsolete prose is in Git history. |
+| `exports/` | Generated review output; never hidden pipeline authority. |
 
-## Deep Ocean language
-Deep Ocean is the product metaphor: sonar for sensing, depth for evidence,
-pressure for gates, calm control surfaces for decisions and repair loops for
-learning.
+## Working boundaries
 
-## Architecture contract anchors
-Some tests intentionally assert that the README still points to active
-architecture and governance baselines.
+**ARCH-001-SAFETY-SECURITY-STATE**: evidence before effects, explicit transitions,
+dry-run before apply, private facts protected, no automatic application submission.
+Candidate Fit and Affinity retain separate authority. A test pass or published package
+is not live acquisition, Top-5 or fleet proof.
 
-- `ARCH-001-SAFETY-SECURITY-STATE`
-- `docs/reference/governance/governance_foundation.md`
-- `docs/reference/governance/documentation_drift_baseline.md`
-- `docs/archive/planning/eo002b_candidate_reprocessing_url_finder_validation.md`
+- No commits on `main`.
+- Reports and exports are outputs, not source-of-truth inputs.
+- Dry-run before apply.
+
+- [Governance foundation](docs/reference/governance/governance_foundation.md)
+- [Documentation evidence rules](docs/reference/governance/documentation_drift_baseline.md)

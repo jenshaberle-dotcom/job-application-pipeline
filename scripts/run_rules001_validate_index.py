@@ -33,8 +33,8 @@ REQUIRED_ANCHORS = {
     "chat_continuation": [
         "## Chat continuation rule",
         "Retired chat-continuation artifacts remain abolished as a steering mechanism",
-        "fresh full repository ZIP export",
-        "MCP-backed repo/DB state inspection replaces full-ZIP review",
+        "direct Git/repository inspection",
+        "A repository ZIP is optional inspection material, not a prerequisite.",
     ],
     "mcp_externalization": [
         "## MCP-001 externalization rule",

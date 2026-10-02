@@ -74,17 +74,37 @@ def test_update_stage_and_cutover_both_verify_feature_contract() -> None:
     assert "parsedVersion >= new Version(1, 2, 5)" in applier
 
 
-def test_windows_release_is_hard_blocked_by_full_linux_validation() -> None:
+def test_windows_release_stops_on_each_failed_validation_before_packaging() -> None:
     workflow = _read(WORKFLOW)
+    validation = workflow.split("- name: Run full product validation", 1)[1].split("- name:", 1)[0]
+    commands = [
+        "& $env:JAP_RELEASE_PYTHON -m pip check",
+        "& $env:JAP_RELEASE_PYTHON -m compileall -q src scripts tests",
+        "& $env:JAP_RELEASE_PYTHON scripts/validate_ci_contract.py",
+        "& $env:JAP_RELEASE_PYTHON scripts/check_documentation_references.py",
+        "& $env:JAP_RELEASE_PYTHON scripts/check_documentation_architecture.py",
+        "& $ruff check . --select E4,E7,E9,F --ignore E402",
+        "& $env:JAP_RELEASE_PYTHON -m pytest -q",
+        "npm install --prefix frontend/control-center --no-audit --no-fund",
+        "npm run build --prefix frontend/control-center",
+    ]
+    lines = [line.strip() for line in validation.splitlines()]
+    for command in commands:
+        index = lines.index(command)
+        assert lines[index + 1].startswith("if ($LASTEXITCODE -ne 0) { throw ")
+    assert workflow.index("- name: Run full product validation") < workflow.index("- name: Package product assets")
+    assert workflow.index("- name: Package product assets") < workflow.index("- name: Publish immutable product-local GitHub release")
+    assert "ubuntu-latest" not in workflow
+    assert "windows-latest" not in workflow
 
-    assert "validate-release:" in workflow
-    assert "name: Full Linux product validation" in workflow
-    assert "runs-on: ubuntu-latest" in workflow
-    assert "python -m pytest -q" in workflow
-    assert "python -m ruff check . --select E4,E7,E9,F --ignore E402" in workflow
-    assert "npm run build --prefix frontend/control-center" in workflow
-    assert "build-release:" in workflow
-    assert "needs: validate-release" in workflow
+
+def test_packaging_commands_stop_before_stale_assets_can_be_published() -> None:
+    workflow = _read(WORKFLOW)
+    assert "npm run build\n          if ($LASTEXITCODE -ne 0) { throw 'Frontend packaging build failed' }" in workflow
+    assert "-o $Out\n          if ($LASTEXITCODE -ne 0) { throw 'Desktop publish failed' }" in workflow
+    package_tests = workflow.split("- name: Prove package-facing contracts", 1)[1].split("- name:", 1)[0]
+    assert "throw 'Package compile validation failed'" in package_tests
+    assert "throw 'Package regression tests failed'" in package_tests
 
 
 def test_runtime_feature_contract_is_bom_safe_end_to_end() -> None:

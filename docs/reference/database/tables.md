@@ -20,7 +20,7 @@ This document describes the current physical PostgreSQL database model.
 It is based on the actual database schema and complements:
 
 ```text
-docs/archive/diagrams/bronze_data_model.md (historical); current relationship map: docs/reference/database/schema_relationships.md
+https://github.com/jenshaberle-dotcom/job-application-pipeline/blob/effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1/docs/archive/diagrams/bronze_data_model.md (historical); current relationship map: docs/reference/database/schema_relationships.md
 ```
 
 ## Tables

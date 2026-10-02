@@ -1,65 +1,77 @@
-# JAP execution authority — RCC Warm Pool only
+# JAP execution — RCC General Pool
 
-Status: **authoritative**
+Status: current consumer contract.
 
-JAP does not own workload runner allocation.
+RCC owns the only physical General Linux/Windows pool. JAP declares workload and capability
+demand, exact source and permitted effects. JAP owns no runner count, registration, fixed
+member, persistent facade selection or scaling authority.
 
-The only supported execution chain is:
+## Workflow demand
 
-```text
-JAP workload demand
-→ RCC admission
-→ RCC physical-member selection
-→ atomic reservation
-→ exact repository facade
-→ ephemeral assignment label
-→ exact-source workload dispatch
-→ result verification
-→ deterministic cleanup
-→ reservation release
-```
+Authoritative mapping: `.rcc/workload-demands.json`.
 
-## JAP authority
+| Workflow | Demand | Purpose |
+|---|---|---|
+| `.github/workflows/pr-validation.yml` | `linux-base` | Exact-source repository validation |
+| `.github/workflows/product-v1-assessment-cohort.yml` | `linux-base` | Bounded Product assessment |
+| `.github/workflows/jap-windows-desktop-host-release.yml` | `windows-release` | Immutable desktop/runtime packaging and publication |
+| `.github/workflows/rcc-general-pool-proof.yml` | `windows-release` | Windows assignment/toolchain proof |
 
-JAP may define:
+JAP declares Python and a dependency-set identity. The Windows demand adds .NET 8 and Node 22.
+RCC materializes and qualifies required capabilities; consumers do not install everything on
+all members or define physical profile/pool topology.
 
-- the workload to execute;
-- the exact source SHA;
-- the required workload/profile capabilities;
-- bounded product inputs and postconditions;
-- whether the workload is read-only or has an explicitly approved effect boundary.
+## Handoff and verification
 
-JAP must not define:
+RCC admits demand, reserves a member, activates an exact repository facade, supplies an
+ephemeral assignment label and dispatches the exact consumer source. The workflow inputs are
+`source_sha`, `rcc_facade_label`, `rcc_assignment_label`, plus workload-specific inputs.
+The consumer verifies checked-out source, runner/facade identity and qualified runtime context.
+RCC verifies completion, cleans the assignment/facade and releases its reservation.
 
-- a physical runner;
-- a fixed repository facade;
-- a broad self-hosted routing label;
-- a project-owned warm-runner pool;
-- heartbeat-based capacity truth;
-- a GitHub-hosted fallback for an RCC-managed workload;
-- local scheduler or developer-terminal execution as a substitute for RCC admission.
+The consumer source SHA binds product code. It is not a requirement to chase each RCC `main`
+commit. Broker compatibility changes belong to the RCC handoff contract; this documentation
+does not invent unsupported broker-version inputs.
 
-## RCC authority
+No available qualified capacity means waiting/blocked. No GitHub-hosted fallback or local
+scheduler restores execution. Effect-bearing failures require terminal/audit evidence before
+retry. Local product operation and developer validation remain distinct from automated CI
+admission and runner authority.
 
-RCC exclusively owns:
+## Automatic admission and runtime contract
 
-- physical capacity observation;
-- member selection;
-- reservation and max-active enforcement;
-- exact facade lifecycle;
-- ephemeral assignment-label creation;
-- workload dispatch;
-- runner/result identity verification;
-- cleanup and reservation release.
+Automatic PR admission is declared only for `pr-validation.yml` / `linux-base`:
+`pull_request`, exact `pull_request_head_sha`, base `main`, `auto_dispatch: true`,
+`effect_semantics: validation-only`. RCC's `.rcc/demand-v2-ci-consumers.json` must
+contain the matching `jap` repository ID, workflow and demand profile. Pool access
+alone does not enroll a consumer in automatic CI.
 
-JAP declares workload demand in `.rcc/workload-demands.json`; RCC materializes the execution profile. Consumer workflows accept only RCC's exact-source handoff: `source_sha`, `rcc_facade_label` and the ephemeral `rcc_assignment_label`. `runs-on` binds to `self-hosted` plus those two exact RCC labels. The consumer verifies runner/source identity but never infers or chooses pool topology.
+The controller dispatches its trusted workflow from JAP `main` and checks out the
+admitted candidate SHA. The exact-source workflow must therefore be merged before
+the controller can use it; a branch-only workflow edit cannot bootstrap its own CI.
+Do not bypass that boundary with a fake assignment or hosted fallback.
 
-## Failure semantics
+The Linux runtime projection supplies `RepositoryId`, `Repository`, `RunnerName`,
+`Platform`, `Status`, `PrimaryFailure`, `Interpreter`, `ProfileId`, `ProfileHash`
+and `SourceSha`. JAP verifies identity and exact source before using that interpreter;
+it does not require a persistent checkout or own the content-addressed runtime.
+The PR workflow checks Python 3.12.14, uses RCC's installed pytest/Ruff, and deletes
+its per-run source checkout even after failure. RCC removes its runtime projection,
+assignment and reservation after completion.
 
-No suitable capacity means **blocked/waiting**, not fallback.
+Product assessment is not auto-admitted and still requires existing Product approval
+and an operator-configured absolute `JAP_DATA_ENV_FILE` on the execution host. This
+is a data/secret configuration file, not a checkout or interpreter authority; missing
+configuration stops before plan/apply. Windows proof and publication remain separately
+authorized Windows workloads. The Linux controller does not automatically dispatch them.
 
-After an effect-bearing dispatch begins, there is no blind retry. RCC must first establish terminal state or preserve the reservation/facade fail-safe state for recovery.
+Broker API/policy compatibility is checked by RCC; a documentation-only RCC commit
+does not require a broker reinstall. Exact RCC executor authority and exact JAP
+candidate source remain independently enforced.
 
-## Repository boundary
+## Acceptance
 
-Project-local runner allocation contracts, legacy broad-label workflows, warm-heartbeat routers, direct self-hosted assignments, hosted routing fallbacks and local Windows scheduler wrappers are retired and must remain physically absent.
+Workflow/config presence proves repository integration only. Live acceptance requires run/job
+identity, assigned General Pool member, correct runtime, result and cleanup evidence. Retire
+physical legacy runners through RCC only after replacement proof; never infer retirement from
+absence of an old label in JAP.

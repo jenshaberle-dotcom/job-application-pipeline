@@ -52,6 +52,7 @@ def test_jap_has_only_current_rcc_assigned_workload_targets() -> None:
         "jap-windows-desktop-host-release.yml",
         "pr-validation.yml",
         "product-v1-assessment-cohort.yml",
+        "rcc-general-pool-proof.yml",
     ]
 
     workflow = (WORKFLOWS / "product-v1-assessment-cohort.yml").read_text(encoding="utf-8")
@@ -72,10 +73,9 @@ def test_jap_has_only_current_rcc_assigned_workload_targets() -> None:
 
     pr_workflow = (WORKFLOWS / "pr-validation.yml").read_text(encoding="utf-8")
     assert "workflow_dispatch:" in pr_workflow
-    assert "pr_number:" in pr_workflow
-    assert "expected_ref:" in pr_workflow
-    assert "expected_head_sha:" in pr_workflow
-    assert "correlation_id:" in pr_workflow
+    assert "source_sha:" in pr_workflow
+    for retired_input in ("pr_number:", "expected_ref:", "expected_head_sha:", "correlation_id:"):
+        assert retired_input not in pr_workflow
     assert "rcc_facade_label:" in pr_workflow
     assert "rcc_assignment_label:" in pr_workflow
     assert "- self-hosted" in pr_workflow
@@ -86,8 +86,7 @@ def test_jap_has_only_current_rcc_assigned_workload_targets() -> None:
     assert "check_documentation_references.py" in pr_workflow
     assert "check_documentation_architecture.py" in pr_workflow
     assert "validate_ci_contract.py" in pr_workflow
-    assert "PR_RUFF" in pr_workflow
-    assert '"$PR_RUFF" check' in pr_workflow
+    assert '"$PR_PYTHON" -m ruff check' in pr_workflow
     assert "ubuntu-" not in pr_workflow
     assert "windows-" not in pr_workflow
     assert "rcc-general-linux-0" not in pr_workflow
@@ -178,6 +177,7 @@ def test_project_owned_runner_allocation_and_profiles_are_physically_absent() ->
         "pr-validation.yml": "linux-base",
         "product-v1-assessment-cohort.yml": "linux-base",
         "jap-windows-desktop-host-release.yml": "windows-release",
+        "rcc-general-pool-proof.yml": "windows-release",
     }
     package = ROOT / runtime["package_set"]["path"]
     assert package.is_file()
@@ -186,6 +186,15 @@ def test_project_owned_runner_allocation_and_profiles_are_physically_absent() ->
     assert demand["ownership"]["runner_profiles"] == "RCC"
     assert demand["ownership"]["allocation"] == "RCC"
     assert demand["ownership"]["qualification"] == "RCC"
+    assert demand["workflow_admission"] == {
+        "pr-validation.yml": {
+            "event": "pull_request",
+            "source_binding": "pull_request_head_sha",
+            "base_branch": "main",
+            "auto_dispatch": True,
+            "effect_semantics": "validation-only",
+        },
+    }
 
 
 def test_legacy_workflow_trigger_authority_is_physically_absent() -> None:
@@ -226,6 +235,7 @@ def test_registered_workloads_match_physical_workflows() -> None:
         str(path.relative_to(ROOT)) for path in WORKFLOWS.iterdir() if path.is_file()
     }
     assert all(entry["manual_dispatch"] for entry in registered)
+    assert len(registered) == len({entry["path"] for entry in registered})
 
 
 def test_workflow_references_do_not_reanimate_deleted_execution_paths() -> None:
@@ -239,3 +249,8 @@ def test_workflow_references_do_not_reanimate_deleted_execution_paths() -> None:
             if not (ROOT / reference).is_file():
                 offenders.append(f"{path.relative_to(ROOT)}::{reference}")
     assert offenders == []
+
+
+def test_pool_proof_fails_the_step_when_hardcut_tests_fail() -> None:
+    proof = (WORKFLOWS / "rcc-general-pool-proof.yml").read_text()
+    assert "pytest -q tests/test_warm_pool_only_runner_authority.py\n          if ($LASTEXITCODE -ne 0) { throw 'RCC source hardcut proof failed' }" in proof

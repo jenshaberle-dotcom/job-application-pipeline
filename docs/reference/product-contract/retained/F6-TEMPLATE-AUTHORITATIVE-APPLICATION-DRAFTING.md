@@ -1,0 +1,842 @@
+# F6 — Template-Authoritative Application Drafting
+
+Reference disposition: retained contract/acceptance evidence; not an active implementation
+sequence. Dated runtime counts and release proofs describe their original checkpoint.
+Current engineering direction is in `docs/current/REENTRY.md`.
+
+
+Status: COMPLETE / OPERATOR ACCEPTED FOR CURRENT COHORT — Slices A/B/C accepted; broader connector/job coverage is the next evidence source
+
+## Outcome
+
+F6 is the final package of the current frozen Product campaign.
+
+The application workflow may adapt **text only** inside two operator-approved private PDF layouts. The layouts themselves are immutable product authority. Candidate claims remain grounded in approved Candidate Facts and exact current Employer-Origin evidence. Human review is mandatory. F6 grants no automatic submission or send authority.
+
+## Canonical private templates
+
+The PDF bytes remain local/private. Public repository truth stores only their exact binary identities, page geometry and editable-zone contract.
+
+| Document | Template ID | SHA-256 | Geometry |
+| --- | --- | --- | --- |
+| Application letter | `f6-application-letter-hornetsecurity-2026-09-17-v1` | `e533e27c8bc4ac04b64e29e8d91dcfd134d23af075f76ec179e0d9d0ab1410c8` | 1 page, Letter, 612 x 792 pt |
+| CV | `f6-cv-hornetsecurity-2026-09-17-v1` | `8f67040b6ef9248e734a18e46df87fa786f33c3c8f605785baf7ad324432e041` | 2 pages, A4, 595.32 x 841.92 pt each |
+
+Canonical machine-readable authority:
+
+`config/application_templates/f6_template_authority_v1.json`
+
+The mixed page formats are intentional current operator truth. No normalization to A4 or another geometry is authorized.
+
+## Layout boundary
+
+Immutable without a new explicit operator template approval:
+
+- page size and page count;
+- portrait/photo placement;
+- navy header rules and section rules;
+- signature image and its position;
+- column/grid geometry;
+- panel backgrounds;
+- font/layout/spacing geometry outside declared zones.
+
+Only manifest-declared text zones may change. Text overflow must fail closed rather than move graphics, resize the page, reflow into a new design or manufacture an alternate page.
+
+## Content authority
+
+Generated/adapted text may use only:
+
+1. approved Candidate Facts;
+2. exact current Employer-Origin vacancy evidence;
+3. structural text already present in the approved template when it is not treated as a new candidate claim.
+
+Missing evidence remains missing/unknown. Template text is not independent fact authority.
+
+## Hard-cut regression rule
+
+F6 removes the previous generic document-generation authority. The following legacy paths are physically absent and regression-gated against return:
+
+- retired module basename `product_v1_application_document_export.py`;
+- retired module basename `product_v1_application_document_package.py`;
+- retired stylesheet basename `application-package-downloads.css`;
+- their dedicated generic renderer/package tests.
+
+The retired path created new A4/DOCX documents independent of the approved layouts. It is incompatible with F6 and has no fallback authority.
+
+The browser/CLI intake also no longer accepts arbitrary replacement PDFs. It accepts only an exact F6 hash + page-geometry match. Installing a canonical template supersedes DB authority for the prior approved row and removes older managed upload bytes of that document type.
+
+## Slice A — Template Authority
+
+Status: **COMPLETE / OPERATOR ACCEPTED** on installed 1.0.68. The later 1.0.69 runtime LF hardening did not change F6 template authority.
+
+Acceptance criteria:
+
+- exactly two canonical templates;
+- exact binary SHA-256 and page geometry are enforced;
+- binaries remain private/local;
+- explicit editable zones are public and bounded within their pages;
+- arbitrary or visually similar PDFs fail closed;
+- Product readiness requires exact template authority, not merely an `approved` DB row;
+- old generic renderer/package paths are physically absent;
+- Control Center explains the authority and exposes only exact-template verification;
+- at Slice A completion, generation could produce grounded review text while rendering was still pending; this historical state is superseded by the accepted Slice-B renderer;
+- database/application/submission/send authority remains unchanged.
+
+### Slice A operator evidence
+
+Installed 1.0.68 successfully verified both exact private templates through the Product surface. The generic DOCX/A4 path remained absent. This closes Slice A and authorizes Slice B only; it grants no final PDF export or submission/send authority.
+
+## Slice B — Template-Bound Renderer — COMPLETE / OPERATOR ACCEPTED
+
+PR #999 introduces a new F6-only renderer authority. It is not a revival of the retired generic exporter.
+
+Acceptance criteria:
+
+- exact F6 hash/geometry validation remains the entry gate;
+- only manifest-declared text-zone IDs are accepted;
+- redaction removes text only and preserves images/vector graphics;
+- no automatic font/page scaling is permitted; overflow fails closed;
+- every page is raster-compared against its exact source template and all pixels outside declared zones must remain identical;
+- evidence contains source/output hashes and per-page outside-zone pixel hashes/counts;
+- rendered bytes remain review-only and grant no application/submission/send authority;
+- CI uses synthetic PDFs only; private template bytes remain local.
+
+### Slice B operator evidence
+
+Installed Product **1.0.71** on exact release source `a7eae418cbcc8c901070d9db65505cece086e6f7` completed the real private-template qualification successfully.
+
+The local proof covered exactly both canonical templates (`template_count: 2`). The application-letter render changed only `body.paragraph_1`; the CV render changed only `p1.short_profile`. Every page reported `outside_zone_pixel_identity: true` and `changed_pixels: 0` outside declared zones. Rendered PDFs were not persisted and private template paths/bytes were not disclosed. The qualifier reported zero database reads/writes, provider/network requests, application actions, submission actions and send actions, and ended with `F6_TEMPLATE_RENDERER_QUALIFICATION=PASS`.
+
+This closes Slice B and authorizes Slice C only. It does not grant draft approval, application, submission or send authority.
+
+## Slice C — Review/Edit + Local PDF Export — COMPLETE / OPERATOR ACCEPTED FOR CURRENT COHORT
+
+Freeze-close note (2026-09-25): the operator accepts the Slice-C behavior as sufficiently stable for the currently available real-job cohort. Multiple non-Eraneos jobs exercised the generalized path; remaining quality/generalization uncertainty is now dominated by insufficient connector/job diversity rather than a known F6 architecture blocker. Further F6 correction requires a reproducible failure from newly broadened Employer-Origin coverage. The next learning loop therefore moves to connector expansion rather than continuing same-cohort drafting polish.
+
+
+The first Slice-C implementation shipped as **1.0.72** from exact source `f55b8adab62337b4e0a28c3ad9bcb56186c84cc6`. It provides manifest-zone editing, source-manifest-bound local PDF rendering and the accepted Slice-B outside-zone pixel proof.
+
+The first installed operator attempt exposed a separate pre-existing Product coupling before the new PDF surface could be exercised: the Application Workspace accepted only `gold_product_v1_top_jobs` targets while current Product truth contained **0 rankable / 0 Top-5** rows.
+
+### Runtime diagnosis — 2026-09-24
+
+The installed Product payload reported 80 current active jobs and 45 authoritative Affinity rows, but zero rankable jobs. Its readiness population was dominated by `hard_filter_evidence_required` plus `assessment_required`; VALUNY Silver 613 was active, Origin-validated and Affinity-authoritative while its hard-filter state remained unknown.
+
+A separate verified RCC warm-runtime read-only proof confirmed the population-level condition without mutating authority: rankable `0`, Top-5 `0`, 65 hard-filter-evidence-required rows, 13 assessment-required rows and 2 blocked hard-filter rows. Capability Fit remained unknown for the highest-Affinity blocked rows. This is consistent with the existing PD-053/054/059 fail-closed Product contract and must not be repaired by manufacturing ranking authority.
+
+Refresh is not a ranking/materialization action. Repeating UI refresh cannot legitimately turn unknown Fit/hard-filter evidence into Top-5 truth.
+
+### Operator-selected drafting boundary
+
+Candidate target: **1.0.73** on `feature/f6-c-operator-selected-target`.
+
+F6 drafting and Top-5 recommendation authority are now separated deliberately:
+
+- Top-5 remains unchanged and fail-closed. No row is promoted, ranked or threshold-bypassed for F6.
+- An operator may explicitly select a **current, Origin-validated, authorized employer-origin job** as a review-drafting target even when it is not Top-5.
+- An operator-selected target carries `authority_source=operator_selected_current_job` and **no Product rank**.
+- An unknown hard-filter state remains unknown; drafting does not convert it to passed.
+- A known hard-filter failure remains blocked from this path.
+- Candidate claims still come only from approved Candidate Facts and exact current vacancy evidence.
+- Exact F6 template/hash/zone authority, source-manifest binding, overflow fail-closed and outside-zone pixel identity remain unchanged.
+- Drafting remains review-only: no application, submission, send or Product/ranking authority is created.
+
+This boundary matches the real operator workflow: a recommendation system may honestly have an empty Top-5 while the operator can still decide to prepare material for a specific current vacancy.
+
+### Installed 1.0.73 operator evidence
+
+The operator-selected target boundary is now product-proven on installed 1.0.73. VALUNY Silver 613 can be opened from All jobs through **Prepare application** while Top-5 remains 0. The Application Workspace labels the target **Operator-selected current job**, shows Affinity rather than Product rank, binds employer-origin vacancy evidence, exposes 3 matched Candidate Facts and verifies both exact F6 templates.
+
+The next operator feedback is a UX correction, not an authority change: the zone-by-zone insertion surface is too granular for the normal workflow. The desired terminal state is **one finished application document**, not manual assembly across many template fields.
+
+Candidate target: **1.0.74** on `feature/f6-c-single-finished-pdf`.
+
+The main F6-C path therefore becomes:
+
+`grounded review draft -> internal deterministic mapping to allowed zones -> exact-template render + pixel proof -> combine letter + CV -> one finished local PDF -> human review`
+
+The individual zone editor remains available only under an Advanced disclosure for targeted corrections. It is no longer the primary operator step.
+
+The same installed operator review exposed a small lifecycle UX defect: a Silver job already linked to an application in `applied`, `reply`, `interview`, `offer` or `closed` still showed **Prepare application**. The 1.0.74 candidate removes preparation from every normal UI surface once the shared F5 effective stage has progressed beyond `prepared`. The existing lifecycle status remains visible and links to **Applications** instead. `prepared` itself remains eligible because it is not submission authority.
+
+The combined PDF is packaging only. Each component first passes the accepted Slice-B renderer; the package then concatenates application letter followed by CV and raster-hash compares every combined page against its rendered source page. Any visual drift fails closed. No new layout, text, ranking, application, submission or send authority is created.
+
+### Installed 1.0.74 operator evidence
+
+Installed 1.0.74 on exact source `1db8ef0f1708dff7684a21c632086abdf36344fb` confirms the lifecycle suppression works: jobs already at **Beworben** / **Interview** no longer expose **Prepare application** and retain **Open Applications**.
+
+The same operator session exposed two remaining navigation/UX defects:
+
+1. clicking **Prepare application** on a specific All-jobs row can open the Application Workspace on a different job;
+2. the workspace shows the full selectable-job population as a permanently visible sidebar, which is too long and distracts from the explicitly selected application target.
+
+The first defect is caused by competing open-path authority plus silent fallback behavior. The legacy `ApplicationWorkspaceEventBridge` synthetic-click path still coexisted with the direct target event, and the workspace could substitute `applicationJobs[0]` when the requested target was not in its narrower local list.
+
+Candidate target: **1.0.75** on `fix/f6-c-exact-target-compact-picker`.
+
+1.0.75 changes the interaction contract:
+
+- the exact Silver ID selected in All jobs is the target that opens; the workspace may not silently substitute another job;
+- a current non-hard-filter-failed target may open even if Origin evidence is incomplete, so the **same selected job** can show its own fail-closed blocker rather than redirecting elsewhere;
+- the obsolete hidden launcher + synthetic click bridge is physically removed; the workspace is the single owner of `product-v1:open-application-workspace`;
+- the permanent current-jobs sidebar is removed;
+- the selected job is pinned as the primary workspace context;
+- **Change job** is explicit and opens a compact searchable chooser, capped to the 10 highest-Affinity jobs until the operator searches;
+- already-applied/downstream jobs remain excluded from preparation by the accepted 1.0.74 lifecycle invariant.
+
+### Installed 1.0.77 exact-target diagnostic
+
+Installed 1.0.77 preserves the operator-selected target and uses Product V1 application branding. For accompio Silver #626 it exposed the previously opaque runtime error as:
+
+`DownstreamPreviewStop: preview detail returned HTTP 404`.
+
+A verified read-only RCC diagnostic then proved this is a redundant-network-path defect, not missing vacancy evidence or a guessed replacement URL:
+
+- Silver #626 source is `generic_origin:accompio`;
+- Silver source URL, latest recurring observation source URL and nested normalized job source URL are exactly the same;
+- lifecycle remains `active_confirmed`;
+- the latest exact observation was recorded on 2026-09-22 and contains a normalized job description;
+- the existing exact-observation contract reconstructs 3,994 characters of source-grounded vacancy evidence;
+- `TARGET_626_EXACT_OBSERVATION_REUSE=PASS`;
+- database writes remained zero.
+
+Assessment materialization already reused this exact persisted evidence before network fallback. The Application Workspace did not: it performed a redundant detail HTTP GET unconditionally, allowing an external HTTP 404 to hide evidence JAP already held.
+
+Candidate target: **1.0.78** on `fix/f6-origin-drift-recovery`.
+
+1.0.78 makes the evidence boundary singular:
+
+- exact URL-bound current observation evidence is projected by one shared read-only helper;
+- both assessment materialization and Application Workspace consume that helper;
+- reuse is admitted only when Silver source URL == observation source URL == normalized nested job source URL and a persisted description exists;
+- exact persisted evidence performs **zero** detail HTTP GETs;
+- network detail fetch remains a bounded fallback only when exact persisted evidence is unavailable;
+- no alternate URL is guessed and no third-party/search evidence becomes Product authority;
+- no lifecycle, Origin, Fit, ranking, application, submission or send authority is widened.
+
+### Installed 1.0.78 explicit-Origin blocker diagnostic
+
+The installed 1.0.78 operator retest keeps accompio Silver #626 pinned and no longer fails on the redundant detail HTTP 404. The next failure is:
+
+`origin_validation_status is required`.
+
+This is a context-construction defect, not permission to infer Origin validation. `gold_product_v1_job_readiness` deliberately exposes `origin_validation_status=NULL` while a current job has no materialized Product assessment and labels that state `assessment_required`. The 1.0.75 interaction contract already requires such an explicitly selected job to stay open and show its own fail-closed blocker rather than aborting or redirecting.
+
+Candidate target: **1.0.79** on `fix/f6-explicit-origin-blocker`.
+
+1.0.79 therefore normalizes a missing Origin field to `unknown` **only for the operator-selected drafting projection**. The canonical context then produces `origin_not_validated`, keeps generation blocked and preserves the exact target. A Top-5 target with a missing Origin field still fails construction. No assessment is inserted, no Origin status becomes validated, and no Product/ranking/application/submission/send authority changes.
+
+### Installed 1.0.79 operator acceptance + read-only materialization proof
+
+The installed operator test passes the intended 1.0.79 boundary:
+
+- the exact accompio Silver #626 target remains pinned;
+- the former low-level missing-field exception is gone;
+- the workspace renders **Context blocked / origin not validated**;
+- 2 Candidate Facts are matched and both F6 templates retain exact authority;
+- draft generation remains disabled while Origin authority is absent.
+
+A fresh RCC read-only plan then evaluated exactly Silver #626 through the existing resilient initial-assessment materializer. It produced one proposal and zero blockers with materialization fingerprint `78d9d24f1ecfc25488c47c77e0585d54a62c0b2729b6fb417dd403be57333e19`. The plan reused the exact persisted observation once, performed zero vacancy-detail network reads, zero DB writes and zero provider/LLM requests, and created no ranking score, capability-fit or Top-5 authority.
+
+That proof also found a stale pre-F4B coupling in the materializer. The approved ranking policy is now `product-v1-2026-09-16-affinity-v1`; the approved job-evidence/hard-filter policy remains `product-v1-2026-08-02`. Newer F4A code already treats those as independent authorities and binds assessment `policy_version` to job-evidence semantics while recording ranking-policy version separately.
+
+Candidate target: **1.0.80**.
+
+1.0.80 brings the initial materializer onto that same contract: both approved policy versions are required and independently frozen across preflight/apply; the assessment row binds the hard-filter/job-evidence policy version; ranking-policy identity is recorded separately in evidence metadata; equality between the two versions is no longer required. This is an authority-correction, not a relaxation.
+
+### Approved initial assessment + post-write F6 readiness proof
+
+The operator explicitly approved the single Silver #626 initial-assessment insert. Run `36002073813` executed against exact main `71d6800d61251d70db8f7cd757fd4236e282be94` only after recomputing the frozen materialization fingerprint `78d9d24f1ecfc25488c47c77e0585d54a62c0b2729b6fb417dd403be57333e19`.
+
+Post-write proof is deliberately narrow:
+
+- exactly 1 assessment inserted, 0 pre-existing/conflicting rows;
+- Origin = `validated`;
+- activity = `active`;
+- hard filter = `unknown`;
+- capability fit = `unknown`;
+- readiness = `hard_filter_evidence_required`;
+- all direct ranking-score fields remain null;
+- provider requests = 0;
+- ranking scores created = 0;
+- Top-5 forced = 0;
+- application/submission/send authority remains absent.
+
+A subsequent read-only live probe using the canonical private-document root proves the same Silver #626 now yields Application Workspace `READY`, blocked reasons `[]`, 2 grounded claim-plan entries, exact observation reuse with zero detail HTTP GETs, and F6 template authority `ready`. With the provider explicitly disabled, the canonical draft path reaches `draft_for_review` in `deterministic_evidence_first` mode with provider requests 0 and all DB/application/submission/send writes 0.
+
+### F6 design mandate — preserve layout maximally, change only what is necessary
+
+The approved private CV and application-letter PDFs remain the visual authority. The product goal is not to redesign them per vacancy. The rule is:
+
+> **Preserve the base layout as completely as possible; adapt only as much content as the concrete vacancy actually requires.**
+
+Operational consequences:
+
+- Codex may return **text values only**; it receives no layout coordinates and no layout mutation authority.
+- Existing pages, geometry, photograph, graphics, lines, section placement and non-editable typography remain untouched.
+- CV career-history blocks are factual authority and must not be rewritten merely for stylistic variation.
+- Primary CV adaptation is limited to the already-declared short-profile / competency zones unless a later operator-approved template contract explicitly adds more.
+- Application-letter recipient, date, subject, salutation and body zones may change because they are vacancy-specific.
+- Text overflow fails closed. JAP must never solve overflow by moving graphics, resizing the page, manufacturing a different design or silently adding a page.
+- The existing renderer proof remains mandatory: **zero changed pixels outside declared editable zones**.
+
+This is the design rule for the whole Codex adaptation path, not only the accompio test case.
+
+### JAP Classic 1.1.0 boundary
+
+The operator chose this point to start the **1.1.x** minor line because the status/readiness path is now usable as an operator feature: job identity stays pinned, failure reasons are explicit, authority transitions are visible, and the workspace can move from blocked state to review-draft readiness without manufacturing ranking authority. Existing 1.0.x releases remain immutable; the next release is **1.1.0**.
+
+### Slice-C rendering contract
+
+- Control Center loads the two exact locally installed private templates and exposes only their manifest-declared text zones;
+- source text from each declared zone is visible as the editable baseline; no undeclared page area is editable;
+- explicit operator action may apply bounded draft suggestions: CV summary -> `p1.short_profile`; letter opening/fit/closing -> declared letter body zones;
+- the operator can edit those zone texts before rendering;
+- export is bound to the exact draft `source_manifest_sha256`; if the current job/fact/template context drifts, export fails closed and requires draft regeneration;
+- final rendering delegates to the accepted Slice-B renderer, including overflow fail-closed and outside-zone pixel-identity proof;
+- unchanged documents may be exported as their exact source-template bytes; changed documents carry renderer evidence and output SHA-256;
+- rendered PDFs cross only the loopback Product boundary as base64 and become local browser/WebView PDF objects for explicit Open/Download actions; no public/cloud persistence is introduced;
+- human review remains mandatory and no automatic submit/send authority exists.
+
+### Next operator gate
+
+After exact-head CI and immutable **1.1.0** release:
+
+1. update through the integrated JAP updater and verify version 1.1.0;
+2. re-open accompio Silver #626 through **Prepare application**;
+3. require the same job to remain pinned and the workspace to be generation-ready;
+4. require Origin validated while hard filter remains explicitly unknown;
+5. require 2 grounded Candidate Fact claim entries and 2/2 exact F6 template authority;
+6. require **Generate review text** to be enabled;
+7. trigger it once and review the operator-visible draft. The draft may be edited/reviewed but still carries no automatic submit/send authority.
+
+If the review text is accepted, the next gate is **Create finished application PDF** under the existing exact-template, source-manifest, overflow and outside-zone pixel-identity contract.
+
+### Release-line gate
+
+JAP Classic stays on the **1.1.x** line until the complete automatic CV + application-letter preparation path is operator accepted.
+
+Until then, every correction discovered during real F6 qualification is a patch release only (`1.1.1`, `1.1.2`, ...), including:
+
+- Codex installation/authentication/runtime bridging;
+- included-allowance / paid-credit exhaustion handling;
+- stale recipient/contact leakage;
+- vacancy-specific content quality;
+- CV adaptation scope;
+- template-zone mapping;
+- overflow handling;
+- PDF render/layout-preservation regressions.
+
+**1.2.0 is reserved** for the operator-accepted capability boundary where one explicitly selected vacancy can produce both a vacancy-adapted CV and a vacancy-specific application letter automatically, while preserving the approved base layout as completely as possible and changing only as much content as necessary.
+
+1.2.0 acceptance therefore requires all of the following at once:
+
+1. correct current-job identity and Employer-Origin evidence;
+2. no stale employer/contact/application-letter content;
+3. high-quality vacancy-specific CV adaptation;
+4. high-quality vacancy-specific application-letter text;
+5. automatic mapping into only manifest-authorized text zones;
+6. exact source-template page/geometry authority retained;
+7. overflow fail-closed and outside-zone pixel identity proven;
+8. explicit human review before export;
+9. graceful `draft_unavailable` when Codex allowance/credits/authentication are unavailable, with no low-quality prose fallback;
+10. zero automatic submission/send authority.
+
+Passing only the text-generation step does not authorize 1.2.0; the finished rendered document pair must pass the operator gate.
+
+### Installed 1.1.0 Codex runtime boundary / candidate 1.1.1
+
+The first installed 1.1.0 operator run reaches a fully ready accompio Silver #626 context but fails before any model request with:
+
+`Codex CLI is not available to the JAP runtime.`
+
+That result is accepted as a clean runtime-delivery finding. It does not authorize restoring deterministic prose and does not change the 1.2.0 acceptance boundary.
+
+Candidate **1.1.1** fixes only this runtime layer:
+
+- the product release build downloads one official OpenAI Codex CLI Linux x64 archive at build time only;
+- version is pinned to `0.154.0` and the upstream archive SHA-256 is frozen in release authority;
+- the extracted Codex binary and a JAP-owned identity manifest are included in the immutable runtime ZIP;
+- update staging, cutover verification and bootstrap all require the bundled binary/manifest before accepting the runtime;
+- installed startup verifies the binary SHA-256, restores its executable bit and binds `JAP_CODEX_EXECUTABLE` directly to the immutable runtime path;
+- normal installed startup does not npm-install, curl, wget, self-update or otherwise provision Codex from the network;
+- F6 launches Codex with a minimal allow-listed environment so PostgreSQL, GitHub and API credentials from JAP are not inherited;
+- `codex login status` is checked before drafting. Missing account authentication is an explicit product state, not a generic HTTP error;
+- no API-key fallback or automatic credit purchase is permitted;
+- exhausted allowance/eligible credits remains `draft_unavailable` with no low-quality fallback prose.
+
+The planned accompio #626 drafting gate is superseded because the vacancy disappeared from the employer surface before content qualification completed. This exposed a lifecycle-serving defect: older `active_confirmed` evidence could remain operator-selectable even after it was no longer fresh enough to support a Product action.
+
+### Candidate 1.1.2 — fresh-vacancy action authority
+
+JAP already had a deterministic `product_v1_demo_live_scope` contract with a 30-minute maximum health-evidence age, but it was audit-only. Candidate **1.1.2** makes that contract executable Product authority:
+
+- Control Center projects origin truth first and then live-scope freshness for every job-readiness and Top-5 row;
+- `demo_live_verified=true` is required for anything presented as a **current** Product action;
+- stale active evidence becomes an explicit `live_health_refresh_required` projection rather than silently remaining current;
+- Overview current counts, Top-5 actions, the Application target and the Application Workspace selector all require fresh live truth;
+- the F6 backend independently rechecks the same freshness contract before persisted vacancy-detail reuse, so a stale row cannot bypass the UI through a direct API call;
+- the existing exact-observation reuse contract remains intact after freshness passes, so 1.1.2 does not restore redundant detail GETs merely to obtain drafting text;
+- freshness expiry alone does not write `inactive_confirmed`. It removes Product action authority; authoritative closure still requires exact-detail closure evidence or verified complete-inventory absence.
+
+The next operator gate is therefore two-part:
+
+1. after installing 1.1.2, the expired accompio #626 vacancy must no longer be selectable/current for F6;
+2. choose another genuinely current Employer-Origin vacancy and continue the first real Codex-adapted CV + application-letter review test there.
+
+This remains a **1.1.x patch correction**. It does not satisfy or advance the 1.2.0 acceptance gate by itself.
+
+### Candidate 1.1.3 — restore 1.0.79 application-navigation affordances
+
+Installed 1.1.2 correctly removed stale-vacancy action authority, but it accidentally coupled that authority to **button visibility**. As soon as the 30-minute live-health evidence expired, All jobs no longer showed the application-navigation controls that were product-proven in 1.0.79.
+
+That is a regression. Freshness decides whether F6 may continue, not whether the operator may navigate to the authoritative F6 state.
+
+Candidate **1.1.3** restores the 1.0.79 job-detail action surface:
+
+- **Open original ↗** remains available whenever an exact browser-safe source URL exists;
+- **Prepare application** remains visible for persisted `active_confirmed`, non-hard-filter-failed jobs whose F5 stage has not progressed beyond `prepared`;
+- **Open Applications** remains visible for jobs already linked to an F5 application;
+- the Application Workspace target chooser again accepts persisted-active jobs so the job selected in All jobs remains the job inspected in F6;
+- freshness is still enforced independently by the backend before current vacancy evidence may become drafting authority;
+- stale jobs therefore reach a visible `current vacancy freshness required` blocker instead of silently losing all navigation controls.
+
+This explicitly freezes the 1.0.79 application-navigation UX as a regression contract while retaining the newer lifecycle truth boundary.
+
+### Candidate 1.1.4 — exact live vacancy revalidation, no invented 30-minute cadence
+
+The next operator run showed that 1.1.3 restored the buttons but the Product truth surface itself was still inconsistent: All jobs contained the persisted current cohort while the sidebar and `Current` filter rendered zero, and a genuinely interesting replacement target failed F6 only because its last health timestamp was older than 30 minutes.
+
+That exposed the actual authority mistake. `product_v1_demo_live_scope` was created as a bounded demo/audit freshness helper. F4C later made the stronger rule explicit: recurring-ingestion eligibility is **not cadence authority**, and a successful historical run without an explicit cadence must not be labeled stale merely because a fixed wall-clock interval elapsed.
+
+Candidate **1.1.4** therefore changes the boundary rather than tuning the number:
+
+- All jobs/current counts return to persisted evidence-driven lifecycle truth (`active_confirmed`);
+- the 30-minute demo-live helper is removed from the served Product action projection;
+- F6 does not trust age alone. When the operator explicitly chooses **Prepare application**, JAP probes exactly that Silver job's employer-origin URL once;
+- exact URL + expected title => current vacancy confirmed; no lifecycle write is needed and the already-bound persisted vacancy observation remains the drafting-detail source;
+- explicit vacancy-unavailable content => append one lifecycle-health `closed/exact_detail` observation, block drafting, and refresh Product truth so the dead job leaves the current cohort;
+- unverifiable transport/content outcomes => no write and fail closed;
+- generic 404 remains non-authoritative unless source-specific/explicit closure content proves the vacancy itself is gone;
+- Accompio's exact message `Die Stellenanzeige konnte nicht gefunden werden` is accepted as explicit vacancy-unavailable evidence.
+
+This restores coherent counts and prevents a dead job from remaining current after it is actually revalidated, without inventing cadence policy or weakening lifecycle evidence requirements.
+
+A mismatch between persisted observation URL and Silver URL, missing persisted description, known hard-filter failure, source/context drift, overflow, unexpected layout change or missing pixel proof remains fail-closed.
+
+### Candidate 1.1.5 — converge selected-job lifecycle truth and expose real Codex authority
+
+Installed 1.1.4 proves the correct exact-revalidation boundary but still hides two operational truths.
+
+First, the dead Accompio #626 row remains visible until the operator enters F6. Candidate 1.1.5 moves the same bounded exact-detail revalidation to the **selected All-jobs detail**. Selection itself may not manufacture activity or closure: active and unverifiable probes are read-only; only an authoritative exact closure appends one lifecycle-health observation and then refreshes Product truth. This lets dead rows leave Current authority as soon as the operator inspects them, while historical/audit truth remains available according to the Product read model.
+
+Second, the presence of a bundled Codex binary is not equivalent to the operator's ChatGPT account being connected. Candidate 1.1.5 therefore exposes a read-only Codex status endpoint and renders the result both in About and in the F6 readiness card:
+
+- bundled executable present / version;
+- ChatGPT authentication connected vs sign-in required;
+- selected drafting model;
+- usage authority = ChatGPT included allowance / eligible Codex credits;
+- API-key fallback disabled;
+- automatic credit purchase disabled.
+
+JAP accepts only the official CLI status **Logged in using ChatGPT** as F6 drafting authority. API-key, workload-identity or access-token auth is visible diagnostically but does not enable drafting. If ChatGPT auth is missing, **Generate review text** remains disabled before any model request. There is still no deterministic filler fallback.
+
+1.1.5 also fixes the job-count UX exposed by the same operator run: **All jobs** remains the canonical current Employer-Origin review scope, the redundant/broken secondary Current filter is removed, and the sidebar badge is derived from the same `job_readiness` cohort. Historical rows remain auditable outside this review list.
+
+The updater is hardened in the same patch after a real first-attempt rollback on `desktop-host` access denial: transient access/sharing failures receive a bounded 45-second cutover retry, and a failed exact target receives a 10-minute retry cooldown instead of being offered again roughly 30 seconds after rollback. Superseding releases are not blocked by that cooldown.
+
+The 1.2.0 acceptance boundary is unchanged. 1.1.5 only makes lifecycle truth, Codex authority and updater recovery observable/stable enough to continue the real CV + letter qualification.
+
+### Candidate 1.1.6 — reviewed Personio F6 authority + in-product ChatGPT device login
+
+Installed 1.1.5 confirms that the Codex runtime is physically embedded and version-bound, but also proves two blockers are still independent:
+
+1. **Eraneos #511** reaches exact live vacancy evidence, 3 matched Candidate Facts and 2/2 exact F6 templates, yet F6 reports `employer_origin_required`.
+2. Codex is present as `codex-cli 0.154.0` but `codex login status` reports no ChatGPT login, so automatic CV + letter adaptation correctly remains disabled.
+
+The Eraneos blocker is not solved by weakening Employer-Origin rules. The repository already contains a reviewed legacy Personio authority path used by lifecycle migration 099. 1.1.6 admits that path only when the exact selected row carries all of the already-frozen evidence:
+
+- source is one of the reviewed legacy Personio targets (currently Eraneos / 1KOMMA5° only);
+- lifecycle is `active_confirmed` from `authoritative_verified_ats_feed_observation`;
+- coverage is `complete_inventory`;
+- latest observation URL and normalized source URL exactly equal the Silver source URL;
+- source type is `employer_origin_ats_backed_career_site`;
+- `personio-recurring-feed-authority.v1` and the reviewed binding contract match;
+- provider/target identity matches the reviewed target;
+- authority validated, employer identity bound and inventory complete are all true;
+- `product_authority` remains false on the feed evidence itself;
+- the exact job URL is bound inside the observation.
+
+This composes existing authorities; it does not make arbitrary Personio sources Product authority.
+
+For ChatGPT authentication, 1.1.6 adds a bounded local login coordinator around the already bundled official Codex CLI:
+
+- command is exactly `codex login --device-auth`;
+- Codex owns OAuth/device exchange and credential persistence;
+- JAP UI receives only verification URL, one-time user code and coarse session state;
+- no token/auth.json content crosses the loopback JSON boundary;
+- the device flow expires under Codex's own 15-minute contract;
+- UI polling ends only when `codex login status` reports **Logged in using ChatGPT**;
+- API-key/workload/access-token login still does not enable drafting;
+- login can be started even if another F6 context blocker is still visible.
+
+The readiness UI is corrected at the same time: a fetched live URL/title is labeled **Live vacancy verified**, while **Employer-Origin authority** has its own independent row. This prevents the 1.1.5 contradiction where a green “Employer-origin verified” card coexisted with an `employer_origin_required` blocker.
+
+The next operator acceptance target remains **Eraneos #511**. After 1.1.6, complete ChatGPT device login inside JAP, require both Origin and Codex readiness to be green, then generate the first real vacancy-specific CV + application-letter review draft.
+
+### Candidate 1.1.7 — preserve reviewed Origin authority across exact revalidation + reconcile completed Codex login
+
+The installed 1.1.6 operator run separates two real regressions from the already-working pieces.
+
+**Codex authentication itself passes.** The official device-code flow completes inside the bundled runtime and the Product API reports `status=ready`, `auth_mode=chatgpt`, `chatgpt_authenticated=true`, `codex-cli 0.154.0`, model `gpt-5.6-sol`, API-key fallback disabled and ChatGPT allowance / eligible-credit billing authority. The remaining defect is only UI reconciliation: the polling effect updates `codexLogin` to `completed`, React cleans up that effect, and the nested status request can no longer commit the now-ready Codex status. 1.1.7 therefore keeps login-session polling and completed-runtime reconciliation in separate effects.
+
+**Eraneos source-origin authority remains distinct from lifecycle-health authority.** The operator-triggered exact vacancy probe correctly produces the newer lifecycle state `active_confirmed / exact_detail_url_and_title_confirmed / exact_detail`. That later exact-detail proof must not revoke a reviewed recurring-feed observation whose exact source URL, target binding, provider, employer identity, complete-inventory contract and evidence fingerprint still prove the source is an authorized Employer-Origin. 1.1.7 therefore:
+
+- still requires the selected Personio target to be one of the reviewed bindings;
+- still requires `active_confirmed`;
+- still requires the exact Silver/observation/normalized/job URL binding;
+- still requires `employer_origin_ats_backed_career_site`;
+- still requires `personio-recurring-feed-authority.v1`, the reviewed binding contract, provider/target identity, validated authority, employer identity, complete inventory, evidence fingerprint and `product_authority=false`;
+- no longer requires that this independent feed authority also be the **newest lifecycle-health reason/coverage**.
+
+No arbitrary Personio allowlist is introduced, no inactive target is admitted, and no Product/ranking/submission authority is manufactured.
+
+The next operator gate remains **Eraneos Silver #511 — Data Engineer (all genders)**. On installed 1.1.7 require `Live vacancy verified`, `Employer-Origin authority = Verified`, `ChatGPT connected`, zero application blockers and an enabled **Generate review text** action. The generated CV + letter remain review-first and template-authoritative.
+
+
+### Candidate 1.1.8 — layout-budgeted Codex text before exact rendering
+
+Installed 1.1.7 passes the previous Employer-Origin and ChatGPT connection gates and produces the first real vacancy-specific Codex CV + application-letter draft for Eraneos #511. The exact renderer then correctly blocks the first final-PDF attempt because `p1.competency_profile` does not fit its frozen zone without scaling.
+
+That is expected fail-closed renderer behavior, but generation must respect the frozen layout earlier. 1.1.8 therefore adds conservative text budgets to the Codex schema and prompt:
+
+- CV short profile: at most 520 characters;
+- CV competency profile: at most 180 characters, intentionally compact;
+- application letter: exactly four body paragraphs;
+- each letter paragraph: at most 240 characters.
+
+These limits are content constraints only. They do not grant layout authority and do not replace the renderer. The final renderer still performs exact zone fit plus outside-zone pixel-identity proof and may block any text that does not actually fit.
+
+The review UI also becomes truthful after a failed render: it no longer simultaneously reports `PDF creation blocked` and `Application PDF is ready to build`. While a renderer error is active, the build control is disabled and the surface explicitly asks for text adjustment or regeneration; editing a zone clears the stale renderer error so another exact attempt can be made.
+
+The next operator gate remains Eraneos #511: regenerate review text on 1.1.8 and create the finished application PDF. Acceptance requires 3 pages total (1 application letter + 2 CV pages), no scaling, exact frozen-template geometry, outside-zone pixel identity, human review required, and zero automatic submission/send authority.
+
+
+### Candidate 1.1.9 — renderer-in-the-loop automatic fit, no normal zone editing
+
+The installed 1.1.8 operator run proves the next architectural gap. Static content budgets helped: the prior `p1.competency_profile` overflow is no longer the first failure. But the final exact renderer now rejects `salutation`, and the UI exposes the Advanced zone editor as the manual escape hatch.
+
+That cannot be the normal product contract. Automatic document preparation must include physical template fit, not stop one step before it.
+
+1.1.9 therefore moves the exact renderer fit predicate into the drafting loop:
+
+- generated replacements are preflighted read-only against the exact installed private template bytes;
+- preflight uses the same source-derived font/style, frozen rectangles and strict scale-1.0 rule as final rendering;
+- all overflowing zones are returned as qualified `document_type:zone_id` feedback;
+- Codex receives the exact failing zone identifiers plus the previous overflowing text and rewrites only as much as necessary;
+- the loop is bounded to three total Codex attempts so it cannot consume allowance indefinitely;
+- a review draft reaches the UI only when exact-template preflight reports zero overflow zones;
+- unresolved fit becomes explicit `draft_unavailable / f6_template_fit_unresolved`; there is no deterministic filler and no required manual zone repair;
+- the final export still performs the complete render and outside-zone pixel-identity proof. Preflight is an admission check, not a replacement for final authority.
+
+For salutation overflow specifically, Codex may use a shorter natural grounded salutation. If a personalized salutation cannot fit, a neutral professional salutation is permitted while the verified contact remains in the recipient block. No contact identity may be invented or changed to solve layout.
+
+The Advanced zone editor is retained only as an exceptional human override after review. It is not part of the acceptance path.
+
+The next operator gate remains Eraneos #511: one regeneration action must produce a draft marked `exact_template_preflight_pass`, after which the finished PDF must render directly as 3 pages with no scaling, exact frozen-template geometry, outside-zone pixel identity, human review required, and zero automatic submission/send authority.
+
+
+### Candidate 1.1.10 — split deterministic metadata repair from semantic Codex repair
+
+The installed 1.1.9 operator test still fails closed on Eraneos #511 with `f6_template_fit_unresolved` after the three bounded automatic repair attempts. The UI did not expose the final overflow-zone list, which is itself an observability gap.
+
+Inspection of the 1.1.9 loop shows the deeper problem: all exact-template overflows are sent back to Codex, but several letter zones are not Codex-owned at all. JAP itself deterministically constructs `recipient.block`, `date`, `subject` and `closing.formula`; Codex cannot make those fields shorter no matter how many retries are spent. Salutation is model-produced but also has a safe local fallback when personalization is too wide for the frozen one-line zone.
+
+1.1.10 therefore separates layout repair authority:
+
+- JAP-owned metadata overflows are repaired locally with conservative semantics-preserving variants and immediately re-preflighted against the exact private PDF;
+- salutation overflow falls back to a neutral professional compact form rather than spending another provider request;
+- recipient overflow drops nonessential addressing syntax while keeping verified employer/contact text;
+- subject overflow falls back to the compact exact job title, stripping only trailing diversity markers such as `(all genders)` or `(m/w/d)`;
+- closing/date use shorter conventional formatting only if the exact zone requires it;
+- only `p1.short_profile`, `p1.competency_profile` and application-letter body paragraphs are Codex repair authority;
+- each semantic repair request receives the previous failing value plus a mandatory progressive character target at 65% of the prior length, bounded by the existing minimum-quality schema;
+- unresolved non-Codex zones fail as `f6_template_fit_policy_missing` rather than wasting model calls;
+- unresolved semantic zones still fail as `f6_template_fit_unresolved` after at most three total Codex attempts;
+- UI failure evidence now prints the exact remaining `layout_overflows` and any automatic safe repairs already applied;
+- final render and outside-zone pixel identity remain unchanged and authoritative.
+
+The acceptance path remains intentionally simple: one regeneration action, no Advanced zone editing, then one final PDF creation action. Any normal-path requirement for manual zone work is still a release failure.
+
+
+### Candidate 1.1.11 — quality-first source context, explicit privacy mode, Word companion
+
+The first complete Eraneos output proves the rendering architecture but does not yet meet the accepted Hornet benchmark for application quality. The remaining slice is therefore a Product-quality contract, not another geometry relaxation.
+
+#### Quality-AI source packet and authority
+
+Embedded Codex stays on `gpt-5.6-sol` and is explicitly configured with `model_reasoning_effort="high"`. Each initial drafting request receives all four bounded source classes together:
+
+1. exact current vacancy text — sole target employer/role/requirements/contact authority;
+2. approved Candidate Facts — candidate fact authority;
+3. current CV text — candidate fact plus style reference;
+4. current application-letter text — **style/structure/quality reference only**.
+
+The existing letter's employer, recipient, role, date, salutation and vacancy-specific claims are explicitly stale and have zero authority for the new target. This allows Codex to preserve the accepted Hornet-level voice and narrative density without leaking old application identity into the new application.
+
+#### Edit/layout authority
+
+The normal F6 contract is now explicit:
+
+- pixel-frozen: page geometry, portrait, signature image, rules, colors, graphics and all pixels outside declared editable text zones;
+- JAP-deterministic: recipient block, date, subject and other target metadata are redacted/replaced in their declared zones, never overlaid on top of old text;
+- semantic Codex authority: CV short profile, CV competency profile, salutation and descriptive letter body;
+- preserve-by-default: career history, education, projects, skills and every other non-declared source area;
+- final PDF renderer remains strict scale-1.0 authority and re-proves outside-zone pixel identity.
+
+The CV footer date is now an explicit deterministic zone replacement so a new application cannot retain the old Hornet date. The signature image remains immutable and is never duplicated or overlaid.
+
+Quality drafting may use 4-6 coherent body paragraphs with up to 520 characters each before exact fit. This removes the artificial four-mini-paragraph constraint that degraded the Eraneos narrative. Each returned paragraph must be a complete grammatical thought. Exact-template preflight and bounded semantic compaction remain the physical-fit gate.
+
+#### Privacy choice
+
+Application preparation exposes two explicit modes:
+
+- **Quality AI:** current CV + current letter + exact vacancy are sent to the ChatGPT-authenticated bundled Codex under the authority split above.
+- **Local only:** no CV, letter or vacancy text is sent to an LLM/provider. JAP locally replaces deterministic target/date metadata and preserves descriptive wording; the operator edits semantic zones locally before the same exact renderer/export step.
+
+No API-key fallback, hidden provider call, submission or send authority exists in either mode.
+
+#### No-upload fallback
+
+Missing private CV/letter source material must not leave the user with no useful application artifact. The Application surface offers a local, fillable `.docx` starter containing placeholders for letter, profile, experience, education, projects and skills. It is generated without LLM/provider/network content transfer and explicitly carries **no F6 pixel/template authority**. It is a manual fallback until the user chooses to supply authoritative source documents.
+
+#### Word output
+
+Successful exact F6 export now produces two artifacts from the same final text model:
+
+- verified PDF — canonical layout/pixel authority;
+- editable DOCX companion — local, editable convenience output.
+
+DOCX never becomes template authority because Word can reflow fonts/spacing. It is generated from the final merged F6 zone values after the same source-manifest binding; the verified PDF remains the submission-quality reference.
+
+#### 1.1.11 operator acceptance
+
+Use Eraneos #511 and the accepted Hornet application as quality benchmark. Accept only when:
+
+- audit shows `gpt-5.6-sol`, reasoning `high`, current CV + current letter + exact vacancy;
+- no stale Hornet target identity becomes factual content;
+- letter is coherent, complete and materially vacancy-specific, without malformed joins or truncated sentences;
+- CV adaptation remains bounded and the footer date is current;
+- signature/portrait/graphics/layout stay frozen and final PDF visual-identity proof passes;
+- final package offers verified PDF plus editable Word companion;
+- Local-only mode proves zero provider/LLM requests and remains usable through local manual semantic editing;
+- no-upload flow downloads the fillable provider-free Word starter;
+- all paths remain human-review-only with zero automatic submit/send authority.
+
+
+### Candidate 1.1.12 — exact render/preflight parity + live drafting telemetry
+
+The installed 1.1.11 operator run proves the quality-context redesign. The new Eraneos draft is coherent, concrete and materially closer to the accepted Hornet benchmark, and Local-only mode proves its zero-provider path plus editable Word output.
+
+Two concrete Product defects remain.
+
+#### Final-render parity defect
+
+The Quality-AI generation loop reports exact-template preflight pass, but final PDF export still fails on `p1.competency_profile`.
+
+The cause is deterministic and local. Preflight calls the fit predicate on the pristine source PDF and therefore derives the original zone font size/color/weight. Final rendering previously performed redaction first and then called the same style extractor on the now-empty zone. With no source text remaining, the extractor falls back to generic 9.5pt. A zone authored at a smaller source font can therefore pass preflight and overflow at final insertion.
+
+1.1.12 captures the exact zone HTML/CSS **before redaction** and reuses that captured source style for insertion. Preflight and final rendering therefore share one typography authority. The no-scaling rule, zone geometry, redaction boundary and outside-zone pixel proof are unchanged.
+
+A regression test deliberately returns a much larger fallback font whenever source text has already disappeared; final rendering must still pass and prove that every source-style lookup occurred while pristine source text was present.
+
+#### Drafting progress observability
+
+Quality-AI with `gpt-5.6-sol / high` can take materially longer than local-only preparation. 1.1.11 disabled the button but exposed no activity beyond `Preparing review text…`, which looks indistinguishable from a hung request.
+
+1.1.12 adds a request-bound progress channel over the already-threaded loopback server:
+
+- client creates a bounded request id and starts the normal blocking generation request;
+- a separate read-only progress endpoint exposes current JAP phase, workflow percentage, bounded provider request counter and timestamp;
+- phases include target verification, context binding, provider request, model-output validation, exact-template preflight, bounded provider repair, finalization and completion;
+- UI polls the progress endpoint while the generation POST remains in flight;
+- Product shows **Deine Bewerbungsunterlagen werden erstellt**, current phase message, configured model/reasoning, Provider request `N/3`, elapsed time and a workflow progress bar;
+- the Product explicitly states that this is JAP workflow progress, not invented token-level/model-internal percentage telemetry;
+- progress failures are observability-only and never alter drafting authority or silently retry a provider call.
+
+#### 1.1.12 operator acceptance
+
+On Eraneos #511:
+
+1. Quality AI visibly reports progress during the long Codex operation;
+2. model remains `gpt-5.6-sol` with reasoning `high`;
+3. provider request counter reflects the real bounded calls;
+4. the returned exact-template-preflighted draft creates the final PDF directly;
+5. no `p1.competency_profile` preflight/final-render divergence remains;
+6. verified PDF remains 1 letter + 2 CV pages with outside-zone pixel identity;
+7. editable Word companion remains available;
+8. no Advanced zone editing, submission or send authority is required.
+
+
+### Candidate 1.1.13 — file-build progress, clearer help, and Word companion quality
+
+The real 1.1.12 operator run closes the PDF/render-parity defect. Quality AI visibly progresses through verified workflow phases, bounded provider repair is observable, and the finished Eraneos PDF renders successfully as one letter plus two CV pages. Direct side-by-side rendering against the accepted Hornet source shows the immutable visual template structure remains intact.
+
+The remaining work is therefore Product polish and companion quality rather than PDF authority.
+
+#### Progress/help UX
+
+The Quality-AI progress surface keeps the real phase bar but replaces the implementation-centric sentence about token percentages with concise user help:
+
+- visible text: `Fortschritt basiert auf abgeschlossenen JAP-Arbeitsschritten.`
+- hover/help detail explains that the percentage advances only after a verified JAP phase completes and may remain steady while Codex is generating text.
+
+The final file builder gets its own request-bound progress channel. It reports real local phases for workspace binding, CV rendering/pixel proof, letter rendering/pixel proof, PDF concatenation, Word generation and completion. The UI shows **Deine Bewerbungsdateien werden erstellt**, percentage, current phase and elapsed time. It explicitly states that this is local processing with no provider request.
+
+#### Word companion findings and correction
+
+The 1.1.12 editable DOCX is text-correct in intent but not yet acceptable as a polished convenience artifact:
+
+- real rendering produces five pages instead of the canonical three;
+- the letter spills into an almost empty second page;
+- the two-page CV becomes three pages;
+- source PDF text extraction leaks exact duplicate logical lines in the Alstom entry;
+- PDF-only portrait/signature/graphic identity is intentionally absent, so DOCX remains non-authoritative.
+
+1.1.13 keeps PDF as sole pixel/layout authority but raises Word convenience quality:
+
+- all sections use A4 rather than US Letter for the letter page;
+- typography, margins and paragraph spacing are compacted toward the source PDF density;
+- exact duplicate extraction lines are collapsed only in the Word convenience path;
+- page breaks still encode the intended letter -> CV page 1 -> CV page 2 structure;
+- no change is made to canonical PDF bytes, F6 source authority, submission/send boundaries or the no-LLM Local-only option.
+
+The Codex quality prompt also explicitly rejects mixed-tense profile constructions such as `strukturiere beziehungsweise koordinierte`, observed in the otherwise strong 1.1.12 Eraneos CV adaptation.
+
+#### 1.1.13 operator acceptance
+
+1. Quality-AI help text is concise and the detailed progress semantics are available as hover/help text.
+2. Final PDF/Word creation visibly reports real local progress instead of only disabling the button.
+3. Final PDF remains identical in authority and layout behavior to accepted 1.1.12.
+4. Editable Word opens as a practical approximately three-page companion, with no nearly empty spill page and no duplicated extraction lines.
+5. DOCX remains explicitly non-pixel-authoritative and editable.
+6. No provider request, DB write, application action, submission or send occurs during file building.
+
+
+### Candidate 1.1.14 — generic Employer-Origin authority across Product jobs
+
+The first intentional 1.1.13 cross-job test is an acceptance blocker. Eraneos #511 reaches F6, while other operator-selected current jobs such as Finanz Informatik / Data Platform Engineer and Hannover Re / Software Engineer stop at `employer origin required` despite live vacancy evidence and already-validated Product origin state.
+
+This is not a Codex or template problem. The F6 runtime was incorrectly reusing the **active recurring ingestion-profile registry** as downstream application authority. That makes Product usability depend on source-profile liveness/history and explains why the reviewed Eraneos Personio exception appeared uniquely functional.
+
+1.1.14 moves F6 to the correct source-neutral boundary:
+
+- persisted `origin_validation_status=validated` is the downstream Product statement that employer origin has already passed the approved assessment boundary;
+- lifecycle must still be `active_confirmed` and Product activity must be active;
+- the application target must be a direct absolute HTTPS URL;
+- known discovery/aggregator source families and hosts remain rejected;
+- if current exact observation URL evidence is present it must still match the Silver source URL;
+- active recurring Employer-Origin profiles remain accepted as a stronger upstream proof;
+- reviewed legacy Personio feed authority remains a compatibility fallback only;
+- no provider/company/job-specific allowlist is required for normal F6 use;
+- immediately before generation, the existing exact live-vacancy revalidation remains mandatory, so this change does not weaken current-vacancy truth or create submit/send authority.
+
+The operator gate for 1.1.14 is deliberately **not Eraneos**. Select at least two different current direct Employer-Origin jobs from different source families. Both must reach Ready for drafting without source-specific code. At least one must complete Quality AI -> exact preflight -> 3-page PDF + editable Word. A known aggregator/discovery URL must remain blocked.
+
+### Candidate 1.1.15 — generic semantic validation and safe local repair
+
+Installed 1.1.14 closes the source-specific Employer-Origin blocker: multiple non-Eraneos direct jobs now reach Ready for drafting.
+
+The next cross-job failures prove a separate semantic-validator issue, not Codex capacity:
+
+- Finanz Informatik returns a Codex draft but F6 rejects it as `not specific to the selected target`;
+- Heartbeat AI returns a Codex draft but F6 rejects the salutation as `non-grounded personal salutation`;
+- `/codex-status` remains `ready`, ChatGPT-authenticated, `gpt-5.6-sol / high`.
+
+The specificity predicate was too literal. It required the full persisted company name (for example `Finanz Informatik GmbH & Co. KG`) or the full persisted role title including presentation markers such as `(m/w/d)` to occur verbatim in the body. High-quality human prose naturally uses the employer brand and role without legal/gender suffixes.
+
+1.1.15 therefore makes validation source-neutral and presentation-neutral:
+
+- normalize company identity by removing legal entity suffixes such as GmbH, Co., KG, AG, SE, Ltd/LLC/Inc;
+- normalize role identity by removing gender markers and evaluating meaningful title segments;
+- require at least one grounded employer-brand or role identity in the letter, so truly generic prose still fails closed;
+- explicitly instruct Codex to name the employer brand or target role naturally at least once.
+
+Salutation handling becomes a safe deterministic boundary rather than a provider retry:
+
+- a vacancy-grounded named contact remains authoritative;
+- a grounded employer/team salutation such as `Liebes Heartbeat AI Team,` is allowed;
+- an invented contact is removed from the recipient path and replaced with a generic grounded salutation;
+- an ungrounded personal salutation with no verified contact is replaced locally with `Guten Tag,` or `Dear Hiring Team,`;
+- no new candidate fact, employer fact or submission authority is invented;
+- the audit reports the number of safe local semantic repairs.
+
+#### 1.1.15 operator acceptance
+
+Use at least two non-Eraneos jobs. A successful first Codex response must not be rejected merely because legal suffixes/gender markers are absent from normal prose or because a safe local salutation normalization is possible. Truly generic body text and genuinely invented factual content must remain fail-closed. At least one non-Eraneos job must complete Quality AI -> exact preflight -> PDF + Word export.
+
+### Candidate 1.1.16 — pre-operator adversarial semantic hardening
+
+Before another real provider/operator run, perform one bounded no-provider hardening pass over the new 1.1.15 validator.
+
+Static review identified two classes worth closing before spending another Codex request:
+
+1. **weak identity false positives** — a generic one-token company such as `AI GmbH` could appear target-specific simply because normal technical prose mentioned `AI`; raw substring matching could also allow short-brand collisions;
+2. **contact/salutation divergence** — a contact could be correctly grounded in vacancy evidence while the generated salutation named another person, because the previous validator checked contact grounding but not consistency between the contact and salutation.
+
+1.1.16 hardens these boundaries without widening model authority:
+
+- use normalized token-sequence matching rather than arbitrary substrings;
+- legal suffix stripping remains, but generic company tokens such as AI/IT/Data/Tech/Software/Solutions cannot alone prove target specificity;
+- short distinctive brands such as IAV remain valid specificity evidence;
+- generic one-word role titles such as Engineer/Developer/Consultant do not alone prove target specificity;
+- multi-token target roles remain valid after gender/presentation normalization;
+- grounded contact names are matched against vacancy evidence by normalized tokens so `Krzeminski, Paulina` can ground `Paulina Krzeminski`;
+- when a grounded contact exists, the salutation must either mention that contact or be an approved generic salutation;
+- a salutation that names a different person is deterministically replaced with the generic language-appropriate form and reported as a safe semantic repair;
+- no provider retry is introduced by this hardening.
+
+The adversarial regression matrix includes generic AI company collisions, short distinctive brands, token-boundary collisions, legal suffix normalization, role-marker normalization, grounded company-team salutations, reordered contact names, mismatched named-contact salutations and generic fallback salutations.
+
+#### 1.1.16 operator acceptance
+
+Only after this test matrix and full Product gates are green should another real Codex operator run be spent. The real acceptance remains non-Eraneos: at least one new direct Employer-Origin job must complete Quality AI -> exact template preflight -> final PDF + Word, and a second independent job must at minimum reach a valid review draft or expose a genuinely new generic failure class.
+
+### Candidate 1.1.17 — source-neutral vacancy-title verification + drafting polish
+
+A blind 1.1.16 test finally produces both a positive and a negative previously unseen job.
+
+Positive: enercity / **Operation Expert Process, Data und Automation** reaches Ready for drafting, completes Quality AI and renders the intended 3-page package without an Eraneos-specific path.
+
+Negative: Hannover Re / **Software Engineer Workflow and Process Automation** stops before drafting with `vacancy_title_not_confirmed_on_detail_page`.
+
+The negative case exposes an exact-detail verification overfit. The lifecycle gate currently compares the entire normalized Silver title as one literal substring of the fetched response. Equivalent presentation variants such as `and` vs `&`, appended gender markers, or title content exposed only through an H1/title/JSON field or the concrete job URL can therefore fail despite the exact URL remaining the same job.
+
+1.1.17 keeps the current fail-closed lifecycle boundary but changes title confirmation to a source-neutral multi-signal identity check:
+
+- normalize presentation-only connector and gender-marker tokens;
+- inspect explicit title-bearing HTML/JSON surfaces rather than granting authority from arbitrary listing-page body text;
+- preserve exact URL-identity, closure-marker and HTTP-status checks unchanged;
+- expose `title_match_mode` in evidence for operator diagnostics;
+- a generic careers page that merely lists the vacancy in body content remains unverifiable.
+
+The blind enercity application also becomes a quality benchmark rather than a special case. Prompt quality rules now discourage boilerplate openings, unnecessary employer-name repetition and paragraphs that merely restate the same quality/process claim.
+
+#### 1.1.17 acceptance
+
+1. Hannover Re-like title variants using `&` vs `and` and gender markers must verify generically without source-specific code.
+2. Generic careers/listing pages must remain fail-closed.
+3. URL slugs remain identity context only and never prove a vacancy title by themselves.
+4. A new blind job should still complete through Quality AI and exact PDF/Word generation.
+5. Existing Employer-Origin, no-submit/no-send and template pixel boundaries remain unchanged.
+
+## Explicit non-goals
+
+- no alternate template chooser;
+- no free-form layout generation;
+- no DOCX as template authority;
+- no automatic page reflow;
+- no automatic application submit;
+- no automatic email send;
+- no silent replacement of the canonical templates.

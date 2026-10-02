@@ -30,8 +30,8 @@ def _write_required_docs(root: Path) -> None:
         "docs/decisions/adr_status_table.md",
         "docs/decisions/adr/033_define_search_intelligence_safety_security_boundaries.md",
         "docs/planning/active/README.md",
-        "docs/archive/planning/doc001j_link_reference_check.md",
-        "docs/archive/source-analysis/stepstone_company_discovery_cycle.md",
+        "docs/reference/documentation/hardcut-20261002.json",
+        "scripts/check_classic_documentation_truth.py",
     ]
     for relative_path in required_files:
         path = root / relative_path

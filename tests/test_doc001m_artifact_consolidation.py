@@ -33,7 +33,7 @@ def test_doc001m_root_readme_keeps_planning_and_archive_separate() -> None:
     text = read("README.md")
 
     assert "| `docs/planning/` | Active planning only. |" in text
-    assert "| `docs/archive/` | Historical documentation and replaced artifacts. |" in text
+    assert "| `docs/archive/` | Historical machine/code evidence; obsolete prose is in Git history. |" in text
     assert "| `docs/archive/planning/` | Active planning only." not in text
 
 

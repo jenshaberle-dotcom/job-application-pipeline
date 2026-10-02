@@ -54,16 +54,6 @@ def test_doc001j_current_repository_has_no_unresolved_documentation_references()
     assert report.status_counts.get("missing_reference", 0) == 0
 
 
-def test_doc001j_planning_log_and_archive_controls_explain_the_guard() -> None:
-    planning = _read("docs/archive/planning/doc001j_link_reference_check.md")
-    archive_status = _read("docs/archive/documentation_path_status.md")
-    docs_readme = _read("docs/README.md")
-
-    for text in [planning, archive_status, docs_readme]:
-        assert "scripts/check_documentation_references.py" in text
-
-    assert "unresolved_count=0" in planning
-    assert "No mass archive move" in planning
 
 
 def test_doc001j_ignores_dependency_markdown_below_node_modules(tmp_path: Path) -> None:

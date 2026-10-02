@@ -39,10 +39,6 @@ Validation remains read-only:
 
 ## Relationship to continuation
 
-Until MCP reaches sufficient maturity, continuation across chats still requires a
-fresh full-repository ZIP and direct repository inspection.
-
-After MCP maturity is demonstrated, MCP-backed repo/DB state inspection replaces
-the temporary full-ZIP bridge.
-
-The retired chat-continuation mechanism does not return.
+Continue through current repository, branch, PR and check inspection. Use explicitly
+allowed read-only runtime evidence when deployment/product facts matter. Repository ZIPs
+are optional inspection material; generated chat/NEXT restarts are never steering authority.

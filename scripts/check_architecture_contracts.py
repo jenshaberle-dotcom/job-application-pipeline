@@ -33,7 +33,7 @@ def main() -> int:
         Path("docs/current/pipeline.md"),
         Path("docs/reference/scoring-and-gates/gate_contract_baseline.md"),
         Path("docs/reference/security/search_intelligence_security_baseline.md"),
-        Path("docs/archive/planning/architecture_freeze_maturity_campaign.md"),
+        Path("docs/current/engineering_principles.md"),
         Path("docs/decisions/adr/033_define_search_intelligence_safety_security_boundaries.md"),
     ]
     missing_docs = [str(path) for path in required_docs if not path.exists()]

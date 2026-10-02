@@ -1,57 +1,56 @@
-# Operator Runbook
+# Operator runbook
 
-Status: Current Truth
-Boundary: Local operation / recovery
+Use the [Windows guide](jap_control_center_windows_app.md) for an installed app and
+[development workflow](development-workflow.md) for repository changes.
 
-## Standard workflow
+## Start and inspect
 
-Use `development-workflow.md` for commit, PR, merge and cleanup blocks.
+The installed Windows host reads `current.json` and runs the immutable product bundle
+through its WSL bridge. Private `.env`, approved documents and PostgreSQL remain local.
+Use the app's installed identity and `/app-info.json` to inspect `source_revision`;
+a checkout's version file does not identify the running application.
 
-The former chat-continuation/NEXT restart path is retired. Do not create or
-trust generated chat-continuation artifacts as project truth.
+For source-development operation, inspect the launcher contract before starting:
 
-Current continuation rule:
+```bash
+sed -n '1,160p' scripts/run_jap_windows_control_center.sh
+```
 
-1. Directly inspect repository state.
-2. Use fresh full-repository ZIP review as the temporary bridge while MCP is not mature.
-3. Replace ZIP review only after MCP-backed repo/DB state inspection is proven reliable.
-4. Never reintroduce generated chat-continuation artifacts as steering.
+The interactive product endpoint is `127.0.0.1:8780`. A remote demo requires its own
+explicit access and privacy boundary; it is not the standard installed topology.
 
-## Validation
+## Update and recovery
 
-Before commit or PR readiness:
+Let the installed updater stage and verify immutable assets before consent. If an update
+fails, retain logs, `current.json` and the pending/accepted target identity. The updater
+owns rollback of desktop, runtime and install metadata together. Do not repair an installed
+release by fetching new code into its immutable runtime directory.
+
+Use `Stop-JAP-Control-Center.ps1` for the installed stop path. Verify process/runtime identity
+before restarting; a slow response alone does not prove a failed process.
+
+## Product actions
+
+Read-only inspection does not authorize activation, provider calls or DB apply. The generic
+assessment command exposes its actual current options through:
+
+```bash
+python scripts/run_product_v1_assessment_cohort.py --help
+```
+
+Review selected jobs, targets, effect boundaries and current DB evidence before using apply.
+A result proves acceptance only when its normal product postconditions pass. Do not infer a
+filled Top 5 from a published package or an old cohort report.
+
+## Validation and unknown state
 
 ```bash
 python scripts/run_validate001_unified_validation.py --profile commit
 ```
 
-## Recovery
+Classify missing evidence as `unknown`, `stale`, `inconsistent` or `needs_inspection`.
+Preserve failure evidence and change a relevant precondition before retrying.
+`exports/` is review output only, never pipeline input or restart authority.
 
-If state is unclear, stop and classify it as one of:
-
-- `unknown`
-- `stale`
-- `inconsistent`
-- `needs_inspection`
-
-Do not infer a clean state from missing evidence.
-
-## Export boundary
-
-`exports/` is review output only. Export artifacts must not become pipeline input,
-gate input, activation prerequisite, restart truth or source of truth.
-
-## PR merge safety note
-
-Manual `<PR_NUMBER>` replacement is intentionally avoided. Use the canonical
-development workflow in `development-workflow.md`, which derives the pull request
-number from the current branch with `gh pr view --json number --jq '.number'`.
-
-Retired chat-continuation or handover artifacts must not be used as restart
-truth or next-work steering.
-
-## PR number handling
-
-The phrase manual `<PR_NUMBER>` replacement is kept here only as a governance
-test anchor: manual replacement is explicitly avoided. Use
-`development-workflow.md`, which derives the PR number from the current branch.
+PR merging uses the canonical workflow, which derives the PR identity from the branch;
+manual `<PR_NUMBER>` replacement is avoided. No ZIP/chat handoff is required to inspect a repo.

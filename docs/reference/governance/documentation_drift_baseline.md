@@ -1,121 +1,31 @@
-# DOC-002 Documentation Drift Baseline
+# Documentation evidence baseline
 
-## Purpose
+Status: maintained rule after the 2026-10-02 Classic hardcut.
 
-This document records the current documentation drift baseline and the immediate correction strategy.
+## Authority and labels
 
-It is intentionally not the full Adrian/product-polish documentation campaign. It is the minimum truth-restoration layer required before the next large Search Intelligence mutation.
-
----
-
-## Current Assessment
-
-As of 2026-06-07, the documentation drift is material.
-
-The project has moved faster than the narrative in several areas:
-
-- Search Intelligence has grown from a concept into a multi-agent operating layer.
-- Employer-origin discovery, URL finding, recovery, gates, connector generation and Control Center flows now interact.
-- StepStone Discovery Iteration Closure / Wave Search Intelligence exists in code and tests, but its operational effectiveness still needs validation.
-- Candidate reprocessing exists as a conservative dry-run-first benchmark, but the next validation campaign still needs a consolidated metrics frame.
-- Governance rules emerged through real project work and chat handoffs, but were not yet represented as a repo-level operating model.
-
-Documentation drift is therefore classified as **PDI-3** until the current-state docs are reconciled.
-
----
-
-## Immediate Correction Strategy
-
-DOC-002 is not a rewrite of all documentation.
-
-It should establish a reliable baseline by making the following visible:
-
-| Area | Current Truth Required |
+| Claim | Required basis |
 |---|---|
-| Governance | The lightweight checks are now repo-level rules, not chat-only habits. |
-| Search Intelligence | Current state must show what is implemented, unvalidated, stuck or planned. |
-| Wave Search Intelligence | Must be described as built/partly tested, but not yet operationally proven. |
-| Candidate Reprocessing | Must be documented as the next validation block, not a permanent workaround. |
-| URL Finder | Must expose selected, alternative and rejected URL evidence with confidence. |
-| Scheduler/Orchestrator | Must not be presented as fully solved until operational validation exists. |
-| Large design polish | Deferred until after the validation block produces stable truth. |
+| Desired behavior | Explicit operator decision/accepted product contract |
+| Implemented | Current code/configuration; distinguish open PR proposals |
+| Tested | Validation on the exact changed source |
+| Operationally validated | Fresh identified live runtime/data evidence |
+| Planned | Explicit future proposal; no implementation/effect claim |
+| Historical | Dated evidence; no current priority or execution instruction |
 
----
+A published package is not installed identity. A test pass is not live coverage/Top 5.
+A workflow is not fleet execution proof. Superseded plans are removed; accepted constraints
+are retained as reference with their original evidence scope.
 
-## Required Current-State Labels
+## Maintenance
 
-Use these labels consistently in documentation:
+Update the current narrative with the code change. Keep current product, architecture,
+execution and operator guides aligned. Do not add a second active roadmap or retain an
+old outage/branch snapshot as permanent re-entry authority.
 
-| Label | Meaning |
-|---|---|
-| Implemented | Code exists and the expected local tests pass. |
-| Tested | Unit/integration tests cover the relevant behavior. |
-| Operationally validated | The behavior has been observed working in realistic project data. |
-| Built but unvalidated | Code/tests exist, but practical effectiveness is not proven yet. |
-| Planned | Design target exists, no reliable implementation yet. |
-| Historical burden | Data or behavior exists for history/learning, not current product truth. |
-| Deprecated | Should not guide future implementation except for migration/cleanup context. |
+Run path, documentation-architecture, ADR and Classic truth checks. They complement review:
+valid links do not establish valid semantics. Historical archives remain outside current
+steering and must identify their original date/status.
 
----
-
-## Current Drift Hotspots
-
-### 1. Search Intelligence Current State
-
-The current-state narrative must include the operational funnel:
-
-```text
-Market Sensors
-→ Candidate Promotion / Türsteher
-→ URL Finder
-→ Evidence Gates
-→ Connector Build Candidate
-→ Bronze / Silver / Gold
-→ UI / Operations
-```
-
-The older vocabulary-only flow is no longer sufficient as the main operational description.
-
-### 2. Wave Search Intelligence
-
-Wave Search Intelligence / StepStone Discovery Iteration Closure must be shown as:
-
-- implemented,
-- covered by first tests,
-- intended to temporarily suppress known companies to expose new companies,
-- not yet proven as effective in the running scheduler/orchestration path.
-
-### 3. Candidate Reprocessing
-
-EO-002B should be documented as the next validation campaign:
-
-**EO-002B Candidate Reprocessing & URL Finder Validation**
-
-It uses a controlled guest-list approach to validate whether stuck candidates can progress with the current URL Finder and gates before changing Türsteher logic.
-
-### 4. Governance
-
-System Impact Check, Project Drift Index, Lessons Learned Check, White Whale Backlog, Conversation Health Check and Reflection Pass must be treated as reusable project rules.
-
-### 5. Large Documentation Campaign
-
-The large Adrian-quality documentation/design pass remains important, but it should follow the next validation block. Otherwise it risks polishing an unvalidated intermediate state.
-
----
-
-## Done Criteria for DOC-002
-
-DOC-002 is sufficient when:
-
-- governance docs exist and are linked,
-- README points to governance and current-state docs,
-- Search Intelligence current state has a current operational snapshot,
-- roadmap shows the immediate sequence:
-  - DOC-001/DOC-002,
-  - EO-002B,
-  - metrics decision report,
-  - Wave/Scheduler validation,
-  - large documentation/design polish,
-- tests guard the presence of the new baseline documents.
-
-DOC-002 is not expected to fix every historical source-analysis note.
+ARCH-001-SAFETY-SECURITY-STATE, DOC-001 and DOC-002 identify continuing safety/governance
+maintenance responsibilities, not the old June 2026 implementation sequence.

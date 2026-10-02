@@ -30,9 +30,9 @@ They may be used only as hints for direct inspection.
 
 Retired chat-continuation artifacts remain abolished as a steering mechanism.
 
-Until MCP reaches sufficient maturity, continuation in a new chat requires a fresh full repository ZIP export and direct repository inspection. This is a temporary bridge, not a permanent process.
-
-After MCP maturity is demonstrated, MCP-backed repo/DB state inspection replaces full-ZIP review. The retired chat-continuation mechanism does not return.
+Continue through direct Git/repository inspection and available read-only connector evidence.
+A repository ZIP is optional inspection material, not a prerequisite. Historical generated
+restart files, chat and exports remain hints only, never steering authority.
 
 ## MCP-001 externalization rule
 
@@ -119,7 +119,7 @@ truth, not a pipeline input, not a gate pass and not a Gold metric.
 ## PLAN-001 reference file
 
 The canonical PLAN-001 planning document is
-`docs/planning/active/future_readiness_and_assumption_governance.md`.
+`docs/reference/product-contract/retained/future_readiness_and_assumption_governance.md`.
 
 This reference is retained as an active governance anchor. It does not restore
 chat handover, NEXT steering or export-based project truth.

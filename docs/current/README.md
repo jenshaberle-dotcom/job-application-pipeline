@@ -1,51 +1,13 @@
-# JAP current truth
+# Current JAP Classic system
 
-This directory contains current authority only. Historical incidents belong in Git history, not in active sequencing text.
+Read [product](product.md), [architecture](architecture.md), [pipeline](pipeline.md),
+[execution](ci-max-execution.md) and [operations](operations.md).
 
-## Product focus
+These files describe maintained contracts. [REENTRY](REENTRY.md) distinguishes inspected
+repository state from unverified runtime state. Date-bound counts, old demo gates and past
+campaign sequences do not belong in this directory as current priorities.
 
-JAP Classic turns verified Employer-Origin vacancies into trusted Product jobs:
-
-```text
-Market discovery
-→ Employer-Origin verification
-→ Bronze
-→ Silver
-→ Product assessment / Candidate Fit
-→ ranking authority
-→ Top 5
-→ application preparation / tracking
-```
-
-For the 1.2.2 product gate:
-
-- Sources must expose the seven current market-discovery sensors through verified evidence;
-- at least 10 current Employer-Origin jobs must have evidence-complete Candidate Fit decisions;
-- at least 5 must pass the normal Product gates and become rankable;
-- authoritative Top 5 must contain exactly 5 jobs;
-- Candidate Fit and Affinity remain separate authorities;
-- no job/company-specific demo bypass is allowed.
-
-## Execution authority
-
-JAP does **not** allocate runners.
-
-The only supported workload path is:
-
-```text
-JAP workload demand → RCC → reserved Warm-Pool member → exact assignment → JAP workload target
-```
-
-RCC owns physical selection, reservation, exact facade activation, ephemeral assignment labels, dispatch verification and cleanup.
-
-JAP must not contain project-owned runner pools, broad self-hosted labels, fixed physical-runner selection, heartbeat routing, hosted fallback routing or local scheduler substitutes.
-
-See `ci-max-execution.md`.
-
-## Runtime / desktop
-
-The installed Windows product remains product-local and immutable. Desktop/runtime update authority stays in the product updater code and release assets. Building/publishing the next release must itself be reintroduced as an RCC-assigned workload; the previous repository-owned runner workflow is not authority.
-
-## Re-entry
-
-Read `REENTRY.md` for the exact current engineering gate.
+Classic's installed product remains usable during the Cloud parity/migration phase.
+The target is Cloud as the sole normal product path after acceptance, rather than parallel
+Classic and Cloud feature development. A documentation update does not retire an installation
+or prove Cloud parity.
