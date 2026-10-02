@@ -17,6 +17,7 @@ ACTIVE_F6_AUTHORITY_PATHS = (
     "src/search_intelligence/product_v1_codex_application_adapter.py",
     "scripts/product_v1_application_workspace_runtime_quality.py",
     "scripts/product_v1_application_workspace_runtime.py",
+    "scripts/run_product_v1_demo_preflight.py",
     "scripts/run_product_v1_live_demo.py",
     "scripts/run_product_v1_demo_workspace_probe.py",
     "frontend/control-center/src/ApplicationWorkspace.tsx",

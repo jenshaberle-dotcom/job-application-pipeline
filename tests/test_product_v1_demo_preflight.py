@@ -92,11 +92,10 @@ def _report(tmp_path: Path, payload: dict[str, object]) -> dict[str, object]:
         candidate_fact_readiness=_facts(),
         database_schema_readiness=_schema(),
         frontend_dist=tmp_path,
-        openai_key_present=True,
     )
 
 
-def test_pass_requires_real_top_job_sources_facts_docs_frontend_and_provider_key(
+def test_pass_requires_real_top_job_sources_facts_docs_and_frontend(
     tmp_path: Path,
 ) -> None:
     report = _report(tmp_path, _payload())
@@ -159,13 +158,12 @@ def test_missing_candidate_facts_and_base_letter_fail_closed(tmp_path: Path) -> 
         candidate_fact_readiness=facts,
         database_schema_readiness=_schema(),
         frontend_dist=tmp_path,
-        openai_key_present=False,
     )
 
     assert report["state"] == "blocked"
     assert "candidate_fact_profile" in report["blocking_gates"]
     assert "base_application_letter" in report["blocking_gates"]
-    assert "draft_provider_key" in report["blocking_gates"]
+    assert "draft_provider_key" not in report["blocking_gates"]
 
 
 def test_missing_ranking_migration_is_explicit_schema_frontier_blocker(
@@ -194,7 +192,6 @@ def test_missing_ranking_migration_is_explicit_schema_frontier_blocker(
         candidate_fact_readiness=_facts(),
         database_schema_readiness=schema,
         frontend_dist=tmp_path,
-        openai_key_present=True,
     )
 
     assert report["state"] == "blocked"
