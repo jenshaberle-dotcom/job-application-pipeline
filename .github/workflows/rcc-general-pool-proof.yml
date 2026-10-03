@@ -32,10 +32,14 @@ jobs:
       RCC_ASSIGNMENT_LABEL: ${{ inputs.rcc_assignment_label }}
       RCC_REPOSITORY_ID: "1230805345"
       RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}/rcc-workload-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.source_sha }}
+          path: rcc-workload-${{ github.run_id }}-${{ github.run_attempt }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -46,10 +50,16 @@ jobs:
           if ($env:RUNNER_NAME -ne $env:RCC_EXPECTED_FACADE) { throw 'RCC facade mismatch' }
           if ($env:RCC_ASSIGNMENT_LABEL -notmatch '^rcc-assignment-proof-[0-9a-f]{32}$') { throw 'RCC assignment label invalid' }
           if ($env:SOURCE_SHA -notmatch '^[0-9a-f]{40}$') { throw 'source SHA invalid' }
-          if ((git rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'exact source mismatch' }
+          $actualSource = & git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Source identity lookup failed' }
+          if ([string]$actualSource -ne $env:SOURCE_SHA) { throw 'exact source mismatch' }
           if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 fleet baseline missing' }
-          if ((& node -p "process.versions.node.split('.')[0]").Trim() -ne '22') { throw 'Node 22 capability missing' }
-          if (-not ((& dotnet --list-sdks) -match '^8\.')) { throw '.NET 8 capability missing' }
+          $nodeMajor = & node -p "process.versions.node.split('.')[0]"
+          if ($LASTEXITCODE -ne 0) { throw 'Node capability probe failed' }
+          if ([string]$nodeMajor -ne '22') { throw 'Node 22 capability missing' }
+          $dotnetSdks = & dotnet --list-sdks
+          if ($LASTEXITCODE -ne 0) { throw '.NET capability probe failed' }
+          if (-not ($dotnetSdks -match '^8\.')) { throw '.NET 8 capability missing' }
           $contextFile = if ($env:RCC_RUNTIME_CONTEXT_FILE) { $env:RCC_RUNTIME_CONTEXT_FILE } else {
             Join-Path $env:USERPROFILE ".config\DeepOceanInfrastructure\RCC\runtime-contexts\$($env:RCC_REPOSITORY_ID)-$($env:RUNNER_NAME).json"
           }
@@ -62,6 +72,9 @@ jobs:
           if ([string]$context.Status -ne 'PASS') { throw 'runtime context is not PASS' }
           $python = [string]$context.Interpreter
           if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'qualified Python missing' }
+          $verifiedPython = & $python scripts/resolve_rcc_runtime_context.py $contextFile $env:RCC_REPOSITORY_ID $env:RCC_REPOSITORY $env:RUNNER_NAME $env:SOURCE_SHA windows
+          if ($LASTEXITCODE -ne 0) { throw 'Exact-source RCC Windows runtime verification failed' }
+          if (@($verifiedPython).Count -ne 1 -or [string]$verifiedPython -ne $python) { throw 'RCC interpreter projection mismatch' }
           "JAP_PROOF_PYTHON=$python" >> $env:GITHUB_ENV
 
       - name: Prove source hardcut contract
@@ -69,3 +82,16 @@ jobs:
         run: |
           & $env:JAP_PROOF_PYTHON -m pytest -q tests/test_warm_pool_only_runner_authority.py
           if ($LASTEXITCODE -ne 0) { throw 'RCC source hardcut proof failed' }
+
+      - name: Delete ephemeral Windows candidate
+        if: always()
+        working-directory: ${{ runner.temp }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sourceRoot = Join-Path $env:GITHUB_WORKSPACE "rcc-workload-$($env:GITHUB_RUN_ID)-$($env:GITHUB_RUN_ATTEMPT)"
+          if (Test-Path -LiteralPath $sourceRoot) {
+            Remove-Item -LiteralPath $sourceRoot -Recurse -Force
+          }
+          if (Test-Path -LiteralPath $sourceRoot) { throw 'Ephemeral Windows candidate cleanup failed' }
+          Write-Host 'JAP_WINDOWS_WORKSPACE_CLEANUP=PASS'
