@@ -83,7 +83,7 @@ def test_windows_release_stops_on_each_failed_validation_before_packaging() -> N
         "& $env:JAP_RELEASE_PYTHON scripts/validate_ci_contract.py",
         "& $env:JAP_RELEASE_PYTHON scripts/check_documentation_references.py",
         "& $env:JAP_RELEASE_PYTHON scripts/check_documentation_architecture.py",
-        "& $ruff check . --select E4,E7,E9,F --ignore E402",
+        "& $env:JAP_RELEASE_PYTHON -m ruff check . --select E4,E7,E9,F --ignore E402",
         "& $env:JAP_RELEASE_PYTHON -m pytest -q",
         "npm install --prefix frontend/control-center --no-audit --no-fund",
         "npm run build --prefix frontend/control-center",

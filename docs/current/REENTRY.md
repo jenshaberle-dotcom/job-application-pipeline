@@ -1,6 +1,6 @@
 # JAP Classic engineering re-entry
 
-Inspected: 2026-10-02. Repository ID: `1230805345`.
+Updated: 2026-10-03. Repository ID: `1230805345`.
 Baseline before this documentation hardcut: `effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1`.
 This is a dated inspection record, not a lock on a moving `main`.
 
@@ -16,10 +16,19 @@ This is a dated inspection record, not a lock on a moving `main`.
 - Current drafting adapter defaults to `gpt-5.6-sol`. PR #1160 proposes a GPT-6.1 change;
   it was open at inspection and is not implementation truth on this baseline.
 
+## Accepted Linux proof
+
+JAP PR #1163 merged as `092c96d4241d8a4224dd4fedef00a6ad7bf1d43f` after
+[run 37115262842](https://github.com/jenshaberle-dotcom/job-application-pipeline/actions/runs/37115262842)
+passed all 3,923 tests, contracts and Ruff on its exact candidate. RCC reported terminal
+success, candidate/runtime-context cleanup, zero listeners and the expected disabled
+facade state. Reviewed wheel acquisition and runtime reuse work without manual exports.
+Windows consumer preparation does not imply Windows live acceptance; see the
+[current execution gate](ci-max-execution.md).
+
 ## Evidence still required
 
-This inspection does not establish installed version, live database/Top-5 state, successful
-RCC production execution, physical legacy-runner retirement or Cloud parity. Obtain exact-source
+This inspection does not establish installed version, live database/Top-5 state, Windows RCC production execution, physical legacy-runner retirement or Cloud parity. Obtain exact-source
 run/job evidence and current runtime identity before making those claims.
 
 The 10→5 cohort is reusable product validation. Its result must meet normal Fit, hard-filter

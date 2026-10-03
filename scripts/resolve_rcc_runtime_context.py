@@ -1,19 +1,21 @@
-"""Read the RCC Demand-v2 Linux runtime projection; no runner lifecycle effects."""
+"""Read an exact-source RCC runtime projection; no runner lifecycle effects."""
 from __future__ import annotations
 
 import json
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
 def resolve(context: dict, *, repository_id: int, repository: str,
-            runner: str, source_sha: str) -> str:
+            runner: str, source_sha: str, platform: str = "linux-wsl") -> str:
+    if platform not in {"linux-wsl", "windows"}:
+        raise ValueError("unsupported RCC runtime platform")
     expected = {
         "RepositoryId": repository_id,
         "Repository": repository,
         "RunnerName": runner,
-        "Platform": "linux-wsl",
+        "Platform": platform,
         "SourceSha": source_sha,
         "Status": "PASS",
     }
@@ -30,20 +32,25 @@ def resolve(context: dict, *, repository_id: int, repository: str,
         raise ValueError("RCC runtime profile hash invalid")
     interpreter = context.get("Interpreter")
     if (not isinstance(interpreter, str) or not interpreter
-            or any(character in interpreter for character in "\r\n")
-            or not Path(interpreter).is_absolute()):
+            or any(character in interpreter for character in "\r\n\0")
+            or not (PureWindowsPath(interpreter) if platform == "windows"
+                    else PurePosixPath(interpreter)).is_absolute()):
         raise ValueError("RCC runtime interpreter must be an absolute single-line path")
     return interpreter
 
 
 def main() -> int:
     try:
-        path, repository_id, repository, runner, source_sha = sys.argv[1:]
+        arguments = sys.argv[1:]
+        if len(arguments) not in {5, 6}:
+            raise ValueError("expected context, repository ID/name, runner, source and optional platform")
+        path, repository_id, repository, runner, source_sha = arguments[:5]
+        platform = arguments[5] if len(arguments) == 6 else "linux-wsl"
         context = json.loads(Path(path).read_text(encoding="utf-8"))
         if not isinstance(context, dict):
             raise ValueError("RCC runtime projection must be an object")
         print(resolve(context, repository_id=int(repository_id), repository=repository,
-                      runner=runner, source_sha=source_sha))
+                      runner=runner, source_sha=source_sha, platform=platform))
     except (OSError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
