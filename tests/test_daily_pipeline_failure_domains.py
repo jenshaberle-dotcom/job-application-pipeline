@@ -292,7 +292,7 @@ def test_runtime_consumers_no_longer_guess_pipeline_checkout() -> None:
     assert "RCC_CONTEXT_FILE" in daily
     assert "RCC_ASSIGNMENT_LABEL" in daily
     assert "rcc-assignment-proof-[0-9a-f]{32}" in daily
-    assert "rcc-general-linux-0" not in daily
+    assert ("rcc-general-linux-" + "0") not in daily
     assert ("job-" + "pipeline-runtime-linux") not in daily
     assert "RUNTIME_PYTHON" in daily
     assert "ensure_pinned_local_oss_runtime.sh" in daily

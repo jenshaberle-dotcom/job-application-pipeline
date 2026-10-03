@@ -253,3 +253,23 @@ def test_workflow_references_do_not_reanimate_deleted_execution_paths() -> None:
 def test_pool_proof_fails_the_step_when_hardcut_tests_fail() -> None:
     proof = (WORKFLOWS / "rcc-general-pool-proof.yml").read_text()
     assert "pytest -q tests/test_warm_pool_only_runner_authority.py\n          if ($LASTEXITCODE -ne 0) { throw 'RCC source hardcut proof failed' }" in proof
+
+
+def test_consumer_has_no_fleet_cardinality_or_rcc_source_binding() -> None:
+    forbidden = re.compile(
+        r"\b(?:desired_" + r"count|runner_" + r"count|fleet_" + r"size|physical_" + r"members|consumer_" + r"facades)\b"
+        + r"|\brcc_(?:source_" + r"sha|" + r"sha|main_" + r"sha)\b"
+        + r"|rcc-general-(?:linux|windows)-[0-9]+(?:--[a-z0-9-]+)?", re.I
+    )
+    self_path = Path(__file__).resolve()
+    offenders = []
+    for path in _text_files():
+        if path == self_path:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeError:
+            continue
+        if forbidden.search(text):
+            offenders.append(str(path.relative_to(ROOT)))
+    assert offenders == []
