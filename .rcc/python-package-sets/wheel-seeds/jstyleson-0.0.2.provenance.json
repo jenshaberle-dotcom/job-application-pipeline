@@ -1,0 +1,17 @@
+{
+  "package": "jstyleson",
+  "version": "0.0.2",
+  "upstream": "https://pypi.org/project/jstyleson/0.0.2/",
+  "source_filename": "jstyleson-0.0.2.tar.gz",
+  "source_sha256": "680003f3b15a2959e4e6a351f3b858e3c07dd3e073a0d54954e34d8ea5e1308e",
+  "wheel_filename": "jstyleson-0.0.2-py3-none-any.whl",
+  "wheel_sha256": "b82c3453d5622b029ed1693cba3c91896eb31dfa26e0299e3fb763b6938fcae0",
+  "source_changes": false,
+  "build": {
+    "python": "3.12.14",
+    "setuptools": "84.0.0",
+    "wheel": "0.48.0",
+    "source_date_epoch": 946684800,
+    "command": "python -m pip wheel --no-deps --no-build-isolation jstyleson-0.0.2.tar.gz"
+  }
+}

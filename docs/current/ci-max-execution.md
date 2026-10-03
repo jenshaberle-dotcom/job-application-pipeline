@@ -75,3 +75,20 @@ Workflow/config presence proves repository integration only. Live acceptance req
 identity, assigned General Pool member, correct runtime, result and cleanup evidence. Retire
 physical legacy runners through RCC only after replacement proof; never infer retirement from
 absence of an old label in JAP.
+
+## Source activation and first live proof
+
+The consumer hardcut is merged in JAP PR #1162
+(`19e8a84011ab34983ff95abdc63fb4bdb26d5b42`). RCC PR #734
+(`efd8b49210f5855d30c0946c4de14d2d1e24f97e`) adds the matching CI catalog entry.
+These merges establish source integration, not live host acceptance.
+
+The first proof candidate changes this activation record only and preserves the
+merged demand, workflow and runtime contract. Run it through the existing RCC
+controller using its exact repository and PR filters after adopting current RCC source.
+Preserve request state and consumed authority markers. Do not reinstall the broker
+for this catalog-only change, manually choose a physical member or fabricate labels.
+
+Acceptance requires the linked GitHub run, exact candidate SHA, RCC-assigned
+facade and runtime, passing full validation and the executor's terminal cleanup evidence.
+Until those are recorded, the first live JAP Linux proof remains pending.

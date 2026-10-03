@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import subprocess
 
+import pytest
+
 
 SCRIPT = Path("scripts/run_daily_pipeline.sh").resolve()
 LOCAL_OSS_PROVISIONER = Path("scripts/ensure_pinned_local_oss_runtime.sh").resolve()
@@ -144,6 +146,11 @@ def _run_daily(
         context_file.write_text(json.dumps(context, indent=2), encoding="utf-8")
 
     env = os.environ.copy()
+    # These subprocess tests own a simulated assignment and runtime context.
+    # A real RCC CI assignment must not override that fixture.
+    for name in tuple(env):
+        if name.startswith("RCC_"):
+            env.pop(name)
     env.update(
         {
             "HOME": str(home),
@@ -181,6 +188,22 @@ def _run_daily(
     assert len(logs) == 1
     log_text = logs[0].read_text(encoding="utf-8")
     return completed, calls, log_text
+
+
+def test_daily_fixture_isolates_live_rcc_assignment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RCC_ASSIGNED_RUNNER", "outer-ci-runner")
+    monkeypatch.setenv("RCC_RUNTIME_CONTEXT_FILE", str(tmp_path / "outer-context.json"))
+    monkeypatch.setenv("RCC_ASSIGNMENT_LABEL", "outer-assignment")
+    monkeypatch.setenv("RCC_RESERVATION_ID", "outer-reservation")
+
+    completed, calls, log_text = _run_daily(tmp_path)
+
+    assert completed.returncode == 0
+    assert any("-m src.run_silver_jobs" in call for call in calls)
+    assert "outer-ci-runner" not in log_text
+    assert "outer-context.json" not in log_text
 
 
 def test_sensor_failure_does_not_block_silver_or_daily_core_success(tmp_path: Path) -> None:
@@ -279,4 +302,3 @@ def test_runtime_consumers_no_longer_guess_pipeline_checkout() -> None:
     assert 'required = ("extruct", "trafilatura", "pymupdf")' in provisioner
     assert "sha256sum" in provisioner
     assert "--target" in provisioner
-
