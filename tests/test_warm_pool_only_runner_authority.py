@@ -110,8 +110,8 @@ def test_product_release_publisher_is_exact_rcc_general_windows_workload() -> No
     assert "${{ inputs.rcc_assignment_label }}" in release
     assert "rcc-assignment-proof-[0-9a-f]{32}" in release
     assert "PowerShell 7 fleet baseline missing" in release
-    assert "Node 22 capability missing" in release
-    assert ".NET 8 capability missing" in release
+    assert "resolve_rcc_windows_toolchain.ps1" in release
+    assert "dotnet --list-sdks" not in release
     assert "RCC runtime context missing" in release
     assert "jap-winapp-product-v" in release
     assert "JAP-Control-Center-Desktop-win-x64.zip" in release
