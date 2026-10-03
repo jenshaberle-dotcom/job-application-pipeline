@@ -35,6 +35,6 @@
     "repository_identity": "docs/current/REPOSITORY-IDENTITY.json",
     "project_character": "PROJECT_CHARACTER.md",
     "employer_origin_product_authority": "docs/current/REENTRY.md",
-    "runner_architecture_hardcut": "docs/runner-architecture-hardcut-audit-20261003.md"
+    "runner_architecture_hardcut": "docs/reference/governance/runner-architecture-hardcut-audit-20261003.md"
   }
 }
