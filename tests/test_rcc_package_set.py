@@ -34,6 +34,12 @@ def test_reviewed_seed_matches_locked_hash_and_upstream_module() -> None:
     provenance = json.loads((seed / 'jstyleson-0.0.2.provenance.json').read_text())
     wheel = seed / provenance['wheel_filename']
     digest = hashlib.sha256(wheel.read_bytes()).hexdigest()
+    demand = json.loads((ROOT / '.rcc/workload-demands.json').read_text())
+    assert demand['project_runtime']['python']['package_set']['wheel_seeds'] == [{
+        'path': str(wheel.relative_to(ROOT)),
+        'sha256': digest,
+        'provenance_path': str((seed / 'jstyleson-0.0.2.provenance.json').relative_to(ROOT)),
+    }]
     assert digest == provenance['wheel_sha256']
     assert '--hash=sha256:' + digest in (ROOT / '.rcc/python-package-sets/jap-product-v1.txt').read_text()
     assert provenance['source_changes'] is False

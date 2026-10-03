@@ -6,13 +6,16 @@ are recorded in `jstyleson-0.0.2.provenance.json`; the wheel hash is also pinned
 the JAP package-set lock. This is a dependency artifact, not a runner profile,
 installer, selection rule or lifecycle authority.
 
-Before the first workload with this package lock, the RCC operator fetches the
-wheel from the exact JAP candidate SHA into a passive RCC wheel-seed cache and
-verifies its hash. Set `PIP_FIND_LINKS` to that local directory for the existing
-RCC controller process. The existing materializer uses binary-only/no-deps/hash-
-qualified download, verifies the complete wheel inventory, caches it by lock hash,
-and installs the qualified runtime offline. No source build occurs during CI.
-Subsequent runs reuse the existing content-addressed wheel cache.
+The dependency declaration includes this artifact under
+`project_runtime.python.package_set.wheel_seeds`. RCC's existing artifact
+preparation fetches it and its provenance from the admitted exact JAP source,
+checks package/hash/platform identity and supplies the qualified local artifact
+to binary-only/no-deps/hash-required download. It authenticates the complete
+inventory before atomic cache publication and offline runtime installation.
+`--prepare-only`, environment preparation and normal materialization share this
+path. A warm cache is reused without a seed download. No manual seed fetch or
+shell-exported `PIP_FIND_LINKS` is required after the RCC extension is adopted.
+No source build occurs during CI.
 
 Only the wheel belongs in the seed directory. Do not copy this README or provenance
 into RCC's complete wheelhouse. Never replace an existing immutable artifact with

@@ -156,10 +156,9 @@ def test_project_owned_runner_allocation_and_profiles_are_physically_absent() ->
 
     runtime = demand["project_runtime"]["python"]
     assert runtime["version"] == "3.12.14"
-    assert runtime["package_set"] == {
-        "path": ".rcc/python-package-sets/jap-product-v1.txt",
-        "sha256": "da7a156bcab92414a1615e92fa06f85f684f67bc5da4cd226ca6985ac1610bfe",
-    }
+    assert runtime["package_set"]["path"] == ".rcc/python-package-sets/jap-product-v1.txt"
+    assert runtime["package_set"]["sha256"] == "da7a156bcab92414a1615e92fa06f85f684f67bc5da4cd226ca6985ac1610bfe"
+
 
     assert demand["demand_profiles"] == {
         "linux-base": {

@@ -20,7 +20,14 @@
       "version": "3.12.14",
       "package_set": {
         "path": ".rcc/python-package-sets/jap-product-v1.txt",
-        "sha256": "da7a156bcab92414a1615e92fa06f85f684f67bc5da4cd226ca6985ac1610bfe"
+        "sha256": "da7a156bcab92414a1615e92fa06f85f684f67bc5da4cd226ca6985ac1610bfe",
+        "wheel_seeds": [
+          {
+            "path": ".rcc/python-package-sets/wheel-seeds/jstyleson-0.0.2-py3-none-any.whl",
+            "sha256": "b82c3453d5622b029ed1693cba3c91896eb31dfa26e0299e3fb763b6938fcae0",
+            "provenance_path": ".rcc/python-package-sets/wheel-seeds/jstyleson-0.0.2.provenance.json"
+          }
+        ]
       }
     }
   },
