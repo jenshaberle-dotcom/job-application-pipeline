@@ -1,4 +1,4 @@
-name: Connector Factory Hannover Census
+name: Connector Factory Multi-Region Corpus
 
 on:
   workflow_dispatch:
@@ -51,12 +51,14 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
 
-      - name: Discover Hannover TECH candidates
+      - name: Discover initial corpus sources
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          python3 scripts/discover_hannover_tech_hsh.py --output artifacts/hannover-tech-hsh.json
+          python3 scripts/discover_hannover_tech_hsh.py --output artifacts/hannover-hsh.json
+          python3 scripts/discover_munich_startups.py --output artifacts/munich-startups.json
+          python3 scripts/discover_stuttgart_tech.py --output artifacts/stuttgart-tech.json
           python3 scripts/run_connector_mass_census.py             --seed artifacts/hannover-tech-hsh.json             --source hochschule_hannover_career_center             --output artifacts/hannover-tech-census.json
 
       - uses: actions/upload-artifact@v4
