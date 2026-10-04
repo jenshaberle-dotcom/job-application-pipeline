@@ -30,6 +30,7 @@ class CompanySeed:
     industry: str | None = None
     source_record_id: str | None = None
     cohort: str = "TECH"
+    geography: str = "REGION_HANNOVER"
 
 
 def _text(value: object) -> str:
@@ -104,15 +105,15 @@ def build_mass_census(
             }
         )
         cohorts = sorted({_text(row.cohort).upper() or "TECH" for row in rows})
-        if len(cohorts) != 1:
-            raise ValueError("company_identity_cross_cohort_collision")
+        geographies = sorted({_text(row.geography).upper() or "REGION_HANNOVER" for row in rows})
         base_key = company_key(primary)
         stable_key = base_key if identity[0] == "name" else f"{base_key}-{hashlib.sha256(identity[1].encode()).hexdigest()[:8]}"
         candidates.append(
             {
                 "company_key": stable_key,
                 "company_name": primary,
-                "cohort": cohorts[0],
+                "cohorts": cohorts,
+                "geographies": geographies,
                 "aliases": names[1:],
                 "websites": websites,
                 "locations": locations,
@@ -137,6 +138,8 @@ def build_mass_census(
             "duplicate_seed_count": sum(len(rows) - 1 for rows in grouped.values()),
             "candidate_population_authority": "mass_census_experiment_by_domain_then_normalized_name",
             "source_counts": dict(sorted(source_counts.items())),
+            "cohort_counts": dict(sorted(Counter(_text(seed.cohort).upper() or "TECH" for seed in seeds).items())),
+            "geography_counts": dict(sorted(Counter(_text(seed.geography).upper() or "REGION_HANNOVER" for seed in seeds).items())),
         },
         "boundaries": {
             "experiment_only": True,
@@ -177,6 +180,7 @@ def seeds_from_payload(payload: object, *, default_source: str) -> list[CompanyS
                 industry=_text(row.get("industry") or row.get("sector")) or None,
                 source_record_id=_text(row.get("source_record_id") or row.get("id")) or None,
                 cohort=(_text(row.get("cohort")) or "TECH").upper(),
+                geography=(_text(row.get("geography")) or "REGION_HANNOVER").upper(),
             )
         )
     return result
