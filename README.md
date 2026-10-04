@@ -1,6 +1,9 @@
 # JAP Classic — Job Application Pipeline
 
-Status: maintained local product and migration source for JAP Cloud.
+Status: Connector Factory development, benchmark and experiment lab for JAP Cloud.
+JAP Classic is no longer a product to preserve. The current lab execution contract and RCC gate
+are documented in [Multi-Region Connector Factory Lab](docs/current/HANNOVER-CONNECTOR-MASS-CENSUS.md).
+The desktop implementation below describes retained code, not an obligation to maintain it.
 Project character: **A — Intent Locked**. Theme: **Deep Ocean / Search Intelligence**.
 
 ## Why this project exists

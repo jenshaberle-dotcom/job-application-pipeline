@@ -1,0 +1,230 @@
+{
+  "schema_version": "jap.connector_capability_catalog.v1",
+  "status": "CLASSIC_EVIDENCE_SEEDED_CLOUD_VNEXT_CANDIDATE",
+  "authority_boundary": "CANDIDATE_DEFINITION_ONLY",
+  "origin_repository": "jenshaberle-dotcom/job-application-pipeline",
+  "origin_repository_id": 1230805345,
+  "origin_sha": "8fb08378213e57c0984abc9b3bd30193f943c654",
+  "selection_rule": "EVIDENCED_STRATEGY_PRIORITY_THEN_REUSE_TIER_THEN_STABLE_IDENTITY",
+  "capabilities": [
+    {
+      "capability_id": "generic_html_job_navigation_v1",
+      "version": 1,
+      "roles": [
+        "origin_inventory",
+        "job_detail"
+      ],
+      "reuse_tier": "GENERIC_ORIGIN",
+      "required_fingerprint_tags": [
+        "generic_html_job_inventory",
+        "generic_html_job_detail"
+      ],
+      "priority": 100,
+      "enabled": true,
+      "origin_paths": [
+        "src/connectors/employer_origin_acquisition_v4.py",
+        "scripts/run_generic_employer_origin_product.py"
+      ],
+      "runtime_strategy": "UNIMPLEMENTED"
+    },
+    {
+      "capability_id": "evidence_bounded_portal_v1",
+      "version": 1,
+      "roles": [
+        "delegation",
+        "origin_inventory",
+        "job_detail"
+      ],
+      "reuse_tier": "GENERIC_ORIGIN",
+      "required_fingerprint_tags": [
+        "explicit_portal_cta",
+        "portal_authorized"
+      ],
+      "priority": 100,
+      "enabled": true,
+      "origin_paths": [
+        "src/connectors/employer_origin_portal_delegation_acquisition.py",
+        "scripts/run_deterministic_connector_builder_layer_audit_v5.py"
+      ],
+      "runtime_strategy": "UNIMPLEMENTED"
+    },
+    {
+      "capability_id": "workday_cxs_detail_v1",
+      "version": 1,
+      "roles": [
+        "origin_inventory",
+        "job_detail"
+      ],
+      "reuse_tier": "PROVIDER_FAMILY",
+      "required_fingerprint_tags": [
+        "provider:workday",
+        "same_host_cxs"
+      ],
+      "priority": 30,
+      "enabled": true,
+      "origin_paths": [
+        "src/connectors/employer_origin_workday_acquisition.py",
+        "scripts/run_deterministic_connector_builder_layer_audit_v4.py"
+      ],
+      "runtime_strategy": "UNIMPLEMENTED"
+    },
+    {
+      "capability_id": "successfactors_public_feed_v1",
+      "version": 1,
+      "roles": [
+        "origin_inventory",
+        "job_detail"
+      ],
+      "reuse_tier": "PROVIDER_FAMILY",
+      "required_fingerprint_tags": [
+        "provider:successfactors",
+        "authorized_provider_host"
+      ],
+      "priority": 30,
+      "enabled": true,
+      "origin_paths": [
+        "src/connectors/employer_origin_provider_public_feed.py",
+        "scripts/run_deterministic_connector_builder_layer_audit_v6.py"
+      ],
+      "runtime_strategy": "UNIMPLEMENTED"
+    },
+    {
+      "capability_id": "softgarden_public_feed_v1",
+      "version": 1,
+      "roles": [
+        "origin_inventory",
+        "job_detail"
+      ],
+      "reuse_tier": "PROVIDER_FAMILY",
+      "required_fingerprint_tags": [
+        "provider:softgarden",
+        "authorized_provider_host"
+      ],
+      "priority": 30,
+      "enabled": true,
+      "origin_paths": [
+        "src/connectors/employer_origin_provider_public_feed.py",
+        "scripts/run_deterministic_connector_builder_layer_audit_v6.py"
+      ],
+      "runtime_strategy": "UNIMPLEMENTED"
+    },
+    {
+      "capability_id": "recruitee_public_feed_v1",
+      "version": 1,
+      "roles": [
+        "origin_inventory",
+        "job_detail"
+      ],
+      "reuse_tier": "PROVIDER_FAMILY",
+      "required_fingerprint_tags": [
+        "provider:recruitee",
+        "authorized_provider_host"
+      ],
+      "priority": 30,
+      "enabled": true,
+      "origin_paths": [
+        "src/connectors/employer_origin_provider_public_feed.py",
+        "scripts/run_deterministic_connector_builder_layer_audit_v6.py"
+      ],
+      "runtime_strategy": "UNIMPLEMENTED"
+    },
+    {
+      "capability_id": "dvinci_public_feed_v1",
+      "version": 1,
+      "roles": [
+        "origin_inventory",
+        "job_detail"
+      ],
+      "reuse_tier": "PROVIDER_FAMILY",
+      "required_fingerprint_tags": [
+        "provider:dvinci",
+        "authorized_provider_host"
+      ],
+      "priority": 30,
+      "enabled": true,
+      "origin_paths": [
+        "src/connectors/employer_origin_provider_public_feed.py",
+        "scripts/run_deterministic_connector_builder_layer_audit_v6.py"
+      ],
+      "runtime_strategy": "UNIMPLEMENTED"
+    },
+    {
+      "capability_id": "structured_jobposting_v1",
+      "version": 1,
+      "roles": [
+        "origin_inventory",
+        "job_detail"
+      ],
+      "reuse_tier": "GENERIC_ORIGIN",
+      "priority": 20,
+      "required_fingerprint_tags": [
+        "structured_jobposting_inventory",
+        "structured_jobposting_detail"
+      ],
+      "enabled": true,
+      "runtime_strategy": "JSONLD",
+      "origin_paths": [
+        "src/connectors/connector_extraction.py"
+      ]
+    },
+    {
+      "capability_id": "greenhouse_job_board_v1",
+      "version": 1,
+      "roles": [
+        "origin_inventory",
+        "job_detail"
+      ],
+      "reuse_tier": "PROVIDER_FAMILY",
+      "priority": 10,
+      "required_fingerprint_tags": [
+        "provider:greenhouse",
+        "authorized_provider_host",
+        "full_job_content"
+      ],
+      "enabled": true,
+      "runtime_strategy": "JSON_API",
+      "origin_paths": [
+        "src/connectors/connector_extraction.py"
+      ]
+    },
+    {
+      "capability_id": "lever_postings_v1",
+      "version": 1,
+      "roles": [
+        "origin_inventory",
+        "job_detail"
+      ],
+      "reuse_tier": "PROVIDER_FAMILY",
+      "priority": 10,
+      "required_fingerprint_tags": [
+        "provider:lever",
+        "authorized_provider_host",
+        "full_job_content"
+      ],
+      "enabled": true,
+      "runtime_strategy": "JSON_API",
+      "origin_paths": [
+        "src/connectors/connector_extraction.py"
+      ]
+    },
+    {
+      "capability_id": "declarative_json_job_feed_v1",
+      "version": 1,
+      "roles": [
+        "origin_inventory",
+        "job_detail"
+      ],
+      "reuse_tier": "GENERIC_ORIGIN",
+      "priority": 25,
+      "required_fingerprint_tags": [
+        "explicit_json_job_inventory",
+        "full_job_content"
+      ],
+      "enabled": true,
+      "runtime_strategy": "JSON_API",
+      "origin_paths": [
+        "src/connectors/connector_extraction.py"
+      ]
+    }
+  ]
+}

@@ -141,6 +141,13 @@
     "unregistered_new_workflow_is_check": true,
     "managed_workflows": [
       {
+        "path": ".github/workflows/connector-factory-hannover-census.yml",
+        "purpose": "RCC-assigned exact-source multi-region company Census and replayable Connector Factory ML corpus; separate live discovery workload from PR validation",
+        "manual_dispatch": true,
+        "retention_class": "CONNECTOR_FACTORY_CENSUS_EVIDENCE",
+        "artifact_retention_days": 30
+      },
+      {
         "path": ".github/workflows/product-v1-assessment-cohort.yml",
         "purpose": "RCC-assigned reusable Candidate Fit cohort and authoritative Top 5",
         "manual_dispatch": true,

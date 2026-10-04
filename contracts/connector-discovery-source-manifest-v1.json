@@ -1,0 +1,29 @@
+{
+  "schema_version": "jap.connector_discovery_source_manifest.v1",
+  "experiment_design": "MULTI_REGION_TECH_WITH_HANNOVER_SOCIAL_CONTRAST",
+  "tech_geographies": ["REGION_HANNOVER", "WOLFSBURG", "INGOLSTADT", "STUTTGART_REGION", "BERLIN", "MUNICH"],
+  "social_geographies": ["REGION_HANNOVER"],
+  "sources": [
+    {"source_id":"hochschule_hannover_career_center","geography":"REGION_HANNOVER","cohorts":["TECH","SOCIAL"],"status":"IMPLEMENTED","kind":"PUBLIC_EMPLOYER_DIRECTORY","url":"https://firmen.cc.hs-hannover.de/companies/"},
+    {"source_id":"region_hannover_company_database","geography":"REGION_HANNOVER","cohorts":["TECH","SOCIAL"],"status":"ADAPTER_REQUIRED","kind":"OFFICIAL_COMPANY_DATABASE","url":"https://www.wirtschaftsfoerderung-hannover.de/de/Microsites/Unternehmensdatenbank/Unternehmenssuche.php"},
+    {"source_id":"wolfsburg_public_employer_sources","geography":"WOLFSBURG","cohorts":["TECH"],"status":"DISCOVERY_REQUIRED","kind":"PUBLIC_EMPLOYER_DIRECTORY"},
+    {"source_id":"ingolstadt_public_employer_sources","geography":"INGOLSTADT","cohorts":["TECH"],"status":"DISCOVERY_REQUIRED","kind":"PUBLIC_EMPLOYER_DIRECTORY"},
+    {"source_id":"stuttgart_public_employer_sources","geography":"STUTTGART_REGION","cohorts":["TECH"],"status":"DISCOVERY_REQUIRED","kind":"PUBLIC_EMPLOYER_DIRECTORY"},
+    {"source_id":"berlin_public_employer_sources","geography":"BERLIN","cohorts":["TECH"],"status":"DISCOVERY_REQUIRED","kind":"PUBLIC_EMPLOYER_DIRECTORY"},
+    {"source_id":"munich_public_employer_sources","geography":"MUNICH","cohorts":["TECH"],"status":"DISCOVERY_REQUIRED","kind":"PUBLIC_EMPLOYER_DIRECTORY"}
+  ],
+  "ml_corpus_policy": {
+    "retain_zero_job_companies": true,
+    "retain_discovery_failures": true,
+    "retain_extraction_failures": true,
+    "retain_capability_gaps": true,
+    "retain_qualification_gaps": true,
+    "retain_successful_extractions": true,
+    "dedupe_across_sources_and_geographies": true,
+    "preserve_source_lineage": true,
+    "preserve_sector_cohorts": true,
+    "preserve_geography_cohorts": true,
+    "raw_capture_is_not_permanent_by_default": true,
+    "measure_per_geography_and_global": true
+  }
+}

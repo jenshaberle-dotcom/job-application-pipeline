@@ -1,0 +1,94 @@
+name: Connector Factory Multi-Region Corpus
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact JAP Classic source SHA admitted by RCC
+        required: true
+        type: string
+      rcc_facade_label:
+        description: RCC-assigned repository facade
+        required: true
+        type: string
+      rcc_assignment_label:
+        description: Ephemeral exact assignment from RCC
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  discover-tech:
+    runs-on:
+      - self-hosted
+      - ${{ inputs.rcc_facade_label }}
+      - ${{ inputs.rcc_assignment_label }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}/rcc-workload-${{ github.run_id }}-${{ github.run_attempt }}
+    env:
+      PYTHONPATH: .
+      RCC_REPOSITORY_ID: "1230805345"
+      RCC_REPOSITORY: jenshaberle-dotcom/job-application-pipeline
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      RCC_EXPECTED_FACADE: ${{ inputs.rcc_facade_label }}
+      RCC_ASSIGNMENT_LABEL: ${{ inputs.rcc_assignment_label }}
+    steps:
+      - name: Prove RCC assignment
+        working-directory: ${{ runner.temp }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "$RCC_EXPECTED_FACADE"
+          [[ "$RCC_ASSIGNMENT_LABEL" =~ ^rcc-assignment-proof-[0-9a-f]{32}$ ]]
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: rcc-workload-${{ github.run_id }}-${{ github.run_attempt }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+
+      - name: Resolve verified RCC runtime context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_file="${RCC_RUNTIME_CONTEXT_FILE:-$HOME/.config/DeepOceanInfrastructure/RCC/runtime-contexts/${RCC_REPOSITORY_ID}-${RCC_EXPECTED_FACADE}.json}"
+          context_output="$(python3 scripts/resolve_rcc_runtime_context.py "$context_file" "$RCC_REPOSITORY_ID" "$RCC_REPOSITORY" "$RCC_EXPECTED_FACADE" "$SOURCE_SHA")"
+          mapfile -t values <<< "$context_output"
+          test "${#values[@]}" -eq 1
+          test -x "${values[0]}"
+          printf 'CORPUS_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+
+      - name: Discover complete multi-region company corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CORPUS_PYTHON" -m scripts.run_multi_region_company_discovery --output-dir artifacts/connector-corpus
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: connector-factory-multi-region-corpus
+          path: rcc-workload-${{ github.run_id }}-${{ github.run_attempt }}/artifacts/
+          if-no-files-found: error
+
+      - name: Delete ephemeral candidate
+        if: always()
+        shell: bash
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          source_root="$GITHUB_WORKSPACE/rcc-workload-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          rm -rf -- "$source_root"
+          test ! -e "$source_root"
