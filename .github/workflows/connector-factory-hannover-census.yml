@@ -51,18 +51,14 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
 
-      - name: Discover initial corpus sources
+      - name: Discover complete multi-region company corpus
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts
-          python3 scripts/discover_hannover_tech_hsh.py --output artifacts/hannover-hsh.json
-          python3 scripts/discover_munich_startups.py --output artifacts/munich-startups.json
-          python3 scripts/discover_stuttgart_tech.py --output artifacts/stuttgart-tech.json
-          python3 scripts/run_connector_mass_census.py             --seed artifacts/hannover-tech-hsh.json             --source hochschule_hannover_career_center             --output artifacts/hannover-tech-census.json
+          python3 scripts/run_multi_region_company_discovery.py --output-dir artifacts/connector-corpus
 
       - uses: actions/upload-artifact@v4
         with:
-          name: hannover-tech-connector-census
+          name: connector-factory-multi-region-corpus
           path: artifacts/
           if-no-files-found: error
