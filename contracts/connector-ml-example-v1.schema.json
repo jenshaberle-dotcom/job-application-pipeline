@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "jap.connector-ml-example.v1",
+  "title": "Connector Factory ML Example",
+  "type": "object",
+  "required": ["example_id", "company_key", "geographies", "cohorts", "source_lineage", "label"],
+  "properties": {
+    "example_id": {"type": "string", "minLength": 16},
+    "company_key": {"type": "string", "minLength": 1},
+    "geographies": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "cohorts": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "source_lineage": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "origin_url": {"type": ["string", "null"]},
+    "fingerprint_tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "capability_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "factory_disposition": {"type": "string"},
+    "extraction_field_presence": {"type": "object", "additionalProperties": {"type": "boolean"}},
+    "job_count": {"type": "integer", "minimum": 0},
+    "failure_fingerprint": {"type": ["string", "null"]},
+    "label": {
+      "enum": [
+        "SUCCESS",
+        "ZERO_JOB_VALID_SOURCE",
+        "ORIGIN_DISCOVERY_FAILURE",
+        "EVIDENCE_GAP",
+        "CAPABILITY_GAP",
+        "RUNTIME_GAP",
+        "QUALIFICATION_GAP",
+        "EXTRACTION_FAILURE"
+      ]
+    },
+    "raw_capture_digest": {"type": ["string", "null"]},
+    "raw_capture_persisted": {"const": false}
+  },
+  "additionalProperties": false
+}
