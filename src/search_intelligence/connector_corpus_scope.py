@@ -1,17 +1,19 @@
 """Discovery scope for the Connector Factory / ML corpus.
 
-The corpus deliberately separates sector cohorts from geography cohorts. A company may
-belong to multiple cohorts after deduplication; that overlap is useful training evidence.
+TECH is intentionally multi-region from day one. SOCIAL is a Hannover-only contrast
+cohort. Geography is therefore an experimental dimension, not an expansion fallback.
 """
 
-PRIMARY_GEOGRAPHY = "REGION_HANNOVER"
-EXPANSION_GEOGRAPHIES = (
+TECH_GEOGRAPHIES = (
+    "REGION_HANNOVER",
     "WOLFSBURG",
     "INGOLSTADT",
     "STUTTGART_REGION",
     "BERLIN",
     "MUNICH",
 )
+SOCIAL_GEOGRAPHIES = ("REGION_HANNOVER",)
+
 SECTOR_COHORTS = (
     "TECH",
     "SOCIAL",
@@ -25,16 +27,25 @@ SECTOR_COHORTS = (
     "CREATIVE_DIGITAL",
 )
 
-# Expansion is evidence-driven. These are minimum corpus properties, not production SLAs.
-MIN_UNIQUE_COMPANIES_BEFORE_GEOGRAPHY_EXPANSION = 1500
-MIN_STRUCTURAL_FINGERPRINTS_BEFORE_GEOGRAPHY_EXPANSION = 50
+MIN_STRUCTURAL_FINGERPRINTS_FOR_ML = 50
 MIN_FAILURE_EXAMPLES_FOR_ML = 250
+MIN_SUCCESS_EXAMPLES_FOR_ML = 250
 
 
-def expansion_required(summary: dict[str, object]) -> bool:
-    """Expand if Hannover does not provide enough volume *or* structural diversity."""
-    return (
-        int(summary.get("unique_company_count", 0)) < MIN_UNIQUE_COMPANIES_BEFORE_GEOGRAPHY_EXPANSION
-        or int(summary.get("structural_fingerprint_count", 0)) < MIN_STRUCTURAL_FINGERPRINTS_BEFORE_GEOGRAPHY_EXPANSION
-        or int(summary.get("negative_or_gap_example_count", 0)) < MIN_FAILURE_EXAMPLES_FOR_ML
-    )
+def geography_allowed(cohort: str, geography: str) -> bool:
+    cohort = cohort.strip().upper()
+    geography = geography.strip().upper()
+    if cohort == "SOCIAL":
+        return geography in SOCIAL_GEOGRAPHIES
+    return geography in TECH_GEOGRAPHIES
+
+
+def ml_readiness(summary: dict[str, object]) -> dict[str, object]:
+    """Return explicit readiness signals; volume never suppresses discovery."""
+    checks = {
+        "structural_diversity": int(summary.get("structural_fingerprint_count", 0)) >= MIN_STRUCTURAL_FINGERPRINTS_FOR_ML,
+        "negative_examples": int(summary.get("negative_or_gap_example_count", 0)) >= MIN_FAILURE_EXAMPLES_FOR_ML,
+        "positive_examples": int(summary.get("success_example_count", 0)) >= MIN_SUCCESS_EXAMPLES_FOR_ML,
+        "multi_geography": int(summary.get("geography_count", 0)) >= len(TECH_GEOGRAPHIES),
+    }
+    return {"ready": all(checks.values()), "checks": checks}
