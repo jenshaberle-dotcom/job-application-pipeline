@@ -30,6 +30,12 @@ TECH_FIELDS = frozenset({
     "Telekommunikation",
     "Ingenieur allg.",
 })
+SOCIAL_FIELDS = frozenset({
+    "Gesundheit & Soziale Dienste",
+    "Bildung, Erziehung, Pädagogik",
+    "Sozialwesen",
+    "Psychologie",
+})
 REGION_MARKERS = (
     " hannover", " langenhagen", " laatzen", " garbsen", " isernhagen",
     " burgwedel", " wedemark", " neustadt", " springe", " seelze",
@@ -119,6 +125,16 @@ def is_tech(fields: list[str]) -> bool:
     return bool(TECH_FIELDS.intersection(fields))
 
 
+def cohorts_for(fields: list[str]) -> list[str]:
+    cohorts = []
+    observed = set(fields)
+    if TECH_FIELDS.intersection(observed):
+        cohorts.append("TECH")
+    if SOCIAL_FIELDS.intersection(observed):
+        cohorts.append("SOCIAL")
+    return cohorts
+
+
 def discover(max_pages: int, delay: float, timeout: int) -> dict[str, object]:
     by_identity: dict[tuple[str, str], dict[str, object]] = {}
     pages = 0
@@ -130,7 +146,10 @@ def discover(max_pages: int, delay: float, timeout: int) -> dict[str, object]:
         if not rows and page > 1:
             break
         for row in rows:
-            if not is_region(str(row["location"])) or not is_tech(list(row["fields"])):
+            if not is_region(str(row["location"])):
+                continue
+            cohorts = cohorts_for(list(row["fields"]))
+            if not cohorts:
                 continue
             key = (str(row["company_name"]).casefold(), str(row["website"]).casefold())
             by_identity[key] = {
@@ -140,7 +159,9 @@ def discover(max_pages: int, delay: float, timeout: int) -> dict[str, object]:
                 "location": row["location"] or None,
                 "industry": " | ".join(row["fields"]),
                 "source_record_id": f"page:{page}:{row['company_name']}",
-                "cohort": "TECH",
+                "cohort": cohorts[0],
+                "cohorts": cohorts,
+                "geography": "REGION_HANNOVER",
             }
         if match and page * 10 >= int(match.group(1)):
             break
@@ -150,8 +171,8 @@ def discover(max_pages: int, delay: float, timeout: int) -> dict[str, object]:
     return {
         "schema_version": "jap.discovery.hsh_career_center.v1",
         "source_url": "https://firmen.cc.hs-hannover.de/companies/",
-        "cohort": "TECH",
-        "selection": {"region": "Region Hannover", "tech_fields": sorted(TECH_FIELDS)},
+        "cohorts": ["TECH", "SOCIAL"],
+        "selection": {"region": "Region Hannover", "tech_fields": sorted(TECH_FIELDS), "social_fields": sorted(SOCIAL_FIELDS)},
         "pages_fetched": pages,
         "company_count": len(companies),
         "companies": companies,
