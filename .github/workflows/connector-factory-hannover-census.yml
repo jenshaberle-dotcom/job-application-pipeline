@@ -1,0 +1,27 @@
+name: Connector Factory Hannover Census
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  discover-tech:
+    runs-on: [self-hosted, rcc-linux]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Discover Hannover TECH candidates
+        run: |
+          mkdir -p artifacts
+          python scripts/discover_hannover_tech_hsh.py --output artifacts/hannover-tech-hsh.json
+          python scripts/run_connector_mass_census.py             --seed artifacts/hannover-tech-hsh.json             --source hochschule_hannover_career_center             --output artifacts/hannover-tech-census.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hannover-tech-connector-census
+          path: artifacts/
+          if-no-files-found: error
