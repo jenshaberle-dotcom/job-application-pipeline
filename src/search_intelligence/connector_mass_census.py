@@ -29,6 +29,7 @@ class CompanySeed:
     location: str | None = None
     industry: str | None = None
     source_record_id: str | None = None
+    cohort: str = "TECH"
 
 
 def _text(value: object) -> str:
@@ -57,7 +58,9 @@ def canonical_website(value: str | None) -> str | None:
     parsed = urlsplit(raw)
     if parsed.scheme not in {"http", "https"} or not parsed.hostname:
         return None
-    host = parsed.hostname.casefold()
+    host = parsed.hostname.casefold().rstrip(".")
+    if any(char.isspace() for char in host) or "." not in host:
+        return None
     if host.startswith("www."):
         host = host[4:]
     return urlunsplit(("https", host, "", "", ""))
@@ -100,10 +103,16 @@ def build_mass_census(
                 for row in rows
             }
         )
+        cohorts = sorted({_text(row.cohort).upper() or "TECH" for row in rows})
+        if len(cohorts) != 1:
+            raise ValueError("company_identity_cross_cohort_collision")
+        base_key = company_key(primary)
+        stable_key = base_key if identity[0] == "name" else f"{base_key}-{hashlib.sha256(identity[1].encode()).hexdigest()[:8]}"
         candidates.append(
             {
-                "company_key": company_key(primary),
+                "company_key": stable_key,
                 "company_name": primary,
+                "cohort": cohorts[0],
                 "aliases": names[1:],
                 "websites": websites,
                 "locations": locations,
@@ -167,6 +176,7 @@ def seeds_from_payload(payload: object, *, default_source: str) -> list[CompanyS
                 location=_text(row.get("location") or row.get("city")) or None,
                 industry=_text(row.get("industry") or row.get("sector")) or None,
                 source_record_id=_text(row.get("source_record_id") or row.get("id")) or None,
+                cohort=(_text(row.get("cohort")) or "TECH").upper(),
             )
         )
     return result
