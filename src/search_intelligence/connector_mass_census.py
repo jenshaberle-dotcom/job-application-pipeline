@@ -179,7 +179,11 @@ def seeds_from_payload(payload: object, *, default_source: str) -> list[CompanyS
                 location=_text(row.get("location") or row.get("city")) or None,
                 industry=_text(row.get("industry") or row.get("sector")) or None,
                 source_record_id=_text(row.get("source_record_id") or row.get("id")) or None,
-                cohort=(_text(row.get("cohort")) or "TECH").upper(),
+                cohort=(
+                    _text(row.get("cohort"))
+                    or (_text((row.get("cohorts") or ["TECH"])[0]) if isinstance(row.get("cohorts"), list) else "")
+                    or "TECH"
+                ).upper(),
                 geography=(_text(row.get("geography")) or "REGION_HANNOVER").upper(),
             )
         )
