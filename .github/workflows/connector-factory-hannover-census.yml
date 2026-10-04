@@ -2,24 +2,63 @@ name: Connector Factory Hannover Census
 
 on:
   workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact JAP Classic source SHA admitted by RCC
+        required: true
+        type: string
+      rcc_facade_label:
+        description: RCC-assigned repository facade
+        required: true
+        type: string
+      rcc_assignment_label:
+        description: Ephemeral exact assignment from RCC
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   discover-tech:
-    runs-on: [self-hosted, rcc-linux]
+    runs-on:
+      - self-hosted
+      - ${{ inputs.rcc_facade_label }}
+      - ${{ inputs.rcc_assignment_label }}
     timeout-minutes: 30
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      RCC_EXPECTED_FACADE: ${{ inputs.rcc_facade_label }}
+      RCC_ASSIGNMENT_LABEL: ${{ inputs.rcc_assignment_label }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - name: Discover Hannover TECH candidates
+      - name: Prove RCC assignment
+        shell: bash
         run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "$RCC_EXPECTED_FACADE"
+          [[ "$RCC_ASSIGNMENT_LABEL" =~ ^rcc-assignment-proof-[0-9a-f]{32}$ ]]
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove exact source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+
+      - name: Discover Hannover TECH candidates
+        shell: bash
+        run: |
+          set -euo pipefail
           mkdir -p artifacts
-          python scripts/discover_hannover_tech_hsh.py --output artifacts/hannover-tech-hsh.json
-          python scripts/run_connector_mass_census.py             --seed artifacts/hannover-tech-hsh.json             --source hochschule_hannover_career_center             --output artifacts/hannover-tech-census.json
+          python3 scripts/discover_hannover_tech_hsh.py --output artifacts/hannover-tech-hsh.json
+          python3 scripts/run_connector_mass_census.py             --seed artifacts/hannover-tech-hsh.json             --source hochschule_hannover_career_center             --output artifacts/hannover-tech-census.json
+
       - uses: actions/upload-artifact@v4
         with:
           name: hannover-tech-connector-census
