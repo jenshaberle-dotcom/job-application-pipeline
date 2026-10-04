@@ -1,10 +1,10 @@
 {
   "schema_version": "jap.connector_capability_catalog.v1",
-  "status": "CLASSIC_FACTORY_LAB",
-  "authority_boundary": "FACTORY_DEFINITION_AND_OFFLINE_QUALIFICATION",
-  "origin_repository": "jenshaberle-dotcom/jap-cloud-based",
+  "status": "CLASSIC_EVIDENCE_SEEDED_CLOUD_VNEXT_CANDIDATE",
+  "authority_boundary": "CANDIDATE_DEFINITION_ONLY",
+  "origin_repository": "jenshaberle-dotcom/job-application-pipeline",
   "origin_repository_id": 1230805345,
-  "origin_sha": "b1d2f3bafffc76d92a783273cdee439a12e0906a",
+  "origin_sha": "8fb08378213e57c0984abc9b3bd30193f943c654",
   "selection_rule": "EVIDENCED_STRATEGY_PRIORITY_THEN_REUSE_TIER_THEN_STABLE_IDENTITY",
   "capabilities": [
     {
@@ -164,7 +164,7 @@
       "enabled": true,
       "runtime_strategy": "JSONLD",
       "origin_paths": [
-        "src/connectors/factory_extraction.py"
+        "src/connectors/connector_extraction.py"
       ]
     },
     {
@@ -184,7 +184,7 @@
       "enabled": true,
       "runtime_strategy": "JSON_API",
       "origin_paths": [
-        "src/connectors/factory_extraction.py"
+        "src/connectors/connector_extraction.py"
       ]
     },
     {
@@ -204,7 +204,7 @@
       "enabled": true,
       "runtime_strategy": "JSON_API",
       "origin_paths": [
-        "src/connectors/factory_extraction.py"
+        "src/connectors/connector_extraction.py"
       ]
     },
     {
@@ -223,7 +223,7 @@
       "enabled": true,
       "runtime_strategy": "JSON_API",
       "origin_paths": [
-        "src/connectors/factory_extraction.py"
+        "src/connectors/connector_extraction.py"
       ]
     }
   ]
