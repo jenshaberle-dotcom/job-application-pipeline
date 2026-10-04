@@ -1,0 +1,21 @@
+{
+  "source_id": "ingolstadt_digital_ecosystem",
+  "geography": "INGOLSTADT",
+  "cohorts": [
+    "TECH"
+  ],
+  "start_url": "https://brigk.digital/",
+  "max_pages": 1,
+  "include_href": [
+    "startup",
+    "unternehmen",
+    "portfolio",
+    "member"
+  ],
+  "exclude_href": [
+    "event",
+    "blog",
+    "kontakt",
+    "impressum"
+  ]
+}
