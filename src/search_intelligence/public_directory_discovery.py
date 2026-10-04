@@ -1,4 +1,5 @@
 """Generic public directory discovery primitives for the Connector Factory corpus."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -57,12 +58,20 @@ def links(html: str, base_url: str) -> list[tuple[str, str]]:
     return [(urljoin(base_url, href), text) for href, text in parser.links]
 
 
-def seed(company_name: str, source: DirectorySource, *, website: str | None = None,
-         industry: str | None = None, source_record_id: str | None = None) -> dict[str, object]:
+def seed(
+    company_name: str,
+    source: DirectorySource,
+    *,
+    website: str | None = None,
+    industry: str | None = None,
+    source_record_id: str | None = None,
+    directory_url: str | None = None,
+) -> dict[str, object]:
     return {
         "company_name": company_name.strip(),
         "source": source.source_id,
         "website": website,
+        "directory_url": directory_url,
         "industry": industry,
         "source_record_id": source_record_id,
         "cohorts": list(source.cohorts),

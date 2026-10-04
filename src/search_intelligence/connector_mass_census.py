@@ -4,6 +4,7 @@ This module deliberately owns no network transport, database writes, source acti
 or scheduler authority. It converts large heterogeneous seed sets into deterministic
 company candidates so the existing Employer-Origin pipeline can be stressed at scale.
 """
+
 from __future__ import annotations
 
 from collections import Counter
@@ -12,6 +13,7 @@ import hashlib
 import json
 import re
 from urllib.parse import urlsplit, urlunsplit
+from src.search_intelligence.connector_corpus_scope import geography_allowed
 
 SCHEMA_VERSION = "jap.connector_mass_census.v1"
 _CLEAN = re.compile(r"[^a-z0-9]+")
@@ -31,6 +33,9 @@ class CompanySeed:
     source_record_id: str | None = None
     cohort: str = "TECH"
     geography: str = "REGION_HANNOVER"
+    cohorts: tuple[str, ...] = ()
+    geographies: tuple[str, ...] = ()
+    directory_url: str | None = None
 
 
 def _text(value: object) -> str:
@@ -84,15 +89,39 @@ def build_mass_census(
         raise ValueError("company_seeds_required")
     grouped: dict[tuple[str, str], list[CompanySeed]] = {}
     rejected: list[dict[str, str]] = []
+    domains_by_name: dict[str, set[str]] = {}
+    for seed in seeds:
+        identity = _identity(seed)
+        if identity[0] == "domain":
+            domains_by_name.setdefault(normalize_company_name(seed.company_name), set()).add(
+                identity[1]
+            )
     for seed in seeds:
         if not _text(seed.company_name) or not _text(seed.source):
-            rejected.append({"company_name": _text(seed.company_name), "reason": "name_or_source_missing"})
+            rejected.append(
+                {"company_name": _text(seed.company_name), "reason": "name_or_source_missing"}
+            )
             continue
-        grouped.setdefault(_identity(seed), []).append(seed)
+        if not any(
+            geography_allowed(c, g)
+            for c in (seed.cohorts or (seed.cohort,))
+            for g in (seed.geographies or (seed.geography,))
+        ):
+            rejected.append(
+                {"company_name": seed.company_name, "reason": "cohort_geography_out_of_scope"}
+            )
+            continue
+        identity = _identity(seed)
+        domains = domains_by_name.get(normalize_company_name(seed.company_name), set())
+        if identity[0] == "name" and len(domains) == 1:
+            identity = ("domain", next(iter(domains)))
+        grouped.setdefault(identity, []).append(seed)
 
     candidates: list[dict[str, object]] = []
     for identity, rows in sorted(grouped.items()):
-        names = sorted({_text(row.company_name) for row in rows}, key=lambda x: (len(x), x.casefold()))
+        names = sorted(
+            {_text(row.company_name) for row in rows}, key=lambda x: (len(x), x.casefold())
+        )
         primary = names[0]
         websites = sorted({v for row in rows if (v := canonical_website(row.website))})
         sources = sorted({_text(row.source) for row in rows})
@@ -104,16 +133,31 @@ def build_mass_census(
                 for row in rows
             }
         )
-        cohorts = sorted({_text(row.cohort).upper() or "TECH" for row in rows})
-        geographies = sorted({_text(row.geography).upper() or "REGION_HANNOVER" for row in rows})
+        memberships = sorted(
+            {
+                (geography.upper(), cohort.upper())
+                for row in rows
+                for geography in (row.geographies or (row.geography,))
+                for cohort in (row.cohorts or (row.cohort,))
+                if geography_allowed(cohort, geography)
+            }
+        )
+        cohorts = sorted({cohort for _, cohort in memberships})
+        geographies = sorted({geography for geography, _ in memberships})
         base_key = company_key(primary)
-        stable_key = base_key if identity[0] == "name" else f"{base_key}-{hashlib.sha256(identity[1].encode()).hexdigest()[:8]}"
+        stable_key = (
+            base_key
+            if identity[0] == "name"
+            else f"{base_key}-{hashlib.sha256(identity[1].encode()).hexdigest()[:8]}"
+        )
         candidates.append(
             {
                 "company_key": stable_key,
                 "company_name": primary,
                 "cohorts": cohorts,
                 "geographies": geographies,
+                "scope_memberships": [{"geography": g, "cohort": c} for g, c in memberships],
+                "directory_urls": sorted({row.directory_url for row in rows if row.directory_url}),
                 "aliases": names[1:],
                 "websites": websites,
                 "locations": locations,
@@ -125,6 +169,16 @@ def build_mass_census(
             }
         )
 
+    keys = [row["company_key"] for row in candidates]
+    if len(keys) != len(set(keys)):
+        # Distinct normalized identities can share an ASCII slug; keep both.
+        collisions = {key for key, count in Counter(keys).items() if count > 1}
+        for row in candidates:
+            if row["company_key"] in collisions:
+                digest = hashlib.sha256(
+                    json.dumps([row["company_name"], row["websites"]], sort_keys=True).encode()
+                ).hexdigest()[:16]
+                row["company_key"] += "-" + digest
     source_counts = Counter(_text(seed.source) for seed in seeds if _text(seed.source))
     canonical = {
         "schema_version": SCHEMA_VERSION,
@@ -138,8 +192,16 @@ def build_mass_census(
             "duplicate_seed_count": sum(len(rows) - 1 for rows in grouped.values()),
             "candidate_population_authority": "mass_census_experiment_by_domain_then_normalized_name",
             "source_counts": dict(sorted(source_counts.items())),
-            "cohort_counts": dict(sorted(Counter(_text(seed.cohort).upper() or "TECH" for seed in seeds).items())),
-            "geography_counts": dict(sorted(Counter(_text(seed.geography).upper() or "REGION_HANNOVER" for seed in seeds).items())),
+            "cohort_counts": dict(
+                sorted(Counter(_text(seed.cohort).upper() or "TECH" for seed in seeds).items())
+            ),
+            "geography_counts": dict(
+                sorted(
+                    Counter(
+                        _text(seed.geography).upper() or "REGION_HANNOVER" for seed in seeds
+                    ).items()
+                )
+            ),
         },
         "boundaries": {
             "experiment_only": True,
@@ -181,10 +243,17 @@ def seeds_from_payload(payload: object, *, default_source: str) -> list[CompanyS
                 source_record_id=_text(row.get("source_record_id") or row.get("id")) or None,
                 cohort=(
                     _text(row.get("cohort"))
-                    or (_text((row.get("cohorts") or ["TECH"])[0]) if isinstance(row.get("cohorts"), list) else "")
+                    or (
+                        _text((row.get("cohorts") or ["TECH"])[0])
+                        if isinstance(row.get("cohorts"), list)
+                        else ""
+                    )
                     or "TECH"
                 ).upper(),
                 geography=(_text(row.get("geography")) or "REGION_HANNOVER").upper(),
+                cohorts=tuple(_text(x).upper() for x in row.get("cohorts", []) if _text(x)),
+                geographies=tuple(_text(x).upper() for x in row.get("geographies", []) if _text(x)),
+                directory_url=_text(row.get("directory_url")) or None,
             )
         )
     return result

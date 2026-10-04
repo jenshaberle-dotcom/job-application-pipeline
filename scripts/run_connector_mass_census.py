@@ -1,4 +1,5 @@
 """Build a deterministic mass-company census from JSON/NDJSON/CSV seed files."""
+
 from __future__ import annotations
 
 import argparse
@@ -15,7 +16,11 @@ def load(path: Path, source: str):
         with path.open(encoding="utf-8-sig", newline="") as handle:
             return seeds_from_payload(list(csv.DictReader(handle)), default_source=source)
     if suffix in {".ndjson", ".jsonl"}:
-        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        rows = [
+            json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
         return seeds_from_payload(rows, default_source=source)
     return seeds_from_payload(json.loads(path.read_text(encoding="utf-8")), default_source=source)
 
@@ -35,7 +40,9 @@ def main() -> int:
         seeds.extend(load(path, source))
     result = build_mass_census(seeds, region=args.region, experiment_id=args.experiment_id)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
+    args.output.write_text(
+        json.dumps(result, indent=2, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8"
+    )
     print(json.dumps(result["summary"], sort_keys=True))
     print(f"population_digest={result['population_digest']}")
     print(f"output={args.output}")

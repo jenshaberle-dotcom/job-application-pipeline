@@ -8,7 +8,9 @@ from src.connectors.factory_aggressive_policy import FactoryCandidate, evaluate_
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate every admitted employer candidate through the aggressive generic-first Connector Factory.")
+    parser = argparse.ArgumentParser(
+        description="Evaluate every admitted employer candidate through the aggressive generic-first Connector Factory."
+    )
     parser.add_argument("--census", required=True)
     parser.add_argument("--evidence", required=True)
     parser.add_argument("--catalog", default="contracts/connector-capability-catalog-v1.json")
@@ -31,7 +33,9 @@ def main() -> None:
                 origin_url=source.get("origin_url"),
                 source_type=source.get("source_type"),
                 fingerprint_tags=tuple(source.get("fingerprint_tags", [])),
-                evidence_ids=tuple(source.get("evidence_ids", row.get("discovery_evidence_ids", []))),
+                evidence_ids=tuple(
+                    source.get("evidence_ids", row.get("discovery_evidence_ids", []))
+                ),
                 origin_verified=source.get("origin_verified") is True,
             )
         )
@@ -41,7 +45,17 @@ def main() -> None:
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(json.dumps({"candidate_count": result["candidate_count"], "disposition_counts": result["disposition_counts"], "engineering_groups": len(result["engineering_queue"]), "output": str(output)}, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "candidate_count": result["candidate_count"],
+                "disposition_counts": result["disposition_counts"],
+                "engineering_groups": len(result["engineering_queue"]),
+                "output": str(output),
+            },
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":

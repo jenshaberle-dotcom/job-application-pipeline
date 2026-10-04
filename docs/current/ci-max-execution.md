@@ -13,6 +13,7 @@ Authoritative mapping: `.rcc/workload-demands.json`.
 | Workflow | Demand | Purpose |
 |---|---|---|
 | `.github/workflows/pr-validation.yml` | `linux-base` | Exact-source repository validation |
+| `.github/workflows/connector-factory-hannover-census.yml` | `linux-base` | Multi-region public discovery experiment; separate RCC exact-source admission required. |
 | `.github/workflows/product-v1-assessment-cohort.yml` | `linux-base` | Bounded Product assessment |
 | `.github/workflows/jap-windows-desktop-host-release.yml` | `windows-release` | Immutable desktop/runtime packaging and publication |
 | `.github/workflows/rcc-general-pool-proof.yml` | `windows-release` | Windows assignment/toolchain proof |

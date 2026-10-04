@@ -6,14 +6,9 @@ from collections import Counter
 from dataclasses import asdict, dataclass
 from typing import Iterable
 
-from src.connectors.factory_core import (
-    CandidateConnectorEvidence,
-    ConnectorCapabilityRole,
-    ConnectorFactoryCapability,
-    capabilities_from_catalog,
-    compile_connector_recipe,
-    qualify_connector_recipe,
-)
+from src.connectors.aggressive_factory import advance_candidate
+from src.connectors.connector_factory import ConnectorFactoryCapability, capabilities_from_catalog
+
 
 POLICY_SCHEMA_VERSION = "jap.connector_factory_aggressive_policy.v1"
 
@@ -52,41 +47,39 @@ def evaluate_candidate(
     if not candidate.origin_verified or not candidate.origin_url or not candidate.source_type:
         return base
 
-    evidence = CandidateConnectorEvidence(
-        candidate_key=f"candidate:{candidate.company_key}",
-        company_key=candidate.company_key,
-        origin_url=candidate.origin_url,
-        source_type=candidate.source_type,
-        required_roles=(
-            ConnectorCapabilityRole.ORIGIN_INVENTORY,
-            ConnectorCapabilityRole.JOB_DETAIL,
-        ),
-        fingerprint_tags=candidate.fingerprint_tags,
-        evidence_ids=candidate.evidence_ids,
-        market_sensor_only=False,
+    # Compatibility projection over the single canonical Factory policy.
+    row = advance_candidate(
+        {
+            "company_key": candidate.company_key,
+            "origin_url": candidate.origin_url,
+            "source_type": candidate.source_type,
+            "fingerprint_tags": list(candidate.fingerprint_tags),
+            "evidence_ids": list(candidate.evidence_ids),
+            "market_sensor_only": False,
+        },
+        catalog_payload={
+            "schema_version": "jap.connector_capability_catalog.v1",
+            "capabilities": [
+                {
+                    **asdict(capability),
+                    "roles": [role.value for role in capability.roles],
+                    "reuse_tier": capability.reuse_tier.name,
+                    "required_fingerprint_tags": list(capability.required_fingerprint_tags),
+                }
+                for capability in capabilities
+            ],
+        },
+        census_digest=_digest(candidate.company_key),
     )
-    result = compile_connector_recipe(evidence, capabilities)
-    row = {
+    disposition = row.pop("factory_disposition")
+    reason = row.pop("reason")
+    return {
         **base,
-        "disposition": result.disposition.value,
-        "blocker": result.reason,
-        "missing_roles": [role.value for role in result.missing_roles],
+        **row,
+        "disposition": "recipe_ready" if disposition == "qualified_inactive" else disposition,
+        "blocker": "execution_evidence_required" if disposition == "qualified_inactive" else reason,
+        "qualification_status": row.get("definition_status"),
     }
-    if result.recipe is None:
-        return row
-
-    proof = qualify_connector_recipe(result.recipe, capabilities)
-    row.update(
-        recipe_id=result.recipe.recipe_id,
-        capability_ids=sorted({b.capability_id for b in result.recipe.bindings}),
-        qualification_status=proof.status,
-        qualification_proof_id=proof.proof_id,
-    )
-    if proof.status != "PASS":
-        row.update(disposition="qualification_gap", blocker=",".join(proof.blockers))
-    else:
-        row.update(disposition="recipe_ready", blocker="execution_evidence_required")
-    return row
 
 
 def evaluate_population(

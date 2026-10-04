@@ -54,7 +54,8 @@
     "pr-validation.yml": "linux-base",
     "product-v1-assessment-cohort.yml": "linux-base",
     "jap-windows-desktop-host-release.yml": "windows-release",
-    "rcc-general-pool-proof.yml": "windows-release"
+    "rcc-general-pool-proof.yml": "windows-release",
+    "connector-factory-hannover-census.yml": "linux-base"
   },
   "persistent_state_boundary": {
     "allowed": [

@@ -3,6 +3,7 @@
 Network transport is intentionally explicit and read-only. The output is seed evidence for
 the mass census, never employer-source activation.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -14,33 +15,53 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 BASE = "https://firmen.cc.hs-hannover.de/companies/page{page}/"
-TECH_FIELDS = frozenset({
-    "Informationstechnologie",
-    "Softwarentwicklung/-kenntnisse",
-    "Datenbank-/ Informationsmanagement",
-    "Elektro-, Nachrichten- und Regeltechnik",
-    "Elektroindustrie",
-    "Forschung & Entwicklung",
-    "Maschinenbau, Anlagenbau",
-    "Automobilindustrie und Zulieferer",
-    "Fahrzeug- und Schiffbau",
-    "Energie & Wasserversorgung",
-    "Medizin, Medizintechnik",
-    "Luft- & Raumfahrt",
-    "Telekommunikation",
-    "Ingenieur allg.",
-})
-SOCIAL_FIELDS = frozenset({
-    "Gesundheit & Soziale Dienste",
-    "Bildung, Erziehung, Pädagogik",
-    "Sozialwesen",
-    "Psychologie",
-})
+TECH_FIELDS = frozenset(
+    {
+        "Informationstechnologie",
+        "Softwarentwicklung/-kenntnisse",
+        "Datenbank-/ Informationsmanagement",
+        "Elektro-, Nachrichten- und Regeltechnik",
+        "Elektroindustrie",
+        "Forschung & Entwicklung",
+        "Maschinenbau, Anlagenbau",
+        "Automobilindustrie und Zulieferer",
+        "Fahrzeug- und Schiffbau",
+        "Energie & Wasserversorgung",
+        "Medizin, Medizintechnik",
+        "Luft- & Raumfahrt",
+        "Telekommunikation",
+        "Ingenieur allg.",
+    }
+)
+SOCIAL_FIELDS = frozenset(
+    {
+        "Gesundheit & Soziale Dienste",
+        "Bildung, Erziehung, Pädagogik",
+        "Sozialwesen",
+        "Psychologie",
+    }
+)
 REGION_MARKERS = (
-    " hannover", " langenhagen", " laatzen", " garbsen", " isernhagen",
-    " burgwedel", " wedemark", " neustadt", " springe", " seelze",
-    " gehrden", " barsinghausen", " lehrte", " burgdorf", " uetze",
-    " pattensen", " ronnenberg", " sehnde", " wennigsen", " wunstorf",
+    " hannover",
+    " langenhagen",
+    " laatzen",
+    " garbsen",
+    " isernhagen",
+    " burgwedel",
+    " wedemark",
+    " neustadt",
+    " springe",
+    " seelze",
+    " gehrden",
+    " barsinghausen",
+    " lehrte",
+    " burgdorf",
+    " uetze",
+    " pattensen",
+    " ronnenberg",
+    " sehnde",
+    " wennigsen",
+    " wunstorf",
     " hemmingen",
 )
 
@@ -86,7 +107,9 @@ def parse_company_blocks(html: str) -> list[dict[str, object]]:
         name = text[start - 1]
         if name in {"Name", "Sortieren nach:"}:
             continue
-        end = next((i for i in range(start + 1, len(text)) if text[i] == "Berufsfeld(er)"), len(text))
+        end = next(
+            (i for i in range(start + 1, len(text)) if text[i] == "Berufsfeld(er)"), len(text)
+        )
         block = text[start:end]
         fields: list[str] = []
         address = ""
@@ -112,7 +135,14 @@ def parse_company_blocks(html: str) -> list[dict[str, object]]:
             elif section == "homepage" and not homepage and value != "Keine Angabe":
                 homepage = value
         if fields:
-            rows.append({"company_name": name, "fields": sorted(set(fields)), "location": address, "website": homepage})
+            rows.append(
+                {
+                    "company_name": name,
+                    "fields": sorted(set(fields)),
+                    "location": address,
+                    "website": homepage,
+                }
+            )
     return rows
 
 
@@ -172,11 +202,19 @@ def discover(max_pages: int, delay: float, timeout: int) -> dict[str, object]:
         "schema_version": "jap.discovery.hsh_career_center.v1",
         "source_url": "https://firmen.cc.hs-hannover.de/companies/",
         "cohorts": ["TECH", "SOCIAL"],
-        "selection": {"region": "Region Hannover", "tech_fields": sorted(TECH_FIELDS), "social_fields": sorted(SOCIAL_FIELDS)},
+        "selection": {
+            "region": "Region Hannover",
+            "tech_fields": sorted(TECH_FIELDS),
+            "social_fields": sorted(SOCIAL_FIELDS),
+        },
         "pages_fetched": pages,
         "company_count": len(companies),
         "companies": companies,
-        "boundaries": {"source_activation": False, "database_writes": False, "application_actions": False},
+        "boundaries": {
+            "source_activation": False,
+            "database_writes": False,
+            "application_actions": False,
+        },
     }
 
 
@@ -191,7 +229,16 @@ def main() -> None:
     with open(args.output, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
         handle.write("\n")
-    print(json.dumps({"company_count": payload["company_count"], "pages_fetched": payload["pages_fetched"], "output": args.output}, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "company_count": payload["company_count"],
+                "pages_fetched": payload["pages_fetched"],
+                "output": args.output,
+            },
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":

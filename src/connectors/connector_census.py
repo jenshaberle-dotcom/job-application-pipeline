@@ -66,11 +66,11 @@ def evaluate_connector_census(
         raise ValueError("current_employer_census_required")
     population_authority = (
         "fresh_profile_driven_discovery_by_company_key"
-        if fresh else "latest_distinct_employer_origin_source_candidates_by_company_key"
+        if fresh
+        else "latest_distinct_employer_origin_source_candidates_by_company_key"
     )
     if (
-        census.get("summary", {}).get("candidate_population_authority")
-        != population_authority
+        census.get("summary", {}).get("candidate_population_authority") != population_authority
         or census.get("boundaries", {}).get("market_sensors_excluded") is not True
     ):
         raise ValueError("employer_candidate_population_authority_required")
@@ -294,13 +294,16 @@ def _validate_fresh_population(population: dict) -> None:
         raise ValueError("cold_start_without_classic_enrichment_required")
     for field, length in (("cloud_repository_sha", 40), ("profile_snapshot_digest", 64)):
         value = provenance.get(field)
-        if not isinstance(value, str) or len(value) != length or any(
-            char not in "0123456789abcdef" for char in value
+        if (
+            not isinstance(value, str)
+            or len(value) != length
+            or any(char not in "0123456789abcdef" for char in value)
         ):
             raise ValueError(f"fresh_population_{field}_required")
-    if not isinstance(provenance.get("discovery_run_id"), str) or not provenance[
-        "discovery_run_id"
-    ].strip():
+    if (
+        not isinstance(provenance.get("discovery_run_id"), str)
+        or not provenance["discovery_run_id"].strip()
+    ):
         raise ValueError("fresh_discovery_run_required")
     for row in population["candidates"]:
         ids = row.get("discovery_evidence_ids")

@@ -43,9 +43,12 @@ def geography_allowed(cohort: str, geography: str) -> bool:
 def ml_readiness(summary: dict[str, object]) -> dict[str, object]:
     """Return explicit readiness signals; volume never suppresses discovery."""
     checks = {
-        "structural_diversity": int(summary.get("structural_fingerprint_count", 0)) >= MIN_STRUCTURAL_FINGERPRINTS_FOR_ML,
-        "negative_examples": int(summary.get("negative_or_gap_example_count", 0)) >= MIN_FAILURE_EXAMPLES_FOR_ML,
-        "positive_examples": int(summary.get("success_example_count", 0)) >= MIN_SUCCESS_EXAMPLES_FOR_ML,
+        "structural_diversity": int(summary.get("structural_fingerprint_count", 0))
+        >= MIN_STRUCTURAL_FINGERPRINTS_FOR_ML,
+        "negative_examples": int(summary.get("negative_or_gap_example_count", 0))
+        >= MIN_FAILURE_EXAMPLES_FOR_ML,
+        "positive_examples": int(summary.get("success_example_count", 0))
+        >= MIN_SUCCESS_EXAMPLES_FOR_ML,
         "multi_geography": int(summary.get("geography_count", 0)) >= len(TECH_GEOGRAPHIES),
     }
     return {"ready": all(checks.values()), "checks": checks}

@@ -4,9 +4,9 @@ Aggressive means every evidence-bearing candidate is advanced deterministically 
 as possible. It does not mean guessing evidence, activating sources, or generating
 employer-specific Python by default.
 """
+
 from __future__ import annotations
 
-from dataclasses import asdict
 from typing import Iterable
 
 from src.connectors.connector_factory import (
