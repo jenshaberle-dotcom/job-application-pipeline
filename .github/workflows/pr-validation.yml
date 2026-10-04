@@ -4,6 +4,11 @@ run-name: JAP RCC validation ${{ inputs.source_sha }}
 on:
   workflow_dispatch:
     inputs:
+      test_plan:
+        description: Immutable RCC-selected validation plan; empty retains full legacy validation
+        required: false
+        default: ""
+        type: string
       source_sha:
         description: Exact JAP source SHA admitted by RCC
         required: true
@@ -39,6 +44,7 @@ jobs:
       RCC_EXPECTED_FACADE: ${{ inputs.rcc_facade_label }}
       RCC_ASSIGNMENT_LABEL: ${{ inputs.rcc_assignment_label }}
       SOURCE_SHA: ${{ inputs.source_sha }}
+      RCC_TEST_PLAN: ${{ inputs.test_plan }}
 
     steps:
       - name: Prove exact RCC assignment handoff
@@ -80,6 +86,9 @@ jobs:
           test "${#values[@]}" -eq 1
           test -x "${values[0]}"
           printf 'PR_PYTHON=%s\n' "${values[0]}" >> "$GITHUB_ENV"
+          runtime_hash="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["ProfileHash"])' "$context_file")"
+          [[ "$runtime_hash" =~ ^[0-9a-f]{64}$ ]]
+          printf 'RCC_TEST_RUNTIME_FINGERPRINT=%s\n' "$runtime_hash" >> "$GITHUB_ENV"
           echo "JAP_PR_RCC_RUNTIME=PASS runner=$RUNNER_NAME"
 
       - name: Prove qualified Python environment
@@ -92,7 +101,27 @@ jobs:
           "$PR_PYTHON" -m ruff --version
           echo "JAP_PR_PYTHON_ENV=PASS"
 
+      - name: Run immutable dynamic test plan
+        if: ${{ inputs.test_plan != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          policy_sha="$("$PR_PYTHON" -c 'import json,os,re; p=json.loads(os.environ["RCC_TEST_PLAN"]); s=p["policy_sha"]; assert re.fullmatch(r"[0-9a-f]{40}",s); print(s)')"
+          trusted_launcher="$RUNNER_TEMP/rcc-validation-plan-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.py"
+          trap 'rm -f -- "$trusted_launcher"' EXIT
+          git show "${policy_sha}:scripts/run_validation_test_plan.py" > "$trusted_launcher"
+          "$PR_PYTHON" "$trusted_launcher"
+
+      - name: Upload dynamic plan receipt
+        if: ${{ inputs.test_plan != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-test-receipt
+          path: rcc-workload-${{ github.run_id }}-${{ github.run_attempt }}/artifacts/validation-test-receipt.json
+          if-no-files-found: error
+
       - name: Run full pytest
+        if: ${{ inputs.test_plan == '' }}
         shell: bash
         run: |
           set -euo pipefail
