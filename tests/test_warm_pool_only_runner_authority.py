@@ -49,6 +49,7 @@ def _text_files() -> list[Path]:
 def test_jap_has_only_current_rcc_assigned_workload_targets() -> None:
     workflows = sorted(path.name for path in WORKFLOWS.iterdir())
     assert workflows == [
+        "connector-factory-hannover-census.yml",
         "jap-windows-desktop-host-release.yml",
         "pr-validation.yml",
         "product-v1-assessment-cohort.yml",
@@ -93,6 +94,22 @@ def test_jap_has_only_current_rcc_assigned_workload_targets() -> None:
     assert "runs_on_json" not in pr_workflow
     assert "physical_runner:" not in pr_workflow
     assert "facade_runner:" not in pr_workflow
+
+    census = (WORKFLOWS / "connector-factory-hannover-census.yml").read_text(encoding="utf-8")
+    for required in (
+        "workflow_dispatch:", "source_sha:", "- self-hosted",
+        "${{ inputs.rcc_facade_label }}", "${{ inputs.rcc_assignment_label }}",
+        'test "$RUNNER_NAME" = "$RCC_EXPECTED_FACADE"',
+        "rcc-assignment-proof-[0-9a-f]{32}",
+        'test "$(git rev-parse HEAD)" = "$SOURCE_SHA"',
+        "resolve_rcc_runtime_context.py", "run_multi_region_company_discovery",
+    ):
+        assert required in census
+    for forbidden in (
+        "ubuntu-", "windows-", "rcc-general-linux-0", "runs_on_json",
+        "physical_runner:", "facade_runner:", "actions/setup-python",
+    ):
+        assert forbidden not in census
 
 
 def test_product_release_publisher_is_exact_rcc_general_windows_workload() -> None:
@@ -173,6 +190,7 @@ def test_project_owned_runner_allocation_and_profiles_are_physically_absent() ->
         },
     }
     assert demand["workflow_demands"] == {
+        "connector-factory-hannover-census.yml": "linux-base",
         "pr-validation.yml": "linux-base",
         "product-v1-assessment-cohort.yml": "linux-base",
         "jap-windows-desktop-host-release.yml": "windows-release",
