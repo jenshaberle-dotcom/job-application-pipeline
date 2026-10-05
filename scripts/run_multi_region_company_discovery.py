@@ -11,6 +11,7 @@ from pathlib import Path
 
 from scripts.build_connector_ml_corpus import build
 from src.search_intelligence.discovery_coverage import assess
+from src.search_intelligence.public_directory_discovery import discovery_failure
 
 CONFIGS = (
     "contracts/discovery/berlin-startup-map.json",
@@ -71,13 +72,23 @@ def run(output_dir: Path, *, execute=subprocess.run, source_timeout: int = 240) 
             if not isinstance(payload.get("companies"), list):
                 raise ValueError("source_companies_list_required")
             outcome.update(
-                status="SUCCESS" if payload["companies"] else "ZERO_COMPANIES",
+                status="SUCCESS" if payload["companies"] else "NO_RECORDS_PARSED",
                 company_count=len(payload["companies"]),
                 snapshot_digest=hashlib.sha256(target.read_bytes()).hexdigest(),
             )
+            if not payload["companies"]:
+                outcome["empty_result_semantics"] = "NOT_MARKET_ABSENCE"
+            # Propagate an adapter's explicit incompleteness; a successful
+            # subprocess is not evidence that pagination was exhausted.
+            if payload.get("complete") is False:
+                outcome["complete"] = False
             snapshots.append(str(target))
         except (subprocess.SubprocessError, OSError, ValueError) as exc:
-            outcome.update(status="SOURCE_DISCOVERY_FAILURE", failure_type=type(exc).__name__)
+            outcome.update(
+                status="SOURCE_DISCOVERY_FAILURE",
+                failure_type=type(exc).__name__,
+                **discovery_failure(exc),
+            )
             target.unlink(missing_ok=True)
         outcomes.append(outcome)
     census_path = output_dir / "multi-region-company-census.json"
