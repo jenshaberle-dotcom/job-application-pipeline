@@ -252,6 +252,7 @@ def test_lifecycle_failure_still_runs_silver_but_fails_authoritative_core(tmp_pa
     completed, calls, log_text = _run_daily(tmp_path, lifecycle_exit=1)
 
     assert completed.returncode == 1
+    assert any("-m scripts.reconcile_reviewed_personio_detail_health" in call for call in calls)
     assert any("--role sensor" in call for call in calls)
     assert any("-m src.run_silver_jobs" in call for call in calls)
     assert "exact-detail lifecycle reconciliation failed" in log_text
