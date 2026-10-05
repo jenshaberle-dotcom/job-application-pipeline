@@ -57,6 +57,10 @@
   color: #fbbf24;
 }
 
+.f4c-health-status.neutral {
+  color: #9fb4c5;
+}
+
 .f4c-health-reason,
 .f4c-health-boundary {
   margin: 10px 0 0;
