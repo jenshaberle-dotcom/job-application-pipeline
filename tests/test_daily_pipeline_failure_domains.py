@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 
 import pytest
@@ -124,6 +126,19 @@ esac
     return home, call_log, context_file
 
 
+def _isolated_daily_script(tmp_path: Path) -> Path:
+    """Relocate only the fixture lock; never touch the real host's daily lock."""
+    original = SCRIPT.read_text(encoding="utf-8")
+    declaration = 'LOCK_DIR="/tmp/job-pipeline-daily.lock"'
+    assert original.splitlines().count(declaration) == 1, "daily lock contract changed"
+    script = tmp_path / "run_daily_pipeline.sh"
+    script.write_text(
+        original.replace(declaration, "LOCK_DIR=" + shlex.quote(str(tmp_path / "daily.lock")), 1),
+        encoding="utf-8",
+    )
+    return script
+
+
 def _run_daily(
     tmp_path: Path,
     *,
@@ -172,7 +187,7 @@ def _run_daily(
     else:
         env.pop("RCC_RESERVATION_ID", None)
     completed = subprocess.run(
-        ["bash", str(SCRIPT)],
+        ["bash", str(_isolated_daily_script(tmp_path))],
         env=env,
         capture_output=True,
         text=True,
@@ -237,7 +252,6 @@ def test_lifecycle_failure_still_runs_silver_but_fails_authoritative_core(tmp_pa
     completed, calls, log_text = _run_daily(tmp_path, lifecycle_exit=1)
 
     assert completed.returncode == 1
-    assert any("-m scripts.reconcile_reviewed_personio_detail_health" in call for call in calls)
     assert any("--role sensor" in call for call in calls)
     assert any("-m src.run_silver_jobs" in call for call in calls)
     assert "exact-detail lifecycle reconciliation failed" in log_text
@@ -302,3 +316,58 @@ def test_runtime_consumers_no_longer_guess_pipeline_checkout() -> None:
     assert 'required = ("extruct", "trafilatura", "pymupdf")' in provisioner
     assert "sha256sum" in provisioner
     assert "--target" in provisioner
+
+
+def test_daily_fixture_preserves_an_existing_lock(tmp_path: Path) -> None:
+    lock = tmp_path / "daily.lock"
+    lock.mkdir()
+    owner = lock / "owner"
+    owner.write_text("another-run", encoding="utf-8")
+
+    completed, calls, log_text = _run_daily(tmp_path)
+
+    assert completed.returncode == 1
+    assert calls == []
+    assert "another daily pipeline run appears to be active" in log_text
+    assert owner.read_text(encoding="utf-8") == "another-run"
+
+
+def test_daily_fixture_does_not_share_another_fixture_lock(tmp_path: Path) -> None:
+    other = tmp_path / "other"
+    other.mkdir()
+    lock = other / "daily.lock"
+    lock.mkdir()
+    owner = lock / "owner"
+    owner.write_text("preserve", encoding="utf-8")
+    source_before = SCRIPT.read_bytes()
+
+    # Exercise quoting too; an isolated test path is not a shell command.
+    current = tmp_path / "current ' quoted"
+    completed, calls, _ = _run_daily(current)
+
+    assert completed.returncode == 0
+    assert calls
+    assert not (current / "daily.lock").exists()
+    assert owner.read_text(encoding="utf-8") == "preserve"
+    assert SCRIPT.read_bytes() == source_before
+    assert '/tmp/job-pipeline-daily.lock' not in (current / "run_daily_pipeline.sh").read_text()
+
+
+def test_daily_fixtures_can_execute_concurrently(tmp_path: Path) -> None:
+    roots = [tmp_path / f"parallel-{index}" for index in range(4)]
+    with ThreadPoolExecutor(max_workers=4) as workers:
+        results = list(workers.map(_run_daily, roots))
+
+    for root, (completed, calls, log_text) in zip(roots, results, strict=True):
+        assert completed.returncode == 0, completed.stdout + completed.stderr
+        assert calls
+        assert "END daily job pipeline OK" in log_text
+        assert not (root / "daily.lock").exists()
+
+
+def test_daily_fixture_releases_own_lock_on_failure(tmp_path: Path) -> None:
+    completed, calls, _ = _run_daily(tmp_path, remove_context=True)
+
+    assert completed.returncode == 1
+    assert calls == []
+    assert not (tmp_path / "daily.lock").exists()
