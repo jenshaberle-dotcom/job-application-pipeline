@@ -52,7 +52,7 @@ admitted candidate SHA. The exact-source workflow must therefore be merged befor
 the controller can use it; a branch-only workflow edit cannot bootstrap its own CI.
 Do not bypass that boundary with a fake assignment or hosted fallback.
 
-The Linux runtime projection supplies `RepositoryId`, `Repository`, `RunnerName`,
+The runtime projection supplies `RepositoryId`, `Repository`, `RunnerName`,
 `Platform`, `Status`, `PrimaryFailure`, `Interpreter`, `ProfileId`, `ProfileHash`
 and `SourceSha`. JAP verifies identity and exact source before using that interpreter;
 it does not require a persistent checkout or own the content-addressed runtime.
@@ -77,19 +77,34 @@ identity, assigned General Pool member, correct runtime, result and cleanup evid
 physical legacy runners through RCC only after replacement proof; never infer retirement from
 absence of an old label in JAP.
 
-## Source activation and first live proof
+## Accepted Linux execution and remaining Windows gate
 
-The consumer hardcut is merged in JAP PR #1162
-(`19e8a84011ab34983ff95abdc63fb4bdb26d5b42`). RCC PR #734
-(`efd8b49210f5855d30c0946c4de14d2d1e24f97e`) adds the matching CI catalog entry.
-These merges establish source integration, not live host acceptance.
+Linux live acceptance passed on exact candidate
+`8f3241662505cb4008bb7a12d16bab6487901ea1` in
+[run 37115262842](https://github.com/jenshaberle-dotcom/job-application-pipeline/actions/runs/37115262842).
+All 3,923 tests, repository/documentation contracts, qualified Python and Ruff passed.
+RCC reported request `05d476c267c9cdcf43d90817590808268c46ff6d4ea6aa5d09af8e1b938abbe3`
+as `SUCCEEDED`, runtime-context cleanup, zero active listeners and final state
+`OFFLINE_DISABLED_EXACT_ONLY`. JAP PR #1163 merged as
+`092c96d4241d8a4224dd4fedef00a6ad7bf1d43f`; RCC PR #736 supplies automatic
+reviewed-wheel preparation. Cold seed acquisition and subsequent runtime reuse were
+proved without manual `PIP_FIND_LINKS`.
 
-The first proof candidate changes this activation record only and preserves the
-merged demand, workflow and runtime contract. Run it through the existing RCC
-controller using its exact repository and PR filters after adopting current RCC source.
-Preserve request state and consumed authority markers. Do not reinstall the broker
-for this catalog-only change, manually choose a physical member or fabricate labels.
+Windows proof and release validate the same exact-source runtime fields, using Windows
+absolute interpreter paths. Both use a per-run candidate directory and always remove
+that checkout, including after failure. Release uses Ruff through the qualified Python.
+These consumer guards do not implement RCC Windows execution or provision capabilities.
 
-Acceptance requires the linked GitHub run, exact candidate SHA, RCC-assigned
-facade and runtime, passing full validation and the executor's terminal cleanup evidence.
-Until those are recorded, the first live JAP Linux proof remains pending.
+At the 2026-10-03 inspection, RCC's capability catalog marks `node-22` and the
+PowerShell 7 qualification capability `IMPLEMENTATION_PENDING`; its Demand-v2 CI
+controller and source-bound Python materializer are Linux-only. The RCC demand
+materializer rejects pending capabilities. Existing Windows fleet capacity or a tool
+already on PATH does not establish a qualified Windows handoff. Complete and prove
+those existing RCC paths before dispatching the Windows proof; do not fabricate an
+assignment, install tools in JAP's workflow or use a hosted fallback.
+
+Run the non-publishing `rcc-general-pool-proof.yml` through RCC first. Actual release
+publication remains a separate effectful admission: desktop version 1.2.6 already has
+an immutable release on an earlier source, so publishing a different source under that
+same tag is rejected. A new release needs its own approved version/source identity.
+Windows live acceptance and physical legacy-runner retirement remain unproved.
