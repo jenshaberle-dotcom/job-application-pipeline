@@ -1,0 +1,39 @@
+name: DRJ Terminal ZERO_UNIQUE Effect
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/drj-terminal-zero-unique-effect.yml
+      - tools/drj_portable_terminal_zero_unique_effect_v1.py
+      - drj/authority/jap-terminal-zero-unique-20260907.json
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  effect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify qualified DRJ executor blob
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object tools/drj_portable_terminal_zero_unique_effect_v1.py)" = "0ab705cff0703e35fbf0fc733c4ef881b2652923"
+      - name: Execute exact JAP terminal cohort
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python tools/drj_portable_terminal_zero_unique_effect_v1.py
+          --repository "${GITHUB_REPOSITORY}"
+          --authority drj/authority/jap-terminal-zero-unique-20260907.json
+          --output /tmp/drj-terminal-zero-unique-outcome.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: drj-terminal-zero-unique-${{ github.run_id }}
+          path: /tmp/drj-terminal-zero-unique-outcome.json
+          if-no-files-found: warn
+          retention-days: 7
