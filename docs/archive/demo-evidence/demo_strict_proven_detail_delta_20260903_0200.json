@@ -1,0 +1,71 @@
+{
+  "schema": "job_application_pipeline.demo_strict_proven_detail_delta.v1",
+  "observed_at": "2026-09-03",
+  "purpose": "Continue current detail validation for the historically strict-proven deterministic connector pool. Detail proof is established independently of profile relevance. This evidence grants no Product V1 ranking, activation, application, or submission authority.",
+  "continues": "docs/archive/demo-evidence/demo_strict_proven_detail_delta_20260903_0100.json",
+  "strict_proven_sources_total": 36,
+  "delta": [
+    {
+      "company_key": "compugroup_medical",
+      "previous_state": "detail_not_yet_proven",
+      "current_state": "detail_proven",
+      "detail_proven": true,
+      "carrier_detail_surface_pattern": "employer_explicitly_delegated_workday_detail",
+      "employer_origin_chain": {
+        "employer_career_url": "https://www.cgm.com/corp_de/karriere/karriere.html",
+        "delegated_jobs_host": "https://cgm.wd3.myworkdayjobs.com/cgm",
+        "authority_note": "The official CGM Germany careers page explicitly links its 'Direkt zu den Jobs' / 'Alle Jobs' controls to cgm.wd3.myworkdayjobs.com and states that current advertised positions are found in that online portal."
+      },
+      "evidence": [
+        {
+          "title": "Data Engineer BI (m/w/d)",
+          "detail_url": "https://cgm.wd3.myworkdayjobs.com/en-US/cgm/job/Data-Engineer-BI--m-w-d-_JR109347",
+          "location": "Waldems",
+          "requisition_id": "JR109347",
+          "work_model": "Hybrid: two days remote, three days on site",
+          "profile_relevance": "strong_data_bi_overlap",
+          "hannover_or_remote_germany_scope": false,
+          "profile_note": "Substantive Data/BI fit: Power BI, semantic data models, Microsoft Fabric collaboration, data quality, governance and security. Geography is outside Hannover and the role is not Germany-wide remote, so profile relevance is positive while target-scope relevance is negative."
+        }
+      ],
+      "generic_fix_preserved": "When an employer-owned careers page explicitly delegates all current vacancies to a named ATS host, treat that host as Employer-Origin-authoritative for concrete detail acquisition. Do not infer the delegation from provider branding or third-party copies alone."
+    },
+    {
+      "company_key": "trustyou",
+      "previous_state": "no_current_openings_observed",
+      "current_state": "no_current_openings_observed",
+      "detail_proven": false,
+      "carrier_detail_surface_pattern": "lever_inventory_detail",
+      "official_origin_evidence": "https://www.trustyou.com/careers/",
+      "current_observation": "The official TrustYou careers page is current, describes a 100% remote environment, exposes a 'Current openings' heading, and currently renders no concrete vacancy beneath it.",
+      "profile_relevance": "not_classifiable_without_current_job",
+      "hannover_or_remote_germany_scope": "company_remote_policy_positive_but_no_current_job_to_classify",
+      "authority_note": "No vacancy is fabricated and no negative lifecycle authority is created from the empty current-opening observation."
+    }
+  ],
+  "post_delta_summary": {
+    "sources_with_current_detail_proof": 35,
+    "sources_without_current_detail_proof": 1,
+    "remaining_without_current_detail_proof": ["trustyou"],
+    "interpretation": "CGM is now current Employer-Origin detail-proven through an explicit employer-to-Workday delegation chain. TrustYou remains the sole strict-proven source without current substantive job-detail evidence because the current official careers surface exposes no concrete opening."
+  },
+  "cluster_correction": {
+    "company_key": "compugroup_medical",
+    "from": "official_career_surface_without_current_employer_origin_detail",
+    "to": "enterprise_hosted_ats_detail",
+    "specific_pattern": "employer_explicitly_delegated_workday_detail",
+    "note": "This is an evidence-backed reclassification, not provider-name authority."
+  },
+  "boundaries": {
+    "profile_relevance_required_for_detail_proof": false,
+    "third_party_listing_as_detail_authority": false,
+    "provider_recognition_as_authority": false,
+    "source_activation": false,
+    "database_write": false,
+    "bronze_silver_gold_write": false,
+    "ranking_or_top5_authority": false,
+    "application_authority": false,
+    "submission_action": false,
+    "negative_lifecycle_authority_created": false
+  }
+}
