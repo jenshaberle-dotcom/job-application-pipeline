@@ -35,47 +35,72 @@ after source failure. Failed attempts cannot reuse an earlier snapshot. It write
 `discovery-coverage.json` even if no usable source remains. Each successful snapshot carries a
 SHA-256 digest. The Census population digest identifies replay inputs; raw HTML is not archived.
 
-Coverage reports unique companies per geography/cohort, source contribution and exclusive
-source contribution. TECH minimums are Hannover 250, Wolfsburg 50, Ingolstadt 50, Stuttgart 100,
-Berlin 250 and Munich 250. SOCIAL cannot satisfy a TECH threshold. A nonempty partial population
-is Factory-usable; gaps generate `SOURCE_COVERAGE_GAP` and `additional_sources_required=true`.
-Source configuration is provisional until a real RCC run proves it. No source additions are
-justified by fixtures or hypothetical counts.
+Coverage reports candidates per geography/cohort, source contribution and exclusive source
+contribution. TECH minimums are Hannover 250, Wolfsburg 50, Ingolstadt 50, Stuttgart 100,
+Berlin 250 and Munich 250. SOCIAL cannot satisfy a TECH threshold. A partial population with
+valid identities may support Factory learning; gaps generate `SOURCE_COVERAGE_GAP`.
+Known invalid names or reused discovery IDs instead produce `SOURCE_IDENTITY_INVALID`, with
+`factory_run_recommended=false`, `ml_scale_ready=false` and counts explicitly unvalidated.
+Structural identity sanity and scale thresholds do not prove complete market coverage or
+training readiness. Source configurations remain provisional until measured.
 
-## Current execution gates (2026-10-05)
+## Accepted infrastructure and first real flight (2026-10-05)
 
-PR #1167 is integrated as `5d85a6f09d47824f7012e92e23f600a61d3ca77b`. The Census workflow,
-consumer test policy, trusted test launcher and optional `test_plan` input are now on main.
-The earlier observation that the Census workflow returned 404 was a pre-merge observation,
-not a current blocker. Likewise, looking for Actions only by candidate `head_sha` misses
-trusted-main `workflow_dispatch` runs; the candidate is bound by the `source_sha` input and
-must be verified in the execution evidence.
+PR #1167 integrated the Lab. PR #1168 integrated test-fixture isolation at
+`8fcddf12e2200521df566ddefeec923fea092c2c`. Its Workchat diagnostic run `37274755893`
+and independent full run `37274757623` passed, including artifacts and terminal RCC statuses.
+The operator supplied matching successful requests and a subsequent merge plan with the same
+execution digest, proving reuse rather than a new full test execution.
 
-Operator-reported host receipt `20261005T064216Z-645995` confirms adoption of RCC source
-`4a04c21e8feec202e64a2aaabf1d578fdb49022e` using the existing controller and state roots.
-It reports quiescence, unchanged request receipts and successful controller/broker self-tests.
-Cloud delivery remains disabled. This is host adoption evidence, not a completed Workchat
-validation, real Census execution, status-write acceptance or automatic merge permission.
+The existing RCC controller was adopted at `4a04c21e8feec202e64a2aaabf1d578fdb49022e`.
+Cloud delivery remained disabled. Upload probe `37279430073` then passed before the single
+public Census run `37279612056`, bound to Classic source `8fcddf12e2200521df566ddefeec923fea092c2c`.
+The Census job, artifact upload and workspace cleanup passed. The operator's RCC receipt
+reports final `OFFLINE_DISABLED_EXACT_ONLY` after runtime-context cleanup and reservation release.
+This is real execution evidence, not acceptance of the returned company identities.
 
-The remaining transitions are distinct:
+Artifact `11331628069` was downloaded and verified against SHA-256
+`1d0dd4ea1cb4d6dafc8694d4bb919de055ffded3d40bd04b151ffbc51df46c75`.
+Its immutable population digest is
+`e362ed032a54faeac866d64af288cc86de22c1b144fdebffb0eb030132336b3d`.
 
-1. **Workchat validation:** publish a source-bound request in a PR description using the
-   existing `rcc-test-request` contract. Observe a real dynamic plan, RCC assignment, Actions
-   execution, bound test receipt and terminal status. Full pytest remains the PR/merge
-   baseline. Diagnostics may adjust optional suites but cannot replace merge qualification.
-2. **Public Census execution:** separately admit the existing Census workflow through RCC.
-   The automatic JAP PR catalog entry remains `pr-validation.yml`, not the Census. A mapped
-   demand or green validation run does not itself authorize live network discovery. RCC must
-   construct exact authority, resolve profile identity/hash, allocate a General Pool member
-   and dispatch. Do not handcraft consumer runner assignments or relabel discovery as CI.
-3. **Coverage and Factory evaluation:** inspect real source failures, TECH/SOCIAL and regional
-   counts, then acquire Career/Origin evidence and evaluate the immutable population. A
-   completed discovery process alone does not prove full company coverage or extraction.
+### Data result: rejected for Factory and ML use
 
-The executor uses the installed host broker. GitHub request/Actions access from Workchat does
-not grant direct host administration. Preserve terminal/uncertain requests and reservations;
-do not reset them to obtain another run. No live Census receipt is recorded by this document
-update, and no provider, Azure, production source activation or application action is granted.
+The artifact reports 423 input seeds, 421 candidate rows and 54 Hannover directory pages.
+Its raw coverage projection reports Hannover TECH 411 / SOCIAL 19, Ingolstadt TECH 1,
+and zero for Wolfsburg, Berlin, Munich and Stuttgart. TECH and SOCIAL can overlap.
+These are defective parser observations, not accepted unique-employer counts:
+
+- 208 candidate names are `Homepage` and 212 are URLs. Across the population 47 discovery
+  evidence IDs refer to multiple candidate rows. The HSH parser split every occurrence of
+  `Berufsfeld(er)` and used its preceding text as a name; the directory repeats labels in
+  navigation, desktop and mobile views. That creates false rows and inflated counts.
+- The one Ingolstadt row is `Startup Opportunities: Dual-Use Innovation`, an opportunity/event
+  link, not an established company identity. Its inclusion pattern needs source-specific review.
+- Berlin and Wolfsburg reported `SOURCE_DISCOVERY_FAILURE`; retained evidence only contains
+  `CalledProcessError`, not its HTTP cause. Munich and Stuttgart returned no parsed records;
+  neither result establishes that the markets contain no companies.
+
+Preserve this original artifact as failure/evaluation evidence; do not repair names by guessing
+from domains, relabel it as training data, or overwrite the consumed Census authority.
+
+### Implemented repair and remaining operator gate
+
+HSH parsing now binds each company to its actual local `/companies/<id>/` profile link,
+collects labelled fields within that record, coalesces repeated views, and uses that profile
+URL as stable discovery evidence. Conflicting records fail explicitly. The old global
+preceding-text identity heuristic is removed. A positive directory total with no parsed
+identities is a parser failure, not a successful zero-company observation.
+
+Regression fixtures reproduce the observed tab/desktop/mobile structure with synthetic names;
+they are not claimed to be captured live HTML. Coverage sanity checks flag invalid names and
+cross-company evidence collisions without modifying the original population.
+
+The next gate is exact-source CI, then a separately admitted corrected-source discovery flight.
+No corrected live company counts, successful origin acquisition, complete extraction or ML
+readiness are claimed by the repair. Fix or replace the other sources only from real source
+structure/failure evidence; the first flight now establishes where additional work is needed.
+The existing automatic PR carrier remains validation-only and does not launch live discovery.
 
 ## Corpus truth
 
@@ -86,8 +111,7 @@ examples are `RUNTIME_GAP`. Positive labels require verified origin, runtime adm
 qualification and complete passing extraction with an explicit measured job count. Zero is
 `ZERO_JOB_VALID_SOURCE` only with that proof; failures/gaps stay negative examples.
 
-A real Census, real disposition distribution, origin acquisition, extraction replay and
-ML readiness are still pending the RCC flight. Fixture tests are not population evidence.
-After the flight: identify weak regions, add sources there only, acquire origin evidence,
-cluster capability gaps by population impact, extend generic capabilities, replay and measure
-ML readiness. Do not train a model before corpus quality/volume/diversity is demonstrated.
+Origin acquisition, real disposition distribution, extraction replay and ML readiness remain
+pending a corrected, accepted population. Do not train a model before corpus quality, volume
+and diversity are demonstrated. No provider, Azure, database or production activation effects
+are granted by source qualification or this inspection record.

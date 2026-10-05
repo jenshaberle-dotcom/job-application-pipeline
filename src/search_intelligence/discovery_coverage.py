@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from collections import Counter
+import re
 
 EXPECTED = {"REGION_HANNOVER", "WOLFSBURG", "INGOLSTADT", "STUTTGART_REGION", "BERLIN", "MUNICH"}
 MINIMUM = {
@@ -20,7 +21,21 @@ def assess(census: dict[str, object]) -> dict[str, object]:
     scoped_counts = Counter()
     source_counts = Counter()
     exclusive_counts = Counter()
-    for row in census.get("candidates", []):
+    identity_errors = Counter()
+    evidence_owners: dict[str, set[int]] = {}
+    candidates = census.get("candidates", [])
+    for index, row in enumerate(candidates):
+        name = row.get("company_name")
+        if not isinstance(name, str) or not name.strip():
+            identity_errors["missing_company_name"] += 1
+        elif name.strip().casefold() in {
+            "homepage", "name", "anschrift", "berufsfeld(er)", "beschreibung", "mitarbeitende",
+        }:
+            identity_errors["navigation_label_as_company_name"] += 1
+        elif re.match(r"(?i)(?:https?://|www\.)", name.strip()):
+            identity_errors["url_as_company_name"] += 1
+        for evidence_id in set(row.get("discovery_evidence_ids", [])):
+            evidence_owners.setdefault(evidence_id, set()).add(index)
         for geography in row.get("geographies", []):
             counts[str(geography)] += 1
         for cohort in row.get("cohorts", []):
@@ -49,8 +64,16 @@ def assess(census: dict[str, object]) -> dict[str, object]:
                 "minimum": minimum,
                 "additional_sources_required": True,
             }
+    collisions = sum(len(owners) > 1 for owners in evidence_owners.values())
+    if collisions:
+        identity_errors["discovery_evidence_id_collision"] = collisions
+    identities_valid = not identity_errors
     return {
-        "status": "PASS" if not gaps else "SOURCE_COVERAGE_GAP",
+        "status": ("SOURCE_IDENTITY_INVALID" if not identities_valid else
+                   "PASS" if not gaps else "SOURCE_COVERAGE_GAP"),
+        "identity_errors": dict(sorted(identity_errors.items())),
+        "counts_are_unvalidated_observations": not identities_valid,
+        "raw_candidate_count": len(candidates),
         "geography_counts": dict(sorted(counts.items())),
         "cohort_counts": dict(sorted(cohort_counts.items())),
         "geography_cohort_counts": {
@@ -61,6 +84,6 @@ def assess(census: dict[str, object]) -> dict[str, object]:
             for s, n in sorted(source_counts.items())
         },
         "coverage_gaps": gaps,
-        "factory_run_recommended": bool(census.get("candidates")),
-        "ml_scale_ready": not gaps,
+        "factory_run_recommended": bool(candidates) and identities_valid,
+        "ml_scale_ready": not gaps and identities_valid,
     }

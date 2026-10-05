@@ -11,7 +11,7 @@ import json
 import re
 import time
 from html.parser import HTMLParser
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin, urlsplit
 from urllib.request import Request, urlopen
 
 BASE = "https://firmen.cc.hs-hannover.de/companies/page{page}/"
@@ -66,15 +66,65 @@ REGION_MARKERS = (
 )
 
 
+DIRECTORY_ORIGIN = "https://firmen.cc.hs-hannover.de"
+SECTION_LABELS = {"Berufsfeld(er)", "Anschrift", "Beschreibung", "Mitarbeitende", "Homepage"}
+
+
+def directory_identity(href: str) -> str | None:
+    """Only an actual local company-profile link establishes a record boundary."""
+    try:
+        url = urlsplit(urljoin(DIRECTORY_ORIGIN, href))
+        if (url.scheme not in {"http", "https"}
+                or url.netloc != "firmen.cc.hs-hannover.de"
+                or not re.fullmatch(r"/companies/[0-9]+/", url.path)
+                or url.query or url.fragment):
+            return None
+    except ValueError:
+        return None
+    return DIRECTORY_ORIGIN + url.path
+
+
 class DirectoryParser(HTMLParser):
+    """Bind tab, desktop and mobile views to their common directory identity.
+
+    A label's preceding text is NOT a company name: the real directory repeats
+    labels in navigation and repeats fields after the homepage link.
+    """
+
     def __init__(self) -> None:
         super().__init__()
-        self.text: list[str] = []
+        self.records: list[dict] = []
+        self.record: dict | None = None
+        self.name_parts: list[str] | None = None
+        self.suppressed = 0
+
+    def handle_starttag(self, tag: str, attrs: list) -> None:
+        if tag in {"script", "style", "template"}:
+            self.suppressed += 1
+        if self.suppressed or tag != "a":
+            return
+        identity = directory_identity(dict(attrs).get("href") or "")
+        if identity:
+            self.record = {"directory_url": identity, "name_parts": [], "text": []}
+            self.records.append(self.record)
+            self.name_parts = self.record["name_parts"]
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"script", "style", "template"} and self.suppressed:
+            self.suppressed -= 1
+        if tag == "a":
+            self.name_parts = None
 
     def handle_data(self, data: str) -> None:
+        if self.suppressed:
+            return
         value = " ".join(data.split())
-        if value:
-            self.text.append(value)
+        if not value:
+            return
+        if self.name_parts is not None:
+            self.name_parts.append(value)
+        elif self.record is not None:
+            self.record["text"].append(value)
 
 
 def fetch_page(page: int, timeout: int) -> str:
@@ -89,61 +139,56 @@ def fetch_page(page: int, timeout: int) -> str:
         return response.read().decode("utf-8", errors="replace")
 
 
-def visible_text(html: str) -> list[str]:
+def parse_company_blocks(html: str) -> list[dict[str, object]]:
     parser = DirectoryParser()
     parser.feed(html)
-    return parser.text
-
-
-def parse_company_blocks(html: str) -> list[dict[str, object]]:
-    # TYPO3 renders each result twice: compact table and expanded detail. The expanded
-    # detail has stable semantic labels; split there and dedupe later.
-    text = visible_text(html)
-    starts = [i for i, value in enumerate(text) if value == "Berufsfeld(er)"]
-    rows: list[dict[str, object]] = []
-    for start in starts:
-        if start == 0:
+    parser.close()
+    rows: dict[str, dict] = {}
+    for record in parser.records:
+        name = " ".join(record["name_parts"]).strip()
+        if not name or name in SECTION_LABELS or re.match(r"(?i)(?:https?://|www\.)", name):
             continue
-        name = text[start - 1]
-        if name in {"Name", "Sortieren nach:"}:
+        fields: set[str] = set()
+        addresses: set[str] = set()
+        homepages: set[str] = set()
+        section = ""
+        section_value_seen = False
+        for value in record["text"]:
+            if value in SECTION_LABELS:
+                section = value
+                section_value_seen = False
+                continue
+            if value.rstrip(".") == "Keine Angabe":
+                continue
+            if section == "Berufsfeld(er)":
+                fields.add(value)
+            elif section == "Anschrift" and not section_value_seen and re.search(r"\b[0-9]{5}\b", value):
+                addresses.add(value)
+                section_value_seen = True
+            elif section == "Homepage" and not section_value_seen and re.match(r"(?i)https?://", value):
+                url = urlsplit(value)
+                if url.hostname and not url.username and not url.password:
+                    homepages.add(value)
+                    section_value_seen = True
+        # Compact table-only occurrences do not carry labelled sections. Never
+        # guess those fields or copy the next company's homepage into this one.
+        if not fields:
             continue
-        end = next(
-            (i for i in range(start + 1, len(text)) if text[i] == "Berufsfeld(er)"), len(text)
-        )
-        block = text[start:end]
-        fields: list[str] = []
-        address = ""
-        homepage = ""
-        section = "fields"
-        for value in block[1:]:
-            if value == "Anschrift":
-                section = "address"
-                continue
-            if value == "Beschreibung":
-                section = "description"
-                continue
-            if value == "Mitarbeitende":
-                section = "employees"
-                continue
-            if value == "Homepage":
-                section = "homepage"
-                continue
-            if section == "fields" and value not in {"Keine Angabe"}:
-                fields.append(value)
-            elif section == "address" and not address and value != "Keine Angabe":
-                address = value
-            elif section == "homepage" and not homepage and value != "Keine Angabe":
-                homepage = value
-        if fields:
-            rows.append(
-                {
-                    "company_name": name,
-                    "fields": sorted(set(fields)),
-                    "location": address,
-                    "website": homepage,
-                }
-            )
-    return rows
+        if len(addresses) > 1 or len(homepages) > 1:
+            raise ValueError("directory_record_field_conflict")
+        identity = record["directory_url"]
+        row = {
+            "company_name": name,
+            "fields": sorted(fields),
+            "location": next(iter(addresses), ""),
+            "website": next(iter(homepages), ""),
+            "directory_url": identity,
+            "source_record_id": identity,
+        }
+        if identity in rows and rows[identity] != row:
+            raise ValueError("directory_record_identity_conflict")
+        rows[identity] = row
+    return list(rows.values())
 
 
 def is_region(address: str) -> bool:
@@ -166,29 +211,32 @@ def cohorts_for(fields: list[str]) -> list[str]:
 
 
 def discover(max_pages: int, delay: float, timeout: int) -> dict[str, object]:
-    by_identity: dict[tuple[str, str], dict[str, object]] = {}
+    by_identity: dict[str, dict[str, object]] = {}
     pages = 0
     for page in range(1, max_pages + 1):
         html = fetch_page(page, timeout)
         pages += 1
         match = re.search(r"(\d+)\s+Firmen gefunden", html)
         rows = parse_company_blocks(html)
-        if not rows and page > 1:
-            break
+        if not rows:
+            if match and int(match.group(1)) == 0:
+                break
+            raise ValueError("directory_record_identity_not_found")
         for row in rows:
             if not is_region(str(row["location"])):
                 continue
             cohorts = cohorts_for(list(row["fields"]))
             if not cohorts:
                 continue
-            key = (str(row["company_name"]).casefold(), str(row["website"]).casefold())
+            key = str(row["source_record_id"])
             by_identity[key] = {
                 "company_name": row["company_name"],
                 "source": "hochschule_hannover_career_center",
                 "website": row["website"] or None,
                 "location": row["location"] or None,
                 "industry": " | ".join(row["fields"]),
-                "source_record_id": f"page:{page}:{row['company_name']}",
+                "source_record_id": row["source_record_id"],
+                "directory_url": row["directory_url"],
                 "cohort": cohorts[0],
                 "cohorts": cohorts,
                 "geography": "REGION_HANNOVER",
