@@ -46,3 +46,6 @@ The new `feature/classic-factory-job-delivery-20261015` slice starts from main
 See [Classic factory delivery](CLASSIC-CONNECTOR-FACTORY-DELIVERY.md) for execution,
 receipt reconciliation and remaining host acceptance. No productive activation or live job
 delivery is established by the source changes or unit tests alone.
+
+Capacity-blocker ownership and Cloud resource-saving adoption are documented in
+[RCC capacity and resources](RCC-CAPACITY-AND-RESOURCE-OWNERSHIP.md).

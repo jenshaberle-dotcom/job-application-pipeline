@@ -64,7 +64,7 @@ jobs:
         with:
           ref: ${{ inputs.source_sha }}
           path: rcc-workload-${{ github.run_id }}-${{ github.run_attempt }}
-          fetch-depth: 0
+          fetch-depth: ${{ inputs.test_plan != '' && 1 || 0 }}
           persist-credentials: false
 
       - name: Prove exact source identity
@@ -109,6 +109,9 @@ jobs:
           policy_sha="$("$PR_PYTHON" -c 'import json,os,re; p=json.loads(os.environ["RCC_TEST_PLAN"]); s=p["policy_sha"]; assert re.fullmatch(r"[0-9a-f]{40}",s); print(s)')"
           trusted_launcher="$RUNNER_TEMP/rcc-validation-plan-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.py"
           trap 'rm -f -- "$trusted_launcher"' EXIT
+          if ! git cat-file -e "${policy_sha}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 origin "$policy_sha"
+          fi
           git show "${policy_sha}:scripts/run_validation_test_plan.py" > "$trusted_launcher"
           "$PR_PYTHON" "$trusted_launcher"
 
@@ -142,10 +145,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin main --no-tags
-          mapfile -t changed_python < <(
-            git diff --name-only --diff-filter=ACMR origin/main...HEAD -- '*.py'
-          )
+          if [ -n "$RCC_TEST_PLAN" ]; then
+            base_sha="$("$PR_PYTHON" -c 'import json,os,re; s=json.loads(os.environ["RCC_TEST_PLAN"])["policy_sha"]; assert re.fullmatch(r"[0-9a-f]{40}",s); print(s)')"
+            # Reuse the exact policy source fetched above; no moving-main lookup.
+            changed_output="$(git diff --name-only --diff-filter=ACMR "$base_sha" HEAD -- '*.py')"
+          else
+            git fetch origin main --no-tags
+            changed_output="$(git diff --name-only --diff-filter=ACMR origin/main...HEAD -- '*.py')"
+          fi
+          mapfile -t changed_python <<< "$changed_output"
           existing=()
           for path in "${changed_python[@]}"; do
             test -f "$path" && existing+=("$path")

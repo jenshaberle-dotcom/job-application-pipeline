@@ -559,12 +559,14 @@ jobs:
           $Releases = @($ReleaseJson | ConvertFrom-Json)
           $Exists = $null -ne ($Releases | Where-Object { $_.tagName -eq $env:PRODUCT_TAG } | Select-Object -First 1)
           if ($Exists) {
-            $ExistingTarget = gh api $Api --jq '.target_commitish'
-            if ($LASTEXITCODE -ne 0) { throw "Existing product release target lookup failed." }
+            $ExistingJson = gh api $Api
+            if ($LASTEXITCODE -ne 0) { throw "Existing product release lookup failed; no retry or create." }
+            $ExistingRelease = $ExistingJson | ConvertFrom-Json
+            $ExistingTarget = $ExistingRelease.target_commitish
             if ($ExistingTarget -ne $env:SOURCE_SHA) {
               throw "Immutable product release $env:PRODUCT_TAG already points to another source."
             }
-            $AssetNames = @(gh api $Api --jq '.assets[].name')
+            $AssetNames = @($ExistingRelease.assets | ForEach-Object { $_.name })
             foreach ($Required in @(
               "JAP-Control-Center-Desktop-win-x64.zip",
               "JAP-Control-Center-Desktop-win-x64.zip.sha256",
@@ -591,6 +593,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "JAP product release creation failed." }
 
           $PublishedTarget = gh api $Api --jq '.target_commitish'
+          if ($LASTEXITCODE -ne 0) { throw "Release readback failed after possible effect; reconcile before retry." }
           if ($PublishedTarget -ne $env:SOURCE_SHA) {
             throw "Published product release target identity mismatch."
           }
