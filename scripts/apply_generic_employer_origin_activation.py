@@ -208,12 +208,15 @@ def _sync_active_source_projection(
     cur: psycopg.Cursor[Any],
     rows: list[dict[str, Any]],
     origin_urls: dict[int, str],
+    *,
+    preserve_existing: bool = False,
 ) -> None:
     proof_ids = [int(row["candidate_id"]) for row in rows]
-    cur.execute(
-        f"DELETE FROM {ACTIVE_SOURCE_RELATION} WHERE NOT (candidate_id = ANY(%s))",
-        (proof_ids,),
-    )
+    if not preserve_existing:
+        cur.execute(
+            f"DELETE FROM {ACTIVE_SOURCE_RELATION} WHERE NOT (candidate_id = ANY(%s))",
+            (proof_ids,),
+        )
     for row in rows:
         candidate_id = int(row["candidate_id"])
         company_key = str(row["company_key"])
@@ -258,6 +261,8 @@ def apply_activation(
     conn: psycopg.Connection[Any],
     rows: list[dict[str, Any]],
     origin_urls: dict[int, str],
+    *,
+    preserve_existing: bool = False,
 ) -> None:
     proof_ids = [int(row["candidate_id"]) for row in rows]
     if not _relation_exists(conn, ACTIVE_SOURCE_RELATION):
@@ -268,46 +273,49 @@ def apply_activation(
     with conn.cursor() as cur:
         # The table is a materialized projection of the current generic proof cohort,
         # not an independent approval mechanism.
-        _sync_active_source_projection(cur, rows, origin_urls)
+        _sync_active_source_projection(cur, rows, origin_urls, preserve_existing=preserve_existing)
 
-        # Market sensors stay active; all legacy Employer-Origin execution profiles retire.
-        cur.execute(
-            """
-            UPDATE search_profiles
-            SET is_active = FALSE,
-                recurring_ingestion_enabled = FALSE
-            WHERE source_name <> ALL(%s)
-              AND source_name NOT LIKE %s
-            """,
-            (list(SENSOR_SOURCE_NAMES), f"{GENERIC_SOURCE_PREFIX}%"),
-        )
+        if not preserve_existing:
+            # Market sensors stay active; all legacy Employer-Origin execution profiles retire.
+            cur.execute(
+                """
+                UPDATE search_profiles
+                SET is_active = FALSE,
+                    recurring_ingestion_enabled = FALSE
+                WHERE source_name <> ALL(%s)
+                  AND source_name NOT LIKE %s
+                """,
+                (list(SENSOR_SOURCE_NAMES), f"{GENERIC_SOURCE_PREFIX}%"),
+            )
 
-        # The generic execution surface is also a complete materialized projection.
-        # Retire every prior generic profile before re-enabling exactly one canonical
-        # profile per current proof-PASS source below. This removes stale aliases and
-        # duplicate active profiles without changing proof authority.
+        # Replace aliases for the selected cohort before its canonical upsert.
+        # Full reprojection additionally retires the rest of the generic population;
+        # additive factory delivery preserves unrelated current activation state.
         cur.execute(
             """
             UPDATE search_profiles
             SET is_active = FALSE,
                 recurring_ingestion_enabled = FALSE
             WHERE source_name LIKE %s
+              AND (%s OR source_name = ANY(%s))
             """,
-            (f"{GENERIC_SOURCE_PREFIX}%",),
+            (f"{GENERIC_SOURCE_PREFIX}%", not preserve_existing,
+             [f"{GENERIC_SOURCE_PREFIX}{row['company_key']}" for row in rows]),
         )
 
-        # A candidate that previously carried controlled-active state from a legacy
-        # admission path is no longer active unless the current generic proof passed.
-        cur.execute(
-            """
-            UPDATE employer_origin_source_candidates
-            SET status = 'candidate',
-                updated_at = NOW()
-            WHERE status = 'active_controlled'
-              AND NOT (id = ANY(%s))
-            """,
-            (proof_ids,),
-        )
+        if not preserve_existing:
+            # A candidate that previously carried controlled-active state from a legacy
+            # admission path is no longer active unless the current generic proof passed.
+            cur.execute(
+                """
+                UPDATE employer_origin_source_candidates
+                SET status = 'candidate',
+                    updated_at = NOW()
+                WHERE status = 'active_controlled'
+                  AND NOT (id = ANY(%s))
+                """,
+                (proof_ids,),
+            )
 
         for row in rows:
             candidate_id = int(row["candidate_id"])

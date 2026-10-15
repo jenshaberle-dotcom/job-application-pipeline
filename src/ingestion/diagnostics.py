@@ -6,6 +6,8 @@ import xml.etree.ElementTree as ET
 import psycopg
 import requests
 
+from src.connectors.generic_employer_origin_product import GenericProductAcquisitionError
+
 
 @dataclass(frozen=True)
 class IngestionFailureDiagnostic:
@@ -22,7 +24,10 @@ def classify_exception(
     error_type = "unknown_error"
     suggested_action = "Inspect the exception message and connector implementation."
 
-    if isinstance(exc, requests.Timeout):
+    if isinstance(exc, GenericProductAcquisitionError):
+        error_type = "source_acquisition_not_proven"
+        suggested_action = "Inspect query and transport evidence before a new ingestion."
+    elif isinstance(exc, requests.Timeout):
         error_type = "network_timeout"
         suggested_action = "Retry later and verify whether the source endpoint is reachable."
     elif isinstance(exc, requests.HTTPError):

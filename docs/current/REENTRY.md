@@ -37,3 +37,12 @@ and ranking contracts; publishing a version does not prove cohort acceptance.
 
 Pending proposals may contain reusable work. Open PRs #1152, #1155, #1159 and #1160 were
 visible at inspection; refresh GitHub before treating their state or contents as current.
+
+## Active operator redirection — 2026-10-15
+
+Continue Connector Factory and job delivery in JAP Classic. Cloud migration is parked.
+The new `feature/classic-factory-job-delivery-20261015` slice starts from main
+`819e0df0a9ea8c92866dfdb2ac4f17acdee0d10f`; the merged Census branch is not revived.
+See [Classic factory delivery](CLASSIC-CONNECTOR-FACTORY-DELIVERY.md) for execution,
+receipt reconciliation and remaining host acceptance. No productive activation or live job
+delivery is established by the source changes or unit tests alone.

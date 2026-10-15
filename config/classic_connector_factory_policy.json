@@ -1,0 +1,13 @@
+{
+  "schema": "jap.classic_factory_policy.v1",
+  "decision_date": "2026-10-15",
+  "operator": "Jens Haberle",
+  "scope": "classic_full_population_job_delivery",
+  "authorized": true,
+  "authority": "generic_evidence_driven_layer_model",
+  "source_validity_gate": "proof=PASS",
+  "cloud_migration": false,
+  "new_scheduler": false,
+  "paid_provider_requests": false,
+  "acceptance_requires_live_evidence": true
+}

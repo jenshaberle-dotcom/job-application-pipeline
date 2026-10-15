@@ -34,6 +34,10 @@ from src.ingestion.generic_origin_bronze_admission import (
 
 LOGGER = logging.getLogger(__name__)
 
+class GenericProductAcquisitionError(RuntimeError):
+    """A failed acquisition must not become a successful zero-job ingestion."""
+
+
 NEUTRAL_TRIGGER_TERM = "*"
 CANONICAL_TARGET_PROFILE_NAME = "stepstone_data_engineer_hannover"
 QUERY_CONTROL_TERM = "qzxvplmn847362951"
@@ -241,6 +245,11 @@ def query_semantics_status(
         "origin_unreachable",
     }:
         return "failed", "control_query_request_failed"
+
+    if any(outcome.stop_reason in {
+        "inventory_request_failed", "search_request_failed", "origin_unreachable",
+    } for outcome in target_outcomes):
+        return "failed", "target_query_request_failed"
 
     positive_targets = [outcome for outcome in target_outcomes if outcome.jobs]
     control_urls = _job_urls(control_outcome)
@@ -458,6 +467,10 @@ class GenericEmployerOriginProductConnector(GenericEmployerOriginConnector):
                 result.reason,
                 result.request_count,
             )
+            if result.status != "unconfirmed_zero":
+                raise GenericProductAcquisitionError(
+                    f"status={result.status}; requests={result.request_count}"
+                )
             return [], source.candidate_url
 
         records = [

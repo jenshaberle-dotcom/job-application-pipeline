@@ -104,3 +104,10 @@ population and digest binding. Definition-only `qualified_inactive`/`recipe_read
 are `RUNTIME_GAP`; SUCCESS/ZERO_JOB_VALID_SOURCE need verified origin, admitted runtime,
 passing qualification and complete extraction with measured job count. The corrected
 Hannover directory observations are not yet working connectors or an ML-ready corpus.
+
+## 2026-10-15 target correction
+
+The historical lab-only boundary above describes the Cloud experiment. The operator now
+requests Classic production job delivery. The current execution contract is
+[Classic factory delivery](CLASSIC-CONNECTOR-FACTORY-DELIVERY.md). Historical Census counts
+remain evidence only; the full current Classic database population is the denominator.
