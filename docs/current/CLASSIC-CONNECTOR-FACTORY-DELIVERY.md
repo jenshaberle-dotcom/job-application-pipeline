@@ -69,7 +69,8 @@ serializes factory invocations, not unrelated legacy ingestion commands.
 `receipt.json` binds source SHA, database identity hash, complete candidate identity digest and
 execution settings. `receipt.stages/` stores one fsynced receipt per phase/company, avoiding
 quadratic rewrites of the population. `proof.json` preserves the qualified population;
-`acceptance.json` summarizes the completed attempt. Blocked attempts get separate timestamped
+`acceptance.json` summarizes the completed execution attempt. Read-only checks write
+`preflight.json` and `reconciliation.json` separately, preserving prior acceptance. Blocked attempts get separate timestamped
 reports, so they cannot overwrite another live execution's acceptance.
 
 Always retain and reuse the same directory when resuming this workload. Successful phases
@@ -81,8 +82,23 @@ Do not delete receipts, change the binding, or choose a fresh directory to bypas
 Reconcile held activation against the source projection, candidate and canonical-profile
 rows; reconcile ingestion using its run IDs, `ingestion_runs`, `raw_jobs`, and
 `job_observations`. If the run ID itself was not persisted, inspect matching source/profile
-runs before admitting any new effect. The first slice intentionally has no automatic receipt
-reset or blind replay command. Other qualified sources continue after a held source ingestion.
+runs before admitting any new effect. Held ingestion can now be reconciled without source requests or database writes:
+
+```bash
+python -m scripts.run_classic_connector_factory \
+  --state-dir "$HOME/jap-state/classic-factory-20261015" \
+  --reconcile-sha "$QUALIFIED_SHA"
+```
+
+This mode requires the same clean SHA and receipt binding as execution. It verifies every
+persisted run ID against the expected profile ID, neutral search-term ID, source identity,
+terminal successful state, consistent counters and physical raw-job observation lineage.
+Only complete matches become SUCCEEDED; the original error and previous state are retained.
+A resumed execution then skips these stages without fetching jobs again. Missing run IDs,
+missing expected term scope, failed/incomplete runs, mismatched lineage and held activation
+remain unresolved. No receipt reset or blind replay is provided. Existing older receipts
+must not be rebound to a new SHA to bypass reconciliation. Other qualified sources continue
+after a held source ingestion.
 
 ## Evidence and remaining acceptance
 
@@ -93,7 +109,8 @@ Local qualification on 2026-10-15: 4,032 tests passed; changed Python files pass
 Tests exercise complete population, durable intent, crash/timeout holds, repeat runs,
 binding changes, non-destructive activation and query failure propagation.
 
-Exit 0 means read-only preflight ready or verified Bronze delivery with no held ingestion.
+Exit 0 means read-only preflight ready, complete read-only reconciliation, or verified
+Bronze delivery with no held ingestion. Reconciliation alone never proves new job delivery.
 Exit 2 means blocked/incomplete. `bronze_delivery_proven` is distinct from
 `profile_relevance_proven`, `ranking_fitting_proven`, and `e2e_accepted`; the last three remain
 false in this slice. Existing Silver/Gold/Fit/ranking must supply current evidence before
@@ -103,3 +120,19 @@ Lifecycle: existing main baseline -> new isolated slice (prior Census branch alr
 -> local qualification -> PR exact-head RCC qualification -> host adoption/acceptance -> merge
 only after the applicable gates -> verify remote and local branch absence after merge.
 No merge or installed-desktop update is implied by committing this code.
+
+## Autonomous continuation evidence — 2026-10-15
+
+RCC observed PR #1173, head `90e45fbe3b0a02df3502f9096f5d19699be9c81e`, and posted
+`RCC / action qualification = pending`, `CAPACITY_BLOCKED request=fcd11439a468ac45`.
+No matching validation workflow run was present. This establishes demand pickup, not actual
+pool exhaustion; host allocation/provider diagnostics are still needed for that distinction.
+No runner assignment, dispatch replay, reservation reset or merge was attempted.
+
+A separate PostgreSQL integration environment could not be installed: OS identity/group
+operations required by the package manager were denied. Therefore real PostgreSQL integration
+remains unverified. Reconciliation tests exercise database-result contracts with test doubles;
+they do not establish host SQL execution or live-source delivery.
+
+Continuation validation: 4,054 local tests passed, changed Python files pass Ruff, and
+`git diff --check` passed. RCC qualification and productive acceptance remain separate gates.

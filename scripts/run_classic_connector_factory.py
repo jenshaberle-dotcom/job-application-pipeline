@@ -96,25 +96,91 @@ def ingest(company_key: str, journal: DeliveryJournal) -> dict:
     profile = repository.load_search_profile(activation.PROFILE_PREFIX + company_key)
     if profile.source_name != "generic_origin:" + company_key:
         raise ValueError("profile_source_identity_changed")
+    terms = repository.load_active_search_terms(profile.profile_name)
+    if len(terms) != 1 or terms[0][1].search_term != "*" or terms[0][0].id != profile.id:
+        raise ValueError("canonical_ingestion_term_changed")
+    expected = {"profile_id": profile.id, "term_ids": [terms[0][1].id]}
+    journal.data["stages"][repository.stage]["expected_ingestion"] = expected
+    journal.save(repository.stage)
     run_profile(repository, profile, recurring_health_enabled=True)
-    with repository.get_connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+    with repository.get_connection() as conn:
+        return verify_ingestion_receipt(conn, repository.run_ids, company_key, expected)
+
+
+def verify_ingestion_receipt(conn, run_ids: list[int], company_key: str, expected: dict) -> dict:
+    """Read exact run/source/profile and physical job lineage; never infer from totals alone."""
+    if not run_ids or any(type(value) is not int or value <= 0 for value in run_ids) or len(set(run_ids)) != len(run_ids):
+        raise ValueError("ingestion_run_identity_missing_or_invalid")
+    term_ids = expected.get("term_ids", [])
+    if len(term_ids) != 1 or type(term_ids[0]) is not int or term_ids[0] <= 0 or type(expected.get("profile_id")) is not int:
+        raise ValueError("expected_ingestion_identity_missing")
+    source = "generic_origin:" + company_key
+    with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            "SELECT id, status, total_loaded, inserted_count, duplicate_count "
-            "FROM ingestion_runs WHERE id = ANY(%s) ORDER BY id", (repository.run_ids,),
+            "SELECT r.id, r.status, r.finished_at, r.total_loaded, r.inserted_count, r.duplicate_count, "
+            "r.source_name, r.search_profile_id, r.search_term_id, r.search_term, p.profile_name FROM ingestion_runs r "
+            "JOIN search_profiles p ON p.id = r.search_profile_id "
+            "WHERE r.id = ANY(%s) ORDER BY r.id", (run_ids,),
         )
         rows = cur.fetchall()
-        if not rows or len(rows) != len(repository.run_ids) or any(row["status"] != "success" for row in rows):
-            raise RuntimeError("ingestion_receipt_not_successful")
+        if len(rows) != len(term_ids) or {row["search_term_id"] for row in rows} != set(term_ids) or {row["id"] for row in rows} != set(run_ids) or any(
+            row["status"] != "success" or row["finished_at"] is None
+            or row["source_name"] != source
+            or row["search_profile_id"] != expected["profile_id"] or row["search_term"] != "*"
+            or row["profile_name"] != activation.PROFILE_PREFIX + company_key
+            for row in rows
+        ):
+            raise RuntimeError("ingestion_receipt_not_successful_or_wrong_identity")
+        for row in rows:
+            counts = [row[name] for name in ("total_loaded", "inserted_count", "duplicate_count")]
+            if any(type(value) is not int or value < 0 for value in counts) or counts[0] != counts[1] + counts[2]:
+                raise RuntimeError("ingestion_counter_mismatch")
         cur.execute(
-            "SELECT count(*) AS n FROM job_observations "
-            "WHERE ingestion_run_id = ANY(%s) AND raw_job_id IS NOT NULL", (repository.run_ids,),
+            "SELECT o.ingestion_run_id, count(*) AS observations, "
+            "count(*) FILTER (WHERE o.is_seen AND o.source_name = %s "
+            "AND j.source_name = o.source_name AND j.external_job_id = o.external_job_id) AS verified "
+            "FROM job_observations o LEFT JOIN raw_jobs j ON j.id = o.raw_job_id "
+            "WHERE o.ingestion_run_id = ANY(%s) GROUP BY o.ingestion_run_id", (source, run_ids),
         )
-        observations = int(cur.fetchone()["n"])
-        loaded = sum(row["total_loaded"] for row in rows)
-        if observations != loaded:
-            raise RuntimeError("bronze_observation_receipt_mismatch")
-        return {"ingestion_run_ids": repository.run_ids, "observed_jobs": observations,
+        observed = {row["ingestion_run_id"]: row for row in cur.fetchall()}
+        for row in rows:
+            evidence = observed.get(row["id"], {"observations": 0, "verified": 0})
+            if evidence["observations"] != row["total_loaded"] or evidence["verified"] != row["total_loaded"]:
+                raise RuntimeError("bronze_observation_receipt_mismatch")
+        return {"ingestion_run_ids": run_ids,
+                "observed_jobs": sum(row["total_loaded"] for row in rows),
                 "inserted_jobs": sum(row["inserted_count"] for row in rows)}
+
+
+def reconcile_ingestion(conn, journal: DeliveryJournal) -> dict:
+    resolved, unresolved = [], []
+    with conn.transaction():
+        conn.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+        for key, stage in journal.data["stages"].items():
+            if stage.get("state") not in {"RUNNING", "HELD"} or not stage.get("effect"):
+                continue
+            if not key.startswith("ingest:"):
+                unresolved.append(key)
+                continue
+            try:
+                result = verify_ingestion_receipt(
+                    conn, stage.get("ingestion_run_ids", []), key.removeprefix("ingest:"),
+                    stage.get("expected_ingestion", {}),
+                )
+            except (ValueError, RuntimeError):
+                unresolved.append(key)
+                continue
+            stage["reconciliation"] = {
+                "previous_state": stage["state"],
+                "verified_at": datetime.now(UTC).isoformat(),
+                "method": "exact_database_run_and_observation_lineage",
+                "database_writes": False, "source_requests": 0,
+            }
+            stage.update(state="SUCCEEDED", result=result)
+            journal.save(key)
+            resolved.append(key)
+    return {"resolved_stages": resolved, "unresolved_stages": unresolved,
+            "database_writes": False, "source_requests": 0}
 
 
 def qualify(row: dict, args) -> dict:
@@ -183,6 +249,7 @@ def execute(conn, candidates: list[dict], journal: DeliveryJournal, args) -> dic
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state-dir", type=Path, required=True)
+    parser.add_argument("--reconcile-sha", help="Exact clean SHA; reconcile held ingestion from read-only DB evidence")
     parser.add_argument("--execute-sha", help="Explicit effect gate; exact clean checkout SHA")
     parser.add_argument("--target-location", default="Hannover")
     parser.add_argument("--origin-max-candidates", type=int, default=12,
@@ -193,7 +260,9 @@ def main() -> int:
     report = {"schema": "jap.classic_factory_acceptance.v1", "e2e_accepted": False,
               "created_at": datetime.now(UTC).isoformat()}
     try:
-        sha = source_sha(args.execute_sha)
+        if args.execute_sha and args.reconcile_sha:
+            raise ValueError("choose_execution_or_reconciliation")
+        sha = source_sha(args.execute_sha or args.reconcile_sha)
         policy = json.loads((ROOT / "config/classic_connector_factory_policy.json").read_text())
         if policy.get("authorized") is not True or policy.get("scope") != "classic_full_population_job_delivery":
             raise ValueError("CLASSIC_FACTORY_NOT_AUTHORIZED")
@@ -204,7 +273,7 @@ def main() -> int:
                 raise RuntimeError("FACTORY_ALREADY_RUNNING")
             check, candidates = preflight(conn, sha)
             report["preflight"] = check
-            if not args.execute_sha:
+            if not args.execute_sha and not args.reconcile_sha:
                 report["status"] = "PREFLIGHT_READY"
             else:
                 binding = dict(check["binding"], target_location=args.target_location,
@@ -212,9 +281,18 @@ def main() -> int:
                                origin_timeout_seconds=args.origin_timeout_seconds,
                                http_timeout_seconds=args.http_timeout_seconds)
                 journal = DeliveryJournal(args.state_dir / "receipt.json", binding)
-                report.update(execute(conn, candidates, journal, args))
-                report["status"] = "BRONZE_DELIVERED" if report["bronze_delivery_proven"] and not report["held_stages"] else "INCOMPLETE"
-            atomic_json(args.state_dir / "acceptance.json", report)
+                if args.reconcile_sha:
+                    if not journal.path.exists():
+                        raise ValueError("reconciliation_receipt_missing")
+                    report["reconciliation"] = reconcile_ingestion(conn, journal)
+                    report["status"] = "RECONCILED" if not report["reconciliation"]["unresolved_stages"] else "INCOMPLETE"
+                else:
+                    report.update(execute(conn, candidates, journal, args))
+                    report["status"] = "BRONZE_DELIVERED" if report["bronze_delivery_proven"] and not report["held_stages"] else "INCOMPLETE"
+            report_file = "reconciliation.json" if args.reconcile_sha else (
+                "acceptance.json" if args.execute_sha else "preflight.json"
+            )
+            atomic_json(args.state_dir / report_file, report)
     except Exception as exc:
         report.update(status="BLOCKED", error_type=type(exc).__name__)
         safe_codes = {
@@ -222,6 +300,7 @@ def main() -> int:
             "FACTORY_QUALIFICATION_ERRORS", "NO_QUALIFIED_SOURCES",
             "source_sha_mismatch", "execution_requires_clean_checkout",
             "receipt_binding_changed", "candidate_population_empty",
+            "choose_execution_or_reconciliation", "reconciliation_receipt_missing",
         }
         report["error_code"] = str(exc) if str(exc) in safe_codes else "HOST_OR_EXECUTION_GATE"
         # Do not include exception text: database errors may contain credentials.
@@ -230,7 +309,7 @@ def main() -> int:
         atomic_json(args.state_dir / ("blocked-" + datetime.now(UTC).strftime("%Y%m%dT%H%M%S%f") + ".json"), report)
         return 2
     print(json.dumps(report, sort_keys=True))
-    return 0 if report["status"] in {"PREFLIGHT_READY", "BRONZE_DELIVERED"} else 2
+    return 0 if report["status"] in {"PREFLIGHT_READY", "BRONZE_DELIVERED", "RECONCILED"} else 2
 
 
 if __name__ == "__main__":
