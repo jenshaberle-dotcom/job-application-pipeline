@@ -1,0 +1,11 @@
+# Employer attribution and revalidated search recipes
+
+The 93ac6153 campaign has 190 QUALIFIED rows, but no independent employer attribution receipts. Keep these immutable. Recheck the same 2240 stable identities, including all 190 prior successes, through RCC; never claim the old 190 are verified employers.
+
+The canonical product now requires both existing job proof and employer_binding.v1 before recipe admission. Names are compared exactly after Unicode/punctuation normalization and trailing legal-form normalization only. Shared tokens, fuzzy names, undeclared brands and corporate relationships do not count. Current root Organization identity bound to its host, or an exact title/H1, must match the candidate. Every JobPosting on the selected detail must carry a matching hiringOrganization name, title and description. Missing/mixed/malformed evidence yields review, not an accusation of a false employer. No external service or model is introduced. This is a conservative web-evidence rule, not a legal registry verification.
+
+Residual adapters without captured current employer evidence are also blocked at final admission. Their old job proof alone cannot bypass this gate. Non-JSON-LD employer attribution, organization @id resolution and explicitly reviewed group/brand aliases are not yet implemented; such cases can require review even for legitimate sites.
+
+Only current-schema verified receipts are reused. They are stored in the new run result, read by stable company key, and checked against the normalized candidate identity. Historical QUALIFIED rows without a receipt are not promoted to trusted recipes. Root/detail are reacquired; a hint does not count as known-detail proof or grant a new host. Current delegation and HTTP/deadline limits remain applicable. A changed or missing employer invalidates qualification. The first new run bootstraps recipes; subsequent runs can reuse them.
+
+Validation: 132 local tests passed, including wrong NORD employer, unproven group relation, incidental mentions, missing/mixed employer evidence, current re-fetch, revoked receipt, and legacy residual bypass. Five database integration tests were skipped because their isolated database fixture was not configured. Host deployment and live revalidation occur at the operator gate. No activation or jobs import is part of this campaign.

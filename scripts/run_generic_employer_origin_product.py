@@ -607,23 +607,43 @@ def assess_candidate(
 ) -> ConnectorBuilderAssessment:
     args = argparse.Namespace(**vars(args))
     args._origin_cache = {}
+    from src.search_intelligence.employer_binding import recipe_hint
+    args._search_recipe = recipe_hint(row.get("previous_recipe_result") or {},
+                                      row["company_key"], row["company_name"])
+    args._employer_binding = None
     assessment = layer_core._assessment(row, args)
     assessment = _workday_residual(row, args, assessment)
     assessment = _portal_residual(row, args, assessment)
     assessment = _public_feed_residual(assessment, args)
     assessment = _bite_residual(row, args, assessment)
+    if assessment.recipe_ready:
+        from src.search_intelligence.deterministic_connector_builder import failed
+        binding = args._employer_binding
+        if not binding or binding.get("status") != "VERIFIED":
+            verdict = failed("recipe", "EMPLOYER_ATTRIBUTION_REVIEW_REQUIRED",
+                             employer_binding=binding or {"status": "EMPLOYER_EVIDENCE_MISSING"})
+        else:
+            verdict = passed("recipe", "Current job and origin identify the expected employer",
+                employer_binding=binding, materialization_performed=False,
+                search_recipe=dict(schema="employer_search_recipe.v1",
+                    company_key=row["company_key"], root_url=binding["root_url"],
+                    detail_url=binding["detail_url"], employer_binding=binding),
+                search_recipe_reused=bool(args._search_recipe))
+        assessment = ConnectorBuilderAssessment(assessment.candidate_id, assessment.company_key,
+                                                assessment.company_name, (*assessment.layers[:-1], verdict))
     return assessment
 
 
 def proof_passed(assessment: ConnectorBuilderAssessment) -> bool:
-    return assessment.layers[7].state == LayerState.PASS
+    return (assessment.layers[7].state == LayerState.PASS and assessment.recipe_ready
+            and assessment.layers[-1].evidence.get("employer_binding", {}).get("status") == "VERIFIED")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Run the canonical generic Employer-Origin layer product across the complete current candidate population. "
-            "Strict proof PASS is the sole source-validity admission signal."
+            "Strict job proof and verified employer attribution are both required for admission."
         )
     )
     parser.add_argument("--output", default="/tmp/generic_employer_origin_product.json")

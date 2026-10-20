@@ -504,6 +504,7 @@ def acquire_genuine_job_pages(
     fetcher,
     max_followup_requests: int = 2,
     max_results: int = 1,
+    preferred_detail_urls: tuple[str, ...] = (),
 ) -> tuple[list[AcquiredJobPage], str]:
     """Acquire one genuine job with at most one strict extra follow-up."""
 
@@ -551,8 +552,11 @@ def acquire_genuine_job_pages(
         allowed_hosts=effective_allowed_hosts,
         known_detail_urls=known_detail_urls,
     )
+    preferred = [NavigationCandidate(url, "detail", "revalidated_recipe_hint", "", False)
+                 for url in preferred_detail_urls[:1]
+                 if allowed_host(url, effective_allowed_hosts) and not non_job_url(url)]
     queue: list[tuple[NavigationCandidate, int]] = [
-        (candidate, 0) for candidate in root_discovered
+        (candidate, 0) for candidate in (*preferred, *root_discovered)
     ]
     root_dynamic_items = _dynamic_route_candidates(
         root,

@@ -286,6 +286,15 @@ def factory_batch(db, run_id, index, state, progress=None):
         row = {"id": candidate_id, "company_key": observation["company_key"],
                "company_name": observation["company_name"],
                "candidate_url": websites[0] if len(websites) == 1 else None}
+        # Read prior receipts by stable employer key, never by transient row ID.
+        # The product validates the receipt again and reacquires current evidence.
+        prior = db.execute("""SELECT f.result FROM native_census_factory_results f
+            JOIN bronze_native_census_candidates c ON c.id=f.candidate_id
+            WHERE c.company_key=%s AND c.run_id!=%s AND f.state='QUALIFIED'
+            ORDER BY f.completed_at DESC LIMIT 20""", (row["company_key"],run_id)).fetchall()
+        from src.search_intelligence.employer_binding import recipe_hint
+        row["previous_recipe_result"] = next((r[0] for r in prior
+            if recipe_hint(r[0],row["company_key"],row["company_name"])), None)
         input_path, output_path = state / f"{candidate_id}-input.json", state / f"{candidate_id}-result.json"
         atomic_json(input_path, row)
         result = {}
@@ -301,7 +310,9 @@ def factory_batch(db, run_id, index, state, progress=None):
                     result = json.loads(output_path.read_text())
                     if result.get("candidate_id") != candidate_id or result.get("company_key") != row["company_key"]:
                         raise ValueError("ASSESSMENT_IDENTITY_MISMATCH")
-                    outcome = "QUALIFIED" if result.get("recipe_ready") is True else "TECHNICAL_GAP"
+                    outcome = ("QUALIFIED" if result.get("recipe_ready") is True else
+                               "IDENTITY_REVIEW" if result.get("first_failure_reason") ==
+                               "EMPLOYER_ATTRIBUTION_REVIEW_REQUIRED" else "TECHNICAL_GAP")
                 else:
                     outcome = "ASSESSMENT_FAILED"
             except subprocess.TimeoutExpired:

@@ -196,7 +196,11 @@ def _resolve_origin(row: dict[str, Any], args: argparse.Namespace) -> tuple[str 
 
 
 def _resolve_origin_uncached(row: dict[str, Any], args: argparse.Namespace) -> tuple[str | None, dict[str, object]]:
+    hint = getattr(args, "_search_recipe", None)
     persisted = str(row.get("candidate_url") or "").strip()
+    if hint and (not persisted or url_host(persisted) == url_host(hint["root_url"])):
+        return hint["root_url"], {"source": "revalidated_search_recipe_hint",
+                                  "selected_url": _url_shape(hint["root_url"])}
     if persisted:
         return (
             persisted if _valid_https(persisted) else None,
@@ -399,8 +403,16 @@ def _assessment(
         status_code=root_status,
     )
 
+    def capture_binding(detail_url):
+        from src.search_intelligence.employer_binding import employer_binding
+        observed = cache.get(canonical_url(detail_url))
+        if observed:
+            args._employer_binding = employer_binding(
+                company_name, root.html, observed[0], root.final_url, observed[1])
+
     root_proof = genuine_job_detail_proof(root, allowed_hosts=allowed_hosts, known_detail=False)
     if root_proof:
+        capture_binding(root.final_url)
         layers.extend(
             [
                 skipped("delegation", "origin itself is already a strict job detail"),
@@ -520,6 +532,8 @@ def _assessment(
             listing_url=root_final_url,
             allowed_hosts=tuple(sorted(allowed_hosts)),
             known_detail_urls=(),
+            preferred_detail_urls=(args._search_recipe["detail_url"],)
+                if getattr(args, "_search_recipe", None) else (),
             fetcher=fetcher,
             max_followup_requests=min(6, max(2, getattr(args, "navigation_hops", 2))),
             max_results=1,
@@ -531,6 +545,7 @@ def _assessment(
 
     if jobs:
         job = jobs[0]
+        capture_binding(job.final_url)
         layers.extend(
             [
                 passed(
