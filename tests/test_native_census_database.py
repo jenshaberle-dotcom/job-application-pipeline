@@ -110,3 +110,23 @@ def test_new_campaign_preserves_prior_population_and_partial_checkpoint(database
     assert proof["coverage_complete"] is False
     assert set(proof["sources"].values()) == {"PARTIAL"}
     assert db.execute("SELECT observation FROM bronze_native_census_candidates WHERE run_id='old'").fetchone()[0] == old
+
+
+def test_recheck_preserves_parent_and_requires_complete_results(database):
+    db = database
+    summary = dict(candidate_count=1, factory_batch_count=1, sources={"a": "PARTIAL"},
+                   source_errors={"a": "GAP"}, coverage_complete=False, population_digest="a"*64)
+    db.execute("""INSERT INTO bronze_native_census_runs(run_id,source_sha,state,summary)
+        VALUES ('parent','a','BRONZE_READY',%s)""", (worker.Jsonb(summary),))
+    db.execute("""INSERT INTO bronze_native_census_candidates(run_id,company_key,observation,batch_index)
+        VALUES ('parent','firm','{\"company_name\":\"Firm\"}',0)""")
+    with pytest.raises(RuntimeError, match="PARENT_NOT_COMPLETE"):
+        worker.prepare_recheck(db, "new", "b", "parent")
+    db.execute("""INSERT INTO native_census_factory_results(candidate_id,state,result)
+        SELECT id,'TECHNICAL_GAP','{}' FROM bronze_native_census_candidates""")
+    proof = worker.prepare_recheck(db, "new", "b", "parent")
+    assert proof["candidate_count"] == 1 and proof["source_recrawled"] is False
+    assert db.execute("SELECT count(*) FROM native_census_factory_results").fetchone()[0] == 1
+    assert db.execute("SELECT summary FROM bronze_native_census_runs WHERE run_id='parent'").fetchone()[0] == summary
+    with pytest.raises(psycopg.errors.UniqueViolation):
+        worker.prepare_recheck(db, "new", "b", "parent")

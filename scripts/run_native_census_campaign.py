@@ -217,6 +217,38 @@ def collect(db, run_id, sha, state, progress=None):
             "retained_in_bronze": True, "sources_activated": 0}
 
 
+def prepare_recheck(db, run_id, sha, parent, progress=None):
+    """Freeze a completed population into a new run; never recrawl or overwrite."""
+    with db.transaction():
+        db.execute("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+        old = db.execute("SELECT state,summary FROM bronze_native_census_runs WHERE run_id=%s",
+                         (parent,)).fetchone()
+        if not old or old[0] != "BRONZE_READY" or parent == run_id:
+            raise RuntimeError("RECHECK_PARENT_NOT_READY")
+        rows = db.execute("""SELECT c.company_key,c.observation,c.batch_index,f.state
+            FROM bronze_native_census_candidates c LEFT JOIN native_census_factory_results f
+            ON f.candidate_id=c.id WHERE c.run_id=%s ORDER BY c.id""", (parent,)).fetchall()
+        if (len(rows) != old[1]["candidate_count"] or not rows
+                or any(r[3] is None or r[3] == "ASSESSING" for r in rows)):
+            raise RuntimeError("RECHECK_PARENT_NOT_COMPLETE")
+        summary = dict(old[1], recheck_parent=parent, source_recrawled=False)
+        db.execute("""INSERT INTO bronze_native_census_runs(run_id,source_sha,state,summary,completed_at)
+            VALUES (%s,%s,'BRONZE_READY',%s,now())""", (run_id, sha, Jsonb(summary)))
+        db.execute("""INSERT INTO bronze_native_census_sources
+            SELECT %s,source_id,state,payload,payload_digest FROM bronze_native_census_sources
+            WHERE run_id=%s""", (run_id, parent))
+        for key, observation, batch, _ in rows:
+            db.execute("""INSERT INTO bronze_native_census_candidates
+                (run_id,company_key,observation,batch_index) VALUES (%s,%s,%s,%s)""",
+                       (run_id, key, Jsonb(observation), batch))
+    update(progress, phase="BRONZE_READY", completed=len(rows), total=len(rows), current="")
+    return dict(status="BRONZE_READY", candidate_count=len(rows),
+                factory_batch_count=summary["factory_batch_count"], sources=summary["sources"],
+                source_errors=summary["source_errors"], coverage_complete=summary["coverage_complete"],
+                population_digest=summary["population_digest"], retained_in_bronze=True,
+                sources_activated=0, recheck_parent=parent, source_recrawled=False)
+
+
 def assess_one(input_path, output_path):
     from scripts import run_generic_employer_origin_product as product
     row = json.loads(input_path.read_text())
@@ -320,7 +352,12 @@ def main():
     state.mkdir(parents=True, exist_ok=True)
     with Progress(state) as progress, connect() as db:
         if args.workload == "classic-census-v1":
-            proof = collect(db, run_id, sha, state, progress)
+            recheck = ROOT / "config/census/factory-recheck.json"
+            if recheck.exists():
+                parent = json.loads(recheck.read_text())["parent_run"]
+                proof = prepare_recheck(db, run_id, sha, parent, progress)
+            else:
+                proof = collect(db, run_id, sha, state, progress)
         elif re.fullmatch(r"classic-census-factory-[0-9]{2}", args.workload or ""):
             proof = factory_batch(db, run_id, int(args.workload[-2:]), state, progress)
         else:
