@@ -598,9 +598,24 @@ def acquire_genuine_job_pages(
         if sitemap and canonical_url(sitemap) not in fetched:
             queue.append((NavigationCandidate(sitemap, "listing", "generic_sitemap", "", False), 0))
 
+    # Larger Census budgets must retain a different discovery strategy when
+    # observed career/language landings keep yielding only more landings.
+    # Reserve no extra requests and do not displace a concrete detail candidate.
+    fallback_sitemap = None
+    if max_followup_requests > 2:
+        from src.connectors.employer_origin_sitemap_navigation import standard_same_host_sitemap_url
+        fallback_sitemap = standard_same_host_sitemap_url(
+            page_url=root.final_url, allowed_hosts=effective_allowed_hosts)
+    listing_attempts = 0
     results: list[AcquiredJobPage] = []
 
     while queue and remaining > 0 and len(results) < max_results:
+        if (fallback_sitemap and listing_attempts >= 2 and remaining >= 2
+                and queue[0][0].kind != "detail"
+                and canonical_url(fallback_sitemap) not in fetched):
+            queue.insert(0, (NavigationCandidate(
+                fallback_sitemap, "listing", "generic_sitemap", "", False), 0))
+            fallback_sitemap = None
         candidate, depth = queue.pop(0)
         clean = canonical_url(candidate.url)
         if not clean or clean in fetched:
@@ -611,6 +626,8 @@ def acquire_genuine_job_pages(
         effective_allowed_hosts = candidate_hosts
         fetched.add(clean)
         remaining -= 1
+        if candidate.kind == "listing":
+            listing_attempts += 1
         try:
             html, final_url, status_code = fetcher(candidate.url)
         except Exception:

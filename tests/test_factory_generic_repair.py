@@ -113,3 +113,43 @@ def test_full_factory_stale_entry_through_career_chain_to_strict_proof(monkeypat
                                    candidate_url=ROOT+"old"),args)
     assert result.first_failure is None
     assert session.get.call_count==5
+
+
+@pytest.mark.parametrize("bad", ["https://[broken/jobs/a", "https://[xyz]/jobs/a"])
+def test_malformed_anchor_and_embedded_url_do_not_abort_good_detail(bad):
+    root_html = f'<a href="{bad}">Invalid</a><script>let u="{bad}"</script><a href="{DETAIL}">Engineer</a>'
+    calls=[]
+    def fetch(u):
+        calls.append(u)
+        return (root_html if u==ROOT else JOB),u,200
+    jobs,_=acquire_genuine_job_pages(listing_url=ROOT,known_detail_urls=(),allowed_hosts=("employer.example",),
+                                    fetcher=fetch,max_followup_requests=6,max_results=1)
+    assert len(jobs)==1 and calls==[ROOT,DETAIL]
+
+
+def test_career_language_fanout_preserves_sitemap_route_with_same_budget():
+    languages=["de", "en", "es", "fr", "it", "nl"]
+    links="".join(f'<a href="/{lang}/careers">Careers</a>' for lang in languages)
+    pages={ROOT:links, **{ROOT+lang+"/careers":links for lang in languages},
+           ROOT+"sitemap.xml":'<urlset><url><loc>'+DETAIL+'</loc></url></urlset>',DETAIL:JOB}
+    calls=[]
+    def fetch(u):
+        calls.append(u)
+        return pages[u],u,200
+    jobs,_=acquire_genuine_job_pages(listing_url=ROOT,known_detail_urls=(),allowed_hosts=("employer.example",),
+                                    fetcher=fetch,max_followup_requests=6,max_results=1)
+    assert len(jobs)==1
+    assert ROOT+"sitemap.xml" in calls and len(calls)<=7
+
+
+def test_cms_oembed_job_url_is_not_a_vacancy_request():
+    metadata=ROOT+"wp-json/oembed/1.0/embed?url="+DETAIL
+    root_html=f'<a href="{metadata}">Jobs</a><a href="{DETAIL}">Engineer</a>'
+    calls=[]
+    def fetch(u):
+        calls.append(u)
+        assert u!=metadata
+        return (root_html if u==ROOT else JOB),u,200
+    jobs,_=acquire_genuine_job_pages(listing_url=ROOT,known_detail_urls=(),allowed_hosts=("employer.example",),
+                                    fetcher=fetch,max_followup_requests=6,max_results=1)
+    assert len(jobs)==1

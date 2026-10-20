@@ -1,4 +1,4 @@
 {
-  "parent_run": "classic-native-census:1dc5b2d7240867ff0a54bed3099c28c854e0dc50",
-  "purpose": "Generic address, nested career navigation, sitemap and entry recovery comparison on all 2240 candidates; no source recrawl or activation."
+  "parent_run": "classic-native-census:93ac615348c0eb38abe7fd5ebcbbe7265af8c154",
+  "purpose": "Bounded navigation diversity and malformed-link isolation on the same 2240 candidates; no source activation. Qualification is not independent employer verification."
 }

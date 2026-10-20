@@ -417,7 +417,11 @@ def extract_trusted_query_job_detail_links(
     candidates: list[EvidenceLink] = []
     seen: set[str] = set()
     for raw_href, label in _query_detail_candidates(html):
-        absolute_url = urljoin(origin_url, raw_href)
+        try:
+            absolute_url = urljoin(origin_url, raw_href)
+            urlparse(absolute_url).hostname
+        except ValueError:
+            continue
         if absolute_url in seen:
             continue
         seen.add(absolute_url)

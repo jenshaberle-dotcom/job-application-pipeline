@@ -94,7 +94,10 @@ def explicit_canonical_provider_detail_urls(
     seen: set[str] = set()
     for raw in _ABSOLUTE_PROVIDER_URL.findall(decoded):
         candidate = raw.strip().strip("\"'`),;]")
-        parsed = urlparse(candidate)
+        try:
+            parsed = urlparse(candidate)
+        except ValueError:
+            continue
         if parsed.scheme.casefold() != "https" or not parsed.hostname:
             continue
         if _host_is_authorized(candidate, allowed_hosts):
@@ -137,7 +140,10 @@ def canonical_provider_delegated_detail_urls(
     seen: set[str] = set()
     for raw_href, raw_label in _ANCHOR.findall(html):
         candidate = urljoin(page_url, unescape(raw_href).strip())
-        parsed = urlparse(candidate)
+        try:
+            parsed = urlparse(candidate)
+        except ValueError:
+            continue
         if parsed.scheme.casefold() != "https" or not parsed.hostname:
             continue
         if _host_is_authorized(candidate, allowed_hosts):
