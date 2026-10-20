@@ -92,3 +92,21 @@ def test_failed_sources_do_not_claim_complete_census(database, tmp_path, monkeyp
     assert proof["status"] == "REVIEW_REQUIRED"
     assert proof["candidate_count"] == 1  # Existing Classic candidate retained.
     assert set(proof["sources"].values()) == {"SOURCE_FAILED"}
+    assert proof["coverage_complete"] is False
+
+
+def test_new_campaign_preserves_prior_population_and_partial_checkpoint(database, tmp_path, monkeypatch):
+    db = database
+    db.execute("INSERT INTO bronze_native_census_runs(run_id,source_sha,state) VALUES ('old','a','BRONZE_READY')")
+    old = {"company_name": "Prior", "observations": [{"row": {"company_name": "Prior"}}]}
+    db.execute("""INSERT INTO bronze_native_census_candidates(run_id,company_key,observation,batch_index)
+                  VALUES ('old','prior',%s,0)""", (worker.Jsonb(old),))
+    def crawl(command, **kwargs):
+        Path(command[-1]).write_text(json.dumps({"companies": [{"company_name": "Partial"}], "complete": False}))
+        return SimpleNamespace(returncode=1)
+    monkeypatch.setattr(worker.subprocess, "run", crawl)
+    proof = worker.collect(db, "new", "b", tmp_path)
+    assert proof["candidate_count"] == 3
+    assert proof["coverage_complete"] is False
+    assert set(proof["sources"].values()) == {"PARTIAL"}
+    assert db.execute("SELECT observation FROM bronze_native_census_candidates WHERE run_id='old'").fetchone()[0] == old

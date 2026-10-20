@@ -12,6 +12,8 @@ import json
 import re
 import time
 from urllib.parse import quote, urlencode, urlsplit
+from pathlib import Path
+from src.connectors.classic_factory_delivery import atomic_json
 
 from src.census_sources.public_directory import DirectorySource, fetch_text, seed
 
@@ -46,13 +48,13 @@ def parse_page(payload):
     return companies, total, more, cursor
 
 
-def discover(*, delay: float = 0.2) -> dict[str, object]:
+def discover(*, delay: float = 0.2, checkpoint=None) -> dict[str, object]:
     companies, pages, cursors, totals = {}, [], set(), set()
     duplicate_count = 0
     cursor, observed_total = None, None
     for _ in range(SOURCE.max_pages):
         url = API + ("?" + urlencode({"cursor": cursor}) if cursor is not None else "?")
-        raw = fetch_text(url)
+        raw = fetch_text(url, timeout=45)
         rows, total, more, next_cursor = parse_page(json.loads(raw))
         totals.add(total)
         if observed_total is None:
@@ -66,6 +68,13 @@ def discover(*, delay: float = 0.2) -> dict[str, object]:
             companies[key] = row
         pages.append({"url": url, "response_sha256": hashlib.sha256(raw.encode()).hexdigest(),
                       "count": len(rows), "reported_total": total})
+        if checkpoint:
+            checkpoint({"source_id": SOURCE.source_id, "companies": list(companies.values()),
+                        "company_count": len(companies), "complete": False,
+                        "observed_directory_total": observed_total, "pages": pages,
+                        "coverage_issue": "PAGINATION_INCOMPLETE"})
+        print(json.dumps({"pages_read": len(pages), "companies": len(companies),
+                          "reported_total": observed_total}), flush=True)
         if not more:
             break
         if next_cursor in cursors:
@@ -91,7 +100,8 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--delay-seconds", type=float, default=0.2)
     args = parser.parse_args()
-    payload = discover(delay=args.delay_seconds)
+    payload = discover(delay=args.delay_seconds,
+                       checkpoint=lambda value: atomic_json(Path(args.output), value))
     with open(args.output, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
         handle.write("\n")

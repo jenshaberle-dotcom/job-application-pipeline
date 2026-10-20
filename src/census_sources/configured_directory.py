@@ -23,6 +23,11 @@ def discover(config: dict[str, object]) -> dict[str, object]:
         str(config["start_url"]),
         int(config.get("max_pages", 100)),
     )
+    if config.get("coverage_issue"):
+        # Confirm the official overview is reachable; it is not a company list.
+        fetch_text(source.start_url)
+        return {"source_id": source.source_id, "companies": [], "company_count": 0,
+                "complete": False, "coverage_issue": config["coverage_issue"]}
     include = tuple(str(x).casefold() for x in config.get("include_href", []))
     exclude = tuple(str(x).casefold() for x in config.get("exclude_href", []))
     next_template = config.get("page_url_template")
@@ -56,6 +61,7 @@ def discover(config: dict[str, object]) -> dict[str, object]:
         "source_id": source.source_id,
         "geography": source.geography,
         "company_count": len(companies),
+        "complete": bool(companies) and not next_template,
         "companies": sorted(companies.values(), key=lambda x: str(x["company_name"]).casefold()),
     }
 

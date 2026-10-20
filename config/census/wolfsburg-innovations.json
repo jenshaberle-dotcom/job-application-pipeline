@@ -4,7 +4,8 @@
   "cohorts": [
     "TECH"
   ],
-  "start_url": "https://www.wolfsburg.de/wirtschaft/innovationscampus",
+  "start_url": "https://wolfsburg-ag.com/schwerpunkte/innovation/",
+  "coverage_issue": "PUBLIC_COMPANY_DIRECTORY_UNAVAILABLE",
   "max_pages": 1,
   "include_href": [
     "unternehmen",

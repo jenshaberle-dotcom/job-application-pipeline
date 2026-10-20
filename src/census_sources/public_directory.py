@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
+from urllib.error import URLError
+import time
 from src.census_sources.evidence import retain
 
 
@@ -46,6 +48,22 @@ class LinkTextParser(HTMLParser):
 
 
 def fetch_text(url: str, *, timeout: int = 20) -> str:
+    # Retry only read-only requests with transient transport failures. Never retry
+    # access denials, certificate errors or parsing failures.
+    for attempt in range(3):
+        try:
+            return _fetch_text(url, timeout=timeout)
+        except (TimeoutError, ConnectionResetError):
+            if attempt == 2:
+                raise
+            time.sleep(attempt + 1)
+        except URLError as error:
+            if not isinstance(error.reason, (TimeoutError, ConnectionResetError)) or attempt == 2:
+                raise
+            time.sleep(attempt + 1)
+
+
+def _fetch_text(url: str, *, timeout: int) -> str:
     request = Request(url, headers={"User-Agent": "JAP-Connector-Factory-Corpus/1.0"})
     with urlopen(request, timeout=timeout) as response:
         if response.status != 200:

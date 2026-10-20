@@ -32,7 +32,7 @@ SOURCES = (
     ("region_stuttgart_technology_directory", "stuttgart", []),
     ("berlin_startup_map", "configured_directory", ["--config", "config/census/berlin-startup-map.json"]),
     ("wolfsburg_innovation_ecosystem", "configured_directory", ["--config", "config/census/wolfsburg-innovations.json"]),
-    ("ingolstadt_digital_ecosystem", "configured_directory", ["--config", "config/census/ingolstadt-digital.json"]),
+    ("ingolstadt_digital_ecosystem", "brigk", []),
 )
 
 class Progress:
@@ -140,14 +140,25 @@ def collect(db, run_id, sha, state, progress=None):
                 if not isinstance(payload.get("companies"), list):
                     raise ValueError("SOURCE_ROWS_INVALID")
                 snapshots[source_id] = payload
-                source_state = "OBSERVED" if payload.get("complete") is not False else "PARTIAL"
+                source_state = "OBSERVED" if payload.get("complete") is True and payload["companies"] else "PARTIAL"
             else:
                 payload = {"error": source_error(state / (source_id + ".log")), "returncode": completed.returncode}
         except (ValueError, OSError, subprocess.SubprocessError) as error:
             payload = {"error": type(error).__name__, "source_id": source_id}
+        if source_state == "SOURCE_FAILED" and target.is_file() and target.stat().st_size <= 32_000_000:
+            # Atomic pagination checkpoints retain successful pages after a later
+            # transport failure. They never count as complete source coverage.
+            try:
+                checkpoint = json.loads(target.read_text())
+                if isinstance(checkpoint.get("companies"), list) and checkpoint["companies"]:
+                    payload = dict(checkpoint, complete=False, error=payload.get("error", "SOURCE_INCOMPLETE"))
+                    snapshots[source_id] = payload
+                    source_state = "PARTIAL"
+            except (OSError, ValueError):
+                pass
         source_states[source_id] = source_state
-        if source_state == "SOURCE_FAILED":
-            source_errors[source_id] = payload.get("error", "SOURCE_PROCESS_FAILED")
+        if source_state != "OBSERVED":
+            source_errors[source_id] = payload.get("error") or payload.get("coverage_issue") or "SOURCE_INCOMPLETE"
         update(progress, completed=len(source_states), error_code=payload.get("error"),
                errors=sum(v == "SOURCE_FAILED" for v in source_states.values()))
         with db.transaction():
@@ -167,13 +178,24 @@ def collect(db, run_id, sha, state, progress=None):
     baseline = {"companies": [{"company_key": key, "company_name": name, "website": url}
                              for key, name, url in previous]}
     snapshots["classic_existing_candidates"] = baseline
+    # Keep all prior public observations, including incomplete-source records.
+    # New campaign IDs never overwrite an earlier population or its assessments.
+    prior = db.execute("""SELECT observation FROM bronze_native_census_candidates
+                          WHERE run_id != %s ORDER BY id""", (run_id,)).fetchall()
+    inherited = []
+    for (observation,) in prior:
+        inherited.extend(item["row"] for item in observation.get("observations", [])
+                         if isinstance(item.get("row"), dict))
+    snapshots["prior_bronze_observations"] = {"companies": inherited}
     result = population(snapshots)
     summary = {k: v for k, v in result.items() if k != "candidates"}
     summary["sources"] = source_states
     summary["source_errors"] = source_errors
+    summary["coverage_complete"] = all(v == "OBSERVED" for v in source_states.values())
+    summary["coverage_scope"] = "configured_public_directories_not_historical_cloud_parity"
     summary["population_digest"] = digest(result["candidates"])
     summary["new_census_observed"] = any(p.get("companies") for k, p in snapshots.items()
-                                        if k != "classic_existing_candidates")
+                                        if k not in ("classic_existing_candidates", "prior_bronze_observations"))
     terminal = "BRONZE_READY" if summary["new_census_observed"] and not result["factory_budget_exceeded"] else "REVIEW_REQUIRED"
     update(progress, phase="SAVING_BRONZE", completed=0, total=result["candidate_count"], current="")
     with db.transaction():
@@ -190,6 +212,7 @@ def collect(db, run_id, sha, state, progress=None):
         raise RuntimeError("BRONZE_READBACK_MISMATCH")
     return {"status": terminal, "candidate_count": result["candidate_count"],
             "factory_batch_count": result["factory_batch_count"], "sources": source_states, "source_errors": source_errors,
+            "coverage_complete": summary["coverage_complete"],
             "population_digest": summary["population_digest"],
             "retained_in_bronze": True, "sources_activated": 0}
 
