@@ -44,3 +44,14 @@ def test_persisted_url_does_not_trigger_discovery(monkeypatch):
     url, _ = layers._resolve_origin(
         {"company_key": "example", "candidate_url": "https://example.org"}, None)
     assert url == "https://example.org"
+
+
+@pytest.mark.parametrize("key", ["census-"+"a"*64, "b"*64, "123e4567-e89b-12d3-a456-426614174000"])
+def test_storage_identifiers_never_become_domains_or_identity_evidence(key):
+    from src.search_intelligence.origin_candidate_plan_v2 import generate_company_url_candidates_v2
+    from src.search_intelligence.origin_source_discovery_agent import company_identity_tokens
+    tokens=company_identity_tokens(company_key=key,company_name="Example GmbH")
+    assert tokens == ("example",)
+    candidates=generate_company_url_candidates_v2(company_key=key,company_name="Example GmbH",max_candidates=12)
+    assert candidates
+    assert all("example" in c.url and key not in c.url and "census" not in c.url for c in candidates)

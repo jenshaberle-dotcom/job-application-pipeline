@@ -11,6 +11,7 @@ from src.search_intelligence.origin_source_discovery_agent import (
     corporate_identity_aliases,
     normalize_candidate_url,
     tokenize,
+    opaque_identity_key,
 )
 
 GENERATED_PROVIDER_KIND_V2 = "generated_company_domain_candidate_v2"
@@ -50,7 +51,7 @@ def _join(tokens: Sequence[str], *, compact: bool = False, limit: int = 4) -> st
 
 def _add_base(result: list[str], value: str) -> None:
     base = value.strip().casefold().strip("-.")
-    if len(base) < 2 or base in result:
+    if len(base) < 2 or len(base) > 63 or base in result:
         return
     result.append(base)
 
@@ -130,7 +131,8 @@ def prioritized_domain_bases(
         for locality in localities[:1]:
             _add_base(bases, f"{acronym}-{locality}")
 
-    _add_base(bases, _compact(company_key))
+    if not opaque_identity_key(company_key):
+        _add_base(bases, _compact(company_key))
     return tuple(bases)
 
 

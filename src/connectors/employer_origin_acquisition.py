@@ -229,7 +229,12 @@ def allowed_host(url: str, allowed_hosts: tuple[str, ...] | set[str]) -> bool:
 
 def non_job_url(url: str) -> bool:
     lowered = canonical_url(url).casefold()
-    return any(marker in lowered for marker in NON_JOB_URL_MARKERS)
+    path = urlparse(lowered).path.rstrip("/")
+    static_asset = path.endswith((
+        ".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
+        ".woff", ".woff2", ".ttf", ".map",
+    )) or path in ("/gtag/js", "/gtm.js")
+    return static_asset or any(marker in lowered for marker in NON_JOB_URL_MARKERS)
 
 
 def parse_page(

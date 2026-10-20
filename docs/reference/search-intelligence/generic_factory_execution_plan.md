@@ -1,7 +1,9 @@
 # Generic factory implementation and dependency decision
 
-Status: 2026-10-20. Identity handoff implemented; acquisition expansion,
-embedding inference and automatic recipe materialization remain pending.
+Status: 2026-10-20. Identity handoff implemented and live recheck started.
+Generic bounded GET retries, metered redirects, static asset exclusion and
+same-host sitemap fallback implemented; deployment qualification pending.
+Embedding inference and automatic recipe materialization remain pending.
 
 ## Baseline and acceptance
 
@@ -113,3 +115,11 @@ No new dependency added for the identity repair.
 Library/model licenses do not grant rights to scrape, redistribute or train
 on every website. Evaluate source conditions and intended data use separately.
 This register records engineering findings, not a blanket legal clearance.
+
+## Live recheck findings
+
+The first identity-only recheck exposed a second generic issue: opaque Census
+keys were treated as domain/name evidence. The planner now excludes hash and
+UUID identifiers from identity tokens and domain bases while preserving the
+original storage key. Domain labels longer than 63 characters are rejected.
+No individual employer exceptions are added.

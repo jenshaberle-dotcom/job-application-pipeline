@@ -584,6 +584,15 @@ def acquire_genuine_job_pages(
         remaining += 1
         extra_followup_grants += 1
 
+    # Generic final discovery path when no observed navigation/provider applies.
+    # It consumes the existing budget and grants no additional host authority.
+    if not queue:
+        from src.connectors.employer_origin_sitemap_navigation import standard_same_host_sitemap_url
+        sitemap = standard_same_host_sitemap_url(
+            page_url=root.final_url, allowed_hosts=effective_allowed_hosts)
+        if sitemap and canonical_url(sitemap) not in fetched:
+            queue.append((NavigationCandidate(sitemap, "listing", "generic_sitemap", "", False), 0))
+
     results: list[AcquiredJobPage] = []
 
     while queue and remaining > 0 and len(results) < max_results:
@@ -639,6 +648,18 @@ def acquire_genuine_job_pages(
             continue
 
         if candidate.kind != "listing":
+            continue
+
+        if candidate.discovery_source == "generic_sitemap":
+            from src.connectors.employer_origin_sitemap_navigation import sitemap_detail_urls
+            if page.status_code == 200 and allowed_host(page.final_url, effective_allowed_hosts):
+                details = sitemap_detail_urls(
+                    sitemap_url=page.final_url, body=page.html,
+                    allowed_hosts=effective_allowed_hosts)
+                queue = [
+                    (NavigationCandidate(url, "detail", "generic_sitemap_detail", "", False), depth + 1)
+                    for url in details if canonical_url(url) not in fetched
+                ] + queue
             continue
 
         discovered = discover_navigation_candidates(

@@ -304,22 +304,13 @@ def _assessment(
             raise RuntimeError("absolute acquisition GET cap exceeded")
         if not _valid_https(url):
             raise RuntimeError("layer audit permits HTTPS GET only")
-        response = session.get(url, timeout=args.http_timeout_seconds, allow_redirects=True)
-        body = response.content
-        if len(body) > MAX_BODY_BYTES:
-            raise RuntimeError("response body cap exceeded")
-        text = body.decode(response.encoding or "utf-8", errors="replace")
-        result = (text, str(response.url), int(response.status_code))
-        calls.append(
-            {
-                "requested": _url_shape(url),
-                "final": _url_shape(str(response.url)),
-                "status": int(response.status_code),
-                "body_bytes": len(body),
-            }
-        )
+        from src.connectors.bounded_http import get_with_evidence
+        result = get_with_evidence(
+            session, url, timeout=args.http_timeout_seconds, calls=calls,
+            limit=ABSOLUTE_ACQUISITION_GET_CAP, shape=_url_shape,
+            max_body_bytes=MAX_BODY_BYTES)
         cache[clean] = result
-        cache[canonical_url(str(response.url))] = result
+        cache[canonical_url(result[1])] = result
         return result
 
     try:

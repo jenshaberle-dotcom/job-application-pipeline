@@ -275,6 +275,12 @@ def tokenize(value: str | None) -> tuple[str, ...]:
     return tuple(token for token in re.split(r"[^a-z0-9]+", folded) if len(token) >= 2)
 
 
+def opaque_identity_key(value: str | None) -> bool:
+    """Storage identifiers are not employer-name evidence or domain hypotheses."""
+    return bool(re.search(r"(?:^|[-_:])[0-9a-f]{24,}$", value or "", re.I)
+                or re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", value or "", re.I))
+
+
 def company_identity_tokens(*, company_key: str, company_name: str, source_family_candidate: str | None = None) -> tuple[str, ...]:
     """Return stable company identity tokens, keeping distinctive short brands.
 
@@ -285,6 +291,8 @@ def company_identity_tokens(*, company_key: str, company_name: str, source_famil
 
     ordered: list[str] = []
     for source in (company_key, source_family_candidate, company_name):
+        if opaque_identity_key(source):
+            continue
         for token in tokenize(source):
             if token in LEGAL_OR_GENERIC_TOKENS:
                 continue
