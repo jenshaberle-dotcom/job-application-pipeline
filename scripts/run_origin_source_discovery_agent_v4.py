@@ -18,8 +18,17 @@ from src.search_intelligence.origin_source_discovery_agent import (
 def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, object]:
     """Run the existing authority/scoring model with the breadth-first V2 plan."""
 
-    with connect() as conn:
-        candidate = load_candidate(conn, company_key)
+    supplied = getattr(args, "candidate_identity", None)
+    if supplied is not None:
+        if (not isinstance(supplied, dict)
+                or supplied.get("company_key") != company_key
+                or not isinstance(supplied.get("company_name"), str)
+                or not supplied["company_name"].strip()):
+            raise ValueError("INVALID_CANDIDATE_IDENTITY_HANDOFF")
+        candidate = dict(supplied)
+    else:
+        with connect() as conn:
+            candidate = load_candidate(conn, company_key)
 
     market_urls: list[str] = []
 

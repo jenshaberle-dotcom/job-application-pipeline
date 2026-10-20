@@ -197,7 +197,16 @@ def _resolve_origin(row: dict[str, Any], args: argparse.Namespace) -> tuple[str 
         )
 
     try:
-        payload = run_origin_discovery(_origin_args(args), str(row["company_key"]))
+        origin_args = _origin_args(args)
+        # Census identities need not exist in the legacy candidate table.
+        # Pass a bounded identity record, never silently substitute another firm.
+        origin_args.candidate_identity = {
+            key: row.get(key) for key in (
+                "id", "company_key", "company_name", "candidate_url",
+                "source_family_candidate", "status", "risk_level"
+            )
+        }
+        payload = run_origin_discovery(origin_args, str(row["company_key"]))
     except BaseException as exc:
         return None, {
             "source": "provider_free_origin_discovery",
