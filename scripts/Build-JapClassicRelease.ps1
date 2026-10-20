@@ -424,7 +424,7 @@ try {
       throw "Runtime release ZIP payload hash mismatch: $EntryName"
     }
   }
-  Write-Host "JAP_RUNTIME_FEATURE_PAYLOAD_PASS2=PASS files=$($FeatureContract.critical_files.PSObject.Properties.Count)"
+  Write-Host "JAP_RUNTIME_FEATURE_PAYLOAD_PASS2=PASS files=$(@($FeatureContract.critical_files.PSObject.Properties).Count)"
 
   $ShellEntries = @($RuntimeZip.Entries | Where-Object { $_.FullName.Replace("\", "/") -like "scripts/*.sh" })
   if ($ShellEntries.Count -eq 0) {
