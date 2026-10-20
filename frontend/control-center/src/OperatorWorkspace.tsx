@@ -1,3 +1,4 @@
+import GoogleConnection from "./GoogleConnection";
 import { useEffect, useMemo, useState } from "react";
 import ApplicationSourceUpload from "./ApplicationSourceUpload";
 import JobReviewLabelControls, {
@@ -1446,7 +1447,7 @@ export default function OperatorWorkspace() {
     <div className="ow-content-shell">
       <header className="ow-topline">
         <div><b>{navItems.find((item) => item.id === view)?.label}</b><span>Live job data</span></div>
-        <div className="ow-topline-actions">
+        <div className="ow-topline-actions"><GoogleConnection />
           {refreshWarning && <><span className="ow-refresh-warning" role="status" title={refreshWarning}>Mailbox sync needs attention</span><button type="button" title={refreshWarning} onClick={() => setView("applications")}>Review tracker →</button></>}
           <button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button>
         </div>
