@@ -1,0 +1,20 @@
+{
+  "source_id": "wolfsburg_innovation_ecosystem",
+  "geography": "WOLFSBURG",
+  "cohorts": [
+    "TECH"
+  ],
+  "start_url": "https://www.wolfsburg.de/wirtschaft/innovationscampus",
+  "max_pages": 1,
+  "include_href": [
+    "unternehmen",
+    "startup",
+    "company",
+    "partner"
+  ],
+  "exclude_href": [
+    "kontakt",
+    "impressum",
+    "datenschutz"
+  ]
+}

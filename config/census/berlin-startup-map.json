@@ -1,0 +1,17 @@
+{
+  "source_id": "berlin_startup_map",
+  "geography": "BERLIN",
+  "cohorts": [
+    "TECH"
+  ],
+  "start_url": "https://startup-map.berlin/companies.startups/f/all_locations/anyof_Berlin",
+  "max_pages": 1,
+  "include_href": [
+    "/companies.",
+    "/company/"
+  ],
+  "exclude_href": [
+    "login",
+    "register"
+  ]
+}
