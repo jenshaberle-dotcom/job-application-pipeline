@@ -254,7 +254,8 @@ def assess_one(input_path, output_path):
     row = json.loads(input_path.read_text())
     # The same deterministic factory used by the existing productive recipe.
     args = argparse.Namespace(target_location="", origin_max_candidates=12,
-                              origin_timeout_seconds=5.0, http_timeout_seconds=10.0)
+                              origin_timeout_seconds=5.0, http_timeout_seconds=10.0,
+                              acquisition_get_cap=12, navigation_hops=6)
     product.layer_core.run_origin_discovery = product.run_origin_discovery
     product.layer_core.discover_navigation_candidates = product.discover_navigation_candidates
     result = product.assess_candidate(row, args).to_json()

@@ -1,4 +1,4 @@
 {
-  "parent_run": "classic-native-census:770feb888695d53bbe9451b0d3e4a714f68b1d29",
-  "purpose": "Controlled identity-handoff regression on the same 2240 candidates; no source recrawl."
+  "parent_run": "classic-native-census:1dc5b2d7240867ff0a54bed3099c28c854e0dc50",
+  "purpose": "Generic address, nested career navigation, sitemap and entry recovery comparison on all 2240 candidates; no source recrawl or activation."
 }

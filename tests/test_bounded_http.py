@@ -59,3 +59,14 @@ def test_redirect_loop_cannot_exceed_budget():
 def test_https_downgrade_is_rejected():
     with pytest.raises(RuntimeError,match="invalid HTTPS"):
         run([response(302,{"Location":"http://example.org"})])
+
+
+def test_dns_failure_is_classified_without_repeating_same_dead_host():
+    import socket
+    error = requests.ConnectionError(socket.gaierror(-2,"name unavailable"))
+    session=SimpleNamespace(get=Mock(side_effect=error))
+    calls=[]
+    with pytest.raises(requests.ConnectionError):
+        get_with_evidence(session,"https://example.org",timeout=1,calls=calls,
+                          limit=4,shape=lambda u:u,max_body_bytes=100,sleep=lambda n:None)
+    assert session.get.call_count==1 and calls[0]["error"]=="DNS_ERROR"

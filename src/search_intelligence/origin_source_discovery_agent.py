@@ -722,7 +722,11 @@ def probe_result_from_http_response(url: str, response: object) -> OriginDiscove
     text = str(getattr(response, "text", "") or "")
     content = getattr(response, "content", b"") or b""
     reachable = status_code in HTTP_ACCEPTED_STATUS_CODES
-    content_haystack = text[:8000].lower()
+    # Large inline styles/scripts used to hide the actual navigation beyond
+    # the first 8 KB. Ignore executable/style text and inspect bounded markup.
+    visible = re.sub(r"<(script|style)\b[^>]*>.*?</\1\s*>", "", text[:500_000],
+                     flags=re.I | re.S)
+    content_haystack = html.unescape(re.sub(r"<[^>]+>", " ", visible))[:100_000].lower()
     requested_normalized = normalize_candidate_url(url)
     final_normalized = normalize_candidate_url(final_url)
 

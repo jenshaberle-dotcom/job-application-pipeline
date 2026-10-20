@@ -605,6 +605,8 @@ def assess_candidate(
     row: dict[str, Any],
     args: argparse.Namespace,
 ) -> ConnectorBuilderAssessment:
+    args = argparse.Namespace(**vars(args))
+    args._origin_cache = {}
     assessment = layer_core._assessment(row, args)
     assessment = _workday_residual(row, args, assessment)
     assessment = _portal_residual(row, args, assessment)

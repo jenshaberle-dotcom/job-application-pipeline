@@ -185,6 +185,17 @@ def _origin_args(args: argparse.Namespace) -> argparse.Namespace:
 
 
 def _resolve_origin(row: dict[str, Any], args: argparse.Namespace) -> tuple[str | None, dict[str, object]]:
+    cache = getattr(args, "_origin_cache", None)
+    key = tuple(str(row.get(k) or "") for k in ("company_key", "company_name", "candidate_url"))
+    if cache is not None and key in cache:
+        return cache[key]
+    result = _resolve_origin_uncached(row, args)
+    if cache is not None:
+        cache[key] = result
+    return result
+
+
+def _resolve_origin_uncached(row: dict[str, Any], args: argparse.Namespace) -> tuple[str | None, dict[str, object]]:
     persisted = str(row.get("candidate_url") or "").strip()
     if persisted:
         return (
@@ -300,21 +311,23 @@ def _assessment(
         clean = canonical_url(url)
         if clean in cache:
             return cache[clean]
-        if len(calls) >= ABSOLUTE_ACQUISITION_GET_CAP:
+        cap = min(12, max(ABSOLUTE_ACQUISITION_GET_CAP, getattr(args, "acquisition_get_cap", 4)))
+        if len(calls) >= cap:
             raise RuntimeError("absolute acquisition GET cap exceeded")
         if not _valid_https(url):
             raise RuntimeError("layer audit permits HTTPS GET only")
         from src.connectors.bounded_http import get_with_evidence
         result = get_with_evidence(
             session, url, timeout=args.http_timeout_seconds, calls=calls,
-            limit=ABSOLUTE_ACQUISITION_GET_CAP, shape=_url_shape,
+            limit=cap, shape=_url_shape,
             max_body_bytes=MAX_BODY_BYTES)
         cache[clean] = result
         cache[canonical_url(result[1])] = result
         return result
 
     try:
-        root_html, root_final_url, root_status = fetcher(origin_url)
+        from src.connectors.origin_entry_recovery import fetch_entry
+        root_html, root_final_url, root_status = fetch_entry(fetcher, origin_url)
     except Exception as exc:
         return ConnectorBuilderAssessment(
             candidate_id,
@@ -504,11 +517,11 @@ def _assessment(
     v4_error: str | None = None
     try:
         jobs, observed_root = acquire_genuine_job_pages(
-            listing_url=origin_url,
+            listing_url=root_final_url,
             allowed_hosts=tuple(sorted(allowed_hosts)),
             known_detail_urls=(),
             fetcher=fetcher,
-            max_followup_requests=2,
+            max_followup_requests=min(6, max(2, getattr(args, "navigation_hops", 2))),
             max_results=1,
         )
     except Exception as exc:

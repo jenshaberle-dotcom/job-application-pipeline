@@ -11,12 +11,41 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 
-from src.connectors.employer_origin_acquisition import allowed_host, canonical_url
+from src.connectors.employer_origin_acquisition import allowed_host, canonical_url, looks_like_listing_navigation
 from src.search_intelligence.multi_origin_evidence import job_detail_url_shape
 
 
 MAX_SITEMAP_URLS = 10_000
 MAX_DETAIL_URLS = 12
+
+
+def sitemap_navigation(*, sitemap_url, body, allowed_hosts):
+    """Observed same-host indexes/listings; never invent external authority."""
+    if not allowed_host(sitemap_url, allowed_hosts) or "<!DOCTYPE" in body.upper():
+        return ()
+    try:
+        root = ET.fromstring(body)
+    except (ET.ParseError, ValueError):
+        return ()
+    kind = _local_name(root.tag)
+    if kind not in ("sitemapindex", "urlset"):
+        return ()
+    rows = []
+    for child in list(root)[:MAX_SITEMAP_URLS]:
+        loc = next((canonical_url(c.text or "") for c in child if _local_name(c.tag) == "loc"), "")
+        if (not loc or urlparse(loc).scheme != "https"
+                or urlparse(loc).hostname != urlparse(sitemap_url).hostname
+                or not allowed_host(loc, allowed_hosts)):
+            continue
+        if kind == "sitemapindex":
+            rows.append(("index", loc))
+        elif job_detail_url_shape(loc):
+            rows.append(("detail", loc))
+        elif looks_like_listing_navigation(loc, ""):
+            rows.append(("listing", loc))
+    rows.sort(key=lambda r: (r[0] != "detail",
+                            not any(s in r[1].lower() for s in ("job", "career", "karriere", "stellen"))))
+    return tuple(dict.fromkeys(rows))[:2 if kind == "sitemapindex" else MAX_DETAIL_URLS]
 
 
 def _local_name(tag: str) -> str:

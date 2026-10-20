@@ -123,3 +123,35 @@ keys were treated as domain/name evidence. The planner now excludes hash and
 UUID identifiers from identity tokens and domain bases while preserving the
 original storage key. Domain labels longer than 63 characters are rejected.
 No individual employer exceptions are added.
+
+## Generic repair comparison, 20 October afternoon
+
+The latest comparison population is 2,240 with 87 qualified, 753 origin,
+588 inventory, 229 reachability, 225 proof, 198 detail, 111 delegation,
+22 time limits, 20 process failures and 7 identity reviews. This is assessment,
+not installed connectors or imported jobs.
+
+The next source revision fixes ordinary observed career landing links,
+multi-hop observed listing navigation and same-host sitemap indexes. Failed
+links do not discard other authorized paths. The Census lane explicitly permits
+six navigation follow-ups within twelve metered GET attempts (redirects/retries
+included); the existing 45-second candidate process ceiling remains. Legacy
+callers retain their smaller default budget.
+
+Address hypotheses now include a leading brand before a business description.
+Scoring and employer identity rules remain unchanged. Visible career navigation
+is no longer hidden by a large inline stylesheet, and script literals alone no
+longer count as career content. Repeated residual checks share one candidate's
+origin result instead of probing it again.
+
+Entry recovery only tries the existing host's root for a stale path and its
+www/apex spelling after a missing entry or transport failure. TLS stays verified,
+and 401/403/429 are not worked around. DNS failures are classified separately
+and do not immediately repeat the same dead host.
+
+Acceptance is strict end-to-end qualification on the same frozen population,
+with a paired positive/negative transition report. Offline synthetic tests
+cover full stale-entry -> career -> vacancies -> genuine detail, broken-link
+alternatives, indexes and boundary refusals. No new dependency, embedding model
+or per-employer exception is introduced. Existing source-coverage gaps are not
+claimed repaired by this factory-only comparison.

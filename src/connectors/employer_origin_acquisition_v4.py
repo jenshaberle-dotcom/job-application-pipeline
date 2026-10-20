@@ -172,7 +172,12 @@ def discover_navigation_candidates(
                 allowed_hosts=allowed_hosts,
             )
             continue
-        if looks_like_listing_navigation(clean, anchor_text):
+        career_landing = (
+            urlparse(clean).path.lower().strip("/").split("/")[-1] in
+                 {"career", "careers", "karriere", "karriereportal", "join-us"}
+            or anchor_text.strip().casefold() in {"career", "careers", "karriere", "join us"}
+        )
+        if looks_like_listing_navigation(clean, anchor_text) or career_landing:
             _add_candidate(
                 intermediate,
                 seen,
@@ -606,7 +611,12 @@ def acquire_genuine_job_pages(
         effective_allowed_hosts = candidate_hosts
         fetched.add(clean)
         remaining -= 1
-        html, final_url, status_code = fetcher(candidate.url)
+        try:
+            html, final_url, status_code = fetcher(candidate.url)
+        except Exception:
+            # One broken observed link must not discard remaining authorized
+            # alternatives. Attempts still consume the outer GET/deadline budget.
+            continue
         page = parse_page(
             requested_url=candidate.url,
             html=str(html),
@@ -650,15 +660,16 @@ def acquire_genuine_job_pages(
         if candidate.kind != "listing":
             continue
 
-        if candidate.discovery_source == "generic_sitemap":
-            from src.connectors.employer_origin_sitemap_navigation import sitemap_detail_urls
-            if page.status_code == 200 and allowed_host(page.final_url, effective_allowed_hosts):
-                details = sitemap_detail_urls(
+        if candidate.discovery_source in ("generic_sitemap", "generic_sitemap_index"):
+            from src.connectors.employer_origin_sitemap_navigation import sitemap_navigation
+            if page.status_code == 200 and allowed_host(page.final_url, effective_allowed_hosts) and depth < 3:
+                entries = sitemap_navigation(
                     sitemap_url=page.final_url, body=page.html,
                     allowed_hosts=effective_allowed_hosts)
                 queue = [
-                    (NavigationCandidate(url, "detail", "generic_sitemap_detail", "", False), depth + 1)
-                    for url in details if canonical_url(url) not in fetched
+                    (NavigationCandidate(url, "detail" if kind == "detail" else "listing",
+                                         "generic_sitemap_"+kind, "", False), depth + 1)
+                    for kind, url in entries if canonical_url(url) not in fetched
                 ] + queue
             continue
 
@@ -671,6 +682,14 @@ def acquire_genuine_job_pages(
             (item, depth + 1)
             for item in discovered
             if item.kind == "detail" and canonical_url(item.url) not in fetched
+        ]
+        # Career landing -> vacancies -> department -> detail is a common
+        # observed chain. Previously every intermediate listing was discarded.
+        # Keep host authorization, visited set and the caller's request budget.
+        listing_items = [
+            (item, depth + 1) for item in discovered
+            if item.kind == "listing" and canonical_url(item.url) not in fetched and depth < 3
+            and max_followup_requests > 2
         ]
         dynamic_items = _dynamic_route_candidates(
             page,
@@ -720,7 +739,7 @@ def acquire_genuine_job_pages(
             remaining += 1
             extra_followup_grants += 1
 
-        queue = [*greenhouse_items, *dynamic_items, *detail_items, *provider_items, *queue]
+        queue = [*greenhouse_items, *dynamic_items, *detail_items, *provider_items, *listing_items, *queue]
 
     return results, root.final_url
 

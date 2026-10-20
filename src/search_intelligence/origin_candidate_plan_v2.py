@@ -118,6 +118,12 @@ def prioritized_domain_bases(
 
     if len(non_local) == 1:
         _add_base(bases, non_local[0])
+    elif (non_local and len(non_local[0]) >= 4 and non_local[0] not in
+          {"deutsche", "deutscher", "german", "international", "global", "new",
+           "engineering", "consulting", "software", "digital", "system", "systems"}):
+        # Brand + business description commonly uses only the leading brand.
+        # This is a hypothesis, never identity proof; existing scoring still runs.
+        _add_base(bases, non_local[0])
 
     if non_local:
         _add_base(bases, _join(non_local[:2]))
