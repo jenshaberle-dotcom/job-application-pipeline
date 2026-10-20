@@ -2,6 +2,10 @@ from src.search_intelligence.native_census import population
 from src.census_sources import hannover
 from scripts.run_native_census_campaign import Progress, source_error
 import json
+import ssl
+from urllib.error import URLError
+import pytest
+from scripts import run_native_census_campaign as campaign
 
 
 def test_all_regions_missing_websites_and_raw_observations_retained():
@@ -61,3 +65,13 @@ def test_tls_error_is_categorized_without_exposing_raw_log(tmp_path):
     path = tmp_path / "log"
     path.write_text("private text CERTIFICATE_VERIFY_FAILED")
     assert source_error(path) == "TLS_CERTIFICATE_INVALID"
+
+
+def test_tls_probe_does_not_swallow_certificate_failure(monkeypatch):
+    def fail(*args, **kwargs):
+        assert kwargs["context"].check_hostname
+        assert kwargs["context"].verify_mode == ssl.CERT_REQUIRED
+        raise URLError(ssl.SSLCertVerificationError("untrusted"))
+    monkeypatch.setattr(campaign, "urlopen", fail)
+    with pytest.raises(URLError):
+        campaign.verify_tls()
