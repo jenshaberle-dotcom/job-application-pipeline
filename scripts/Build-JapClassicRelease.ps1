@@ -42,10 +42,13 @@ $LinuxSource = (& wsl.exe -d $Distro -u $LinuxUser --exec wslpath -a $SourceRoot
 if ($LASTEXITCODE -ne 0) { throw 'WSL source conversion failed' }
 & wsl.exe -d $Distro -u $LinuxUser --cd $LinuxSource --exec $LinuxPython -m pytest -q
 if ($LASTEXITCODE -ne 0) { throw 'Product regression tests failed' }
-npm install --prefix frontend/control-center --no-audit --no-fund
+Push-Location (Join-Path $SourceRoot 'frontend/control-center')
+try {
+npm.cmd install --no-audit --no-fund
 if ($LASTEXITCODE -ne 0) { throw 'Frontend dependency preparation failed' }
-npm run build --prefix frontend/control-center
+npm.cmd run build
 if ($LASTEXITCODE -ne 0) { throw 'Frontend validation build failed' }
+} finally { Pop-Location }
 
 Write-Host "Prove package-facing contracts on Windows"
 & $Python -m py_compile scripts/product_v1_control_center_base.py scripts/run_product_v1_live_demo.py src/search_intelligence/product_v1_candidate_fit.py src/search_intelligence/product_v1_service.py
