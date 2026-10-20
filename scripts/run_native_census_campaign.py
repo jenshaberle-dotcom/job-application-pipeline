@@ -12,6 +12,11 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import threading
+import time
+import ssl
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -30,6 +35,73 @@ SOURCES = (
     ("ingolstadt_digital_ecosystem", "configured_directory", ["--config", "config/census/ingolstadt-digital.json"]),
 )
 
+class Progress:
+    """Atomic, bounded progress evidence; heartbeat is separate from useful progress."""
+    def __init__(self, state):
+        self.path = state / "native-progress.json"
+        self.lock = threading.Lock()
+        self.stop = threading.Event()
+        self.data = {"phase": "STARTING", "completed": 0, "total": 0,
+                     "started_at": time.time(), "last_progress_at": time.time()}
+        self.thread = threading.Thread(target=self.heartbeat, daemon=True)
+
+    def update(self, **changes):
+        with self.lock:
+            self.data.update(changes, last_progress_at=time.time())
+            self.write()
+
+    def write(self):
+        atomic_json(self.path, dict(self.data, updated_at=time.time()))
+
+    def heartbeat(self):
+        while not self.stop.wait(5):
+            with self.lock:
+                self.write()
+
+    def __enter__(self):
+        self.update()
+        self.thread.start()
+        return self
+
+    def __exit__(self, kind, error, traceback):
+        self.stop.set()
+        self.thread.join(timeout=6)
+        if kind:
+            self.update(phase="FAILED", error_code=type(error).__name__)
+
+
+def update(progress, **values):
+    if progress:
+        progress.update(**values)
+
+
+def source_error(log):
+    text = log.read_bytes()[-16000:].decode(errors="replace") if log.exists() else ""
+    if "CERTIFICATE_VERIFY_FAILED" in text:
+        return "TLS_CERTIFICATE_INVALID"
+    if "HTTP Error 403" in text:
+        return "HTTP_ACCESS_DENIED"
+    if "timed out" in text:
+        return "SOURCE_TIMEOUT"
+    return "SOURCE_PROCESS_FAILED"
+
+
+def verify_tls():
+    """HEAD probes verify the real urllib path and hostname; no Census import."""
+    context = ssl.create_default_context()
+    if not context.check_hostname or context.verify_mode != ssl.CERT_REQUIRED:
+        raise RuntimeError("TLS_VERIFICATION_REQUIRED")
+    urls = ["https://firmen.cc.hs-hannover.de/", "https://www.munich-startup.de/",
+            "https://www.region-stuttgart.de/"]
+    urls += [json.loads((ROOT / "config/census" / name).read_text())["start_url"]
+             for name in ("berlin-startup-map.json", "wolfsburg-innovations.json", "ingolstadt-digital.json")]
+    for url in urls:
+        try:
+            with urlopen(Request(url, method="HEAD"), timeout=5, context=context):
+                pass
+        except HTTPError:
+            pass  # HTTP rejection still proves the authenticated TLS connection.
+    return len(urls)
 
 def connect():
     return psycopg.connect(**get_database_config(), connect_timeout=10, autocommit=True)
@@ -42,13 +114,15 @@ def checked_source():
     return value
 
 
-def collect(db, run_id, sha, state):
+def collect(db, run_id, sha, state, progress=None):
     # Commit intent before any request. A repeated workload never recrawls.
     with db.transaction():
         db.execute("INSERT INTO bronze_native_census_runs(run_id,source_sha,state) VALUES (%s,%s,'DISCOVERING')",
                    (run_id, sha))
-    snapshots, source_states = {}, {}
+    snapshots, source_states, source_errors = {}, {}, {}
     for source_id, module, options in SOURCES:
+        update(progress, phase="COLLECTING", completed=len(source_states), total=len(SOURCES),
+               current=source_id, errors=sum(v == "SOURCE_FAILED" for v in source_states.values()))
         target = state / (source_id + ".json")
         evidence_dir = state / (source_id + "-http")
         evidence_dir.mkdir(exist_ok=False)
@@ -68,10 +142,14 @@ def collect(db, run_id, sha, state):
                 snapshots[source_id] = payload
                 source_state = "OBSERVED" if payload.get("complete") is not False else "PARTIAL"
             else:
-                payload = {"error": "SOURCE_PROCESS_FAILED", "returncode": completed.returncode}
+                payload = {"error": source_error(state / (source_id + ".log")), "returncode": completed.returncode}
         except (ValueError, OSError, subprocess.SubprocessError) as error:
             payload = {"error": type(error).__name__, "source_id": source_id}
         source_states[source_id] = source_state
+        if source_state == "SOURCE_FAILED":
+            source_errors[source_id] = payload.get("error", "SOURCE_PROCESS_FAILED")
+        update(progress, completed=len(source_states), error_code=payload.get("error"),
+               errors=sum(v == "SOURCE_FAILED" for v in source_states.values()))
         with db.transaction():
             for meta in sorted(evidence_dir.glob("*.json")):
                 evidence = json.loads(meta.read_text())
@@ -92,10 +170,12 @@ def collect(db, run_id, sha, state):
     result = population(snapshots)
     summary = {k: v for k, v in result.items() if k != "candidates"}
     summary["sources"] = source_states
+    summary["source_errors"] = source_errors
     summary["population_digest"] = digest(result["candidates"])
     summary["new_census_observed"] = any(p.get("companies") for k, p in snapshots.items()
                                         if k != "classic_existing_candidates")
     terminal = "BRONZE_READY" if summary["new_census_observed"] and not result["factory_budget_exceeded"] else "REVIEW_REQUIRED"
+    update(progress, phase="SAVING_BRONZE", completed=0, total=result["candidate_count"], current="")
     with db.transaction():
         db.execute("INSERT INTO bronze_native_census_sources VALUES (%s,%s,%s,%s,%s)",
                    (run_id, "classic_existing_candidates", "OBSERVED", Jsonb(baseline), digest(baseline)))
@@ -109,7 +189,7 @@ def collect(db, run_id, sha, state):
                   (run_id,)).fetchone()[0] != result["candidate_count"]:
         raise RuntimeError("BRONZE_READBACK_MISMATCH")
     return {"status": terminal, "candidate_count": result["candidate_count"],
-            "factory_batch_count": result["factory_batch_count"], "sources": source_states,
+            "factory_batch_count": result["factory_batch_count"], "sources": source_states, "source_errors": source_errors,
             "population_digest": summary["population_digest"],
             "retained_in_bronze": True, "sources_activated": 0}
 
@@ -126,7 +206,7 @@ def assess_one(input_path, output_path):
     atomic_json(output_path, result)
 
 
-def factory_batch(db, run_id, index, state):
+def factory_batch(db, run_id, index, state, progress=None):
     run = db.execute("SELECT state,summary FROM bronze_native_census_runs WHERE run_id=%s", (run_id,)).fetchone()
     if not run or run[0] != "BRONZE_READY" or not 0 <= index < run[1]["factory_batch_count"]:
         raise ValueError("CENSUS_BATCH_NOT_READY")
@@ -134,6 +214,8 @@ def factory_batch(db, run_id, index, state):
                          WHERE run_id=%s AND batch_index=%s ORDER BY company_key""", (run_id, index)).fetchall()
     outcomes = {}
     for candidate_id, observation in rows:
+        update(progress, phase="ASSESSING", total=len(rows), completed=sum(outcomes.values()),
+               current=observation["company_name"][:160], batch_index=index)
         existing = db.execute("SELECT state FROM native_census_factory_results WHERE candidate_id=%s",
                               (candidate_id,)).fetchone()
         if existing:
@@ -175,6 +257,8 @@ def factory_batch(db, run_id, index, state):
                       WHERE candidate_id=%s AND state='ASSESSING'""",
                    (outcome, Jsonb(result), candidate_id))
         outcomes[outcome] = outcomes.get(outcome, 0) + 1
+        update(progress, completed=sum(outcomes.values()),
+               errors=sum(v for k, v in outcomes.items() if k != "QUALIFIED"))
     verified = db.execute("""SELECT count(*) FROM native_census_factory_results f
                             JOIN bronze_native_census_candidates c ON c.id=f.candidate_id
                             WHERE c.run_id=%s AND c.batch_index=%s AND f.state!='ASSESSING'""",
@@ -201,7 +285,8 @@ def main():
                           "native_census_factory_results"):
                 if not db.execute("SELECT to_regclass(%s)", (table,)).fetchone()[0]:
                     raise ValueError("CENSUS_SCHEMA_MISSING")
-        print(json.dumps({"status": "CENSUS_PREFLIGHT_READY", "source_sha": checked_source()}))
+        print(json.dumps({"status": "CENSUS_PREFLIGHT_READY", "source_sha": checked_source(),
+                          "verified_tls_sources": verify_tls()}))
         return
     if args.assess:
         assess_one(args.assess, args.output)
@@ -210,13 +295,14 @@ def main():
     run_id = "classic-native-census:" + sha
     state = args.state_dir
     state.mkdir(parents=True, exist_ok=True)
-    with connect() as db:
+    with Progress(state) as progress, connect() as db:
         if args.workload == "classic-census-v1":
-            proof = collect(db, run_id, sha, state)
+            proof = collect(db, run_id, sha, state, progress)
         elif re.fullmatch(r"classic-census-factory-[0-9]{2}", args.workload or ""):
-            proof = factory_batch(db, run_id, int(args.workload[-2:]), state)
+            proof = factory_batch(db, run_id, int(args.workload[-2:]), state, progress)
         else:
             raise ValueError("UNAPPROVED_WORKLOAD")
+        progress.update(phase=proof["status"], current="")
     proof.update(source_sha=sha, run_id=run_id, workload=args.workload,
                  completed_at=datetime.now(UTC).isoformat())
     atomic_json(state / "native-census-result.json", proof)

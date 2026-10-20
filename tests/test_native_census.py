@@ -1,5 +1,7 @@
 from src.search_intelligence.native_census import population
 from src.census_sources import hannover
+from scripts.run_native_census_campaign import Progress, source_error
+import json
 
 
 def test_all_regions_missing_websites_and_raw_observations_retained():
@@ -40,3 +42,22 @@ def test_hannover_compact_and_full_views_merge_only_same_identity():
     assert len(rows) == 1
     assert rows[0]["website"] == "https://example.org"
     assert rows[0]["location"] == "10115 Berlin"
+
+
+def test_progress_has_liveness_and_explicit_failure(tmp_path):
+    try:
+        with Progress(tmp_path) as p:
+            p.update(phase="ASSESSING", completed=3, total=10)
+            value = json.loads(p.path.read_text())
+            assert value["completed"] == 3 and value["updated_at"] >= value["last_progress_at"]
+            raise ValueError("fixture")
+    except ValueError:
+        pass
+    value = json.loads((tmp_path / "native-progress.json").read_text())
+    assert value["phase"] == "FAILED" and value["error_code"] == "ValueError"
+
+
+def test_tls_error_is_categorized_without_exposing_raw_log(tmp_path):
+    path = tmp_path / "log"
+    path.write_text("private text CERTIFICATE_VERIFY_FAILED")
+    assert source_error(path) == "TLS_CERTIFICATE_INVALID"
