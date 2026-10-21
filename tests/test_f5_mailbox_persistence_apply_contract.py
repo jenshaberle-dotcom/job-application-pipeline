@@ -53,6 +53,14 @@ def _row(**overrides: object) -> dict[str, object]:
     return payload
 
 
+def test_plan_matches_identities_created_earlier_in_same_batch():
+    rows=[_row(),_row(message_reference='message-2',thread_reference='thread-2',
+                     employer_name='Example',job_title='Data Engineer (m/w/d)')]
+    plan=plan_rows(rows)
+    assert plan.application_inserts==1
+    assert plan.candidate_inserts==2
+
+
 def test_apply_contract_requires_explicit_authority_and_exact_identity_bindings() -> None:
     source = APPLY.read_text(encoding="utf-8")
 
