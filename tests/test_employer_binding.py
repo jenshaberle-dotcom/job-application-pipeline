@@ -20,6 +20,41 @@ def test_exact_employer_legal_suffix_and_case():
     assert employer_binding(NAME,HOME,job("Example Systems"),ROOT,DETAIL)["status"]=="VERIFIED"
 
 
+def graph_job(orgs):
+    return '<script type="application/ld+json">'+json.dumps({'@graph':[
+        {'@type':'https://schema.org/JobPosting','title':'Engineer','description':'Build software',
+         'hiringOrganization':{'@id':'#employer'}}, *orgs]})+'</script>'
+
+
+def test_local_graph_reference_is_resolved_without_network():
+    body=graph_job([{'@id':'#employer','@type':'Organization','name':NAME}])
+    assert employer_binding(NAME,HOME,body,ROOT,DETAIL)['status']=='VERIFIED'
+
+
+def test_ambiguous_or_foreign_graph_reference_never_qualifies():
+    for orgs in ([],[{'@id':'#employer','name':'Other employer'}],
+                 [{'@id':'#employer','name':NAME},{'@id':'#employer','name':'Other employer'}]):
+        assert employer_binding(NAME,HOME,graph_job(orgs),ROOT,DETAIL)['status']!='VERIFIED'
+
+
+def test_missing_evidence_is_distinguished_from_conflict():
+    result=employer_binding(NAME,HOME,'<h1>Jobs</h1>',ROOT,DETAIL)
+    assert result['missing_evidence']==['STRUCTURED_JOB_MISSING']
+
+
+def test_root_legal_name_must_be_bound_to_origin_url():
+    def home(url):
+        return '<script type="application/ld+json">'+json.dumps({'@type':'https://schema.org/Organization',
+            'name':'Example','legalName':NAME,'url':url})+'</script>'
+    assert employer_binding(NAME,home(ROOT),job(),ROOT,DETAIL)['status']=='VERIFIED'
+    assert employer_binding(NAME,home('https://other.example/'),job(),ROOT,DETAIL)['status']!='VERIFIED'
+
+
+def test_broken_root_json_cannot_supply_unambiguous_identity():
+    home=HOME+'<script type="application/ld+json">{</script>'
+    assert employer_binding(NAME,home,job(),ROOT,DETAIL)['status']!='VERIFIED'
+
+
 @pytest.mark.parametrize("name",["Getriebebau NORD", "NORD GmbH", "TÜV NORD", "TÜV NORD Service GmbH"])
 def test_shared_token_and_unproven_group_relationship_never_qualify(name):
     b=employer_binding("TÜV NORD Mobilität GmbH & Co. KG",'<h1>TÜV NORD Mobilität GmbH & Co. KG</h1>',job(name),ROOT,DETAIL)

@@ -59,12 +59,23 @@ def structured(body):
 
 def has_type(node,kind):
     value=node.get("@type",[])
-    return kind in ([value] if isinstance(value,str) else value if isinstance(value,list) else [])
+    return any(v in (kind, 'https://schema.org/'+kind, 'http://schema.org/'+kind)
+               for v in ([value] if isinstance(value,str) else value if isinstance(value,list) else []))
+
+
+def resolve_local_organization(value, nodes):
+    """Resolve only an unambiguous in-document JSON-LD reference; never fetch it."""
+    if not isinstance(value, dict): return None
+    if value.get('name'): return value
+    ref=value.get('@id')
+    if not isinstance(ref,str): return value
+    matches=[n for n in nodes if n.get('@id')==ref and n.get('name')]
+    return matches[0] if len(matches)==1 else None
 
 
 def employer_binding(company_name, root_html, detail_html, root_url, detail_url):
     expected=identity(company_name)
-    root_nodes, headings, _=structured(root_html)
+    root_nodes, headings, root_malformed=structured(root_html)
     detail_nodes, _, malformed=structured(detail_html)
     def root_organization(node):
         if not has_type(node, "Organization"): return False
@@ -73,7 +84,8 @@ def employer_binding(company_name, root_html, detail_html, root_url, detail_url)
             return (isinstance(url,str) and urlparse(url).scheme == "https"
                     and urlparse(url).hostname == urlparse(root_url).hostname)
         except ValueError: return False
-    organizations=[str(n.get("name", "")) for n in root_nodes if root_organization(n)]
+    organizations=[n[k] for n in root_nodes if root_organization(n)
+                   for k in ('name','legalName') if isinstance(n.get(k),str)]
     # Headings must equal the employer name; incidental body mentions do not count.
     root_match=bool(expected and any(identity(n)==expected for n in organizations+headings))
     jobs=[n for n in detail_nodes if has_type(n,"JobPosting")]
@@ -81,15 +93,21 @@ def employer_binding(company_name, root_html, detail_html, root_url, detail_url)
     for job in jobs:
         if not all(isinstance(job.get(k),str) and job[k].strip() for k in ("title", "description")):
             complete=False
-        employer=job.get("hiringOrganization")
+        employer=resolve_local_organization(job.get("hiringOrganization"), detail_nodes)
         name=employer.get("name") if isinstance(employer,dict) else None
         if not isinstance(name,str) or not name.strip(): complete=False
         else: names.append(name[:300])
     matched=bool(expected and complete and all(identity(n)==expected for n in names))
-    reason=("VERIFIED" if root_match and matched and not malformed else
+    reason=("VERIFIED" if root_match and matched and not malformed and not root_malformed else
             "EMPLOYER_CONFLICT" if names and any(identity(n)!=expected for n in names) else
             "EMPLOYER_EVIDENCE_MISSING")
-    return dict(schema=VERSION,status=reason,expected_name=company_name,
+    missing=[]
+    if not root_match: missing.append('ROOT_IDENTITY_NOT_PROVEN')
+    if not jobs: missing.append('STRUCTURED_JOB_MISSING')
+    if jobs and not complete: missing.append('JOB_OR_EMPLOYER_FIELDS_INCOMPLETE')
+    if malformed: missing.append('MALFORMED_STRUCTURED_DATA')
+    if root_malformed: missing.append('MALFORMED_ROOT_STRUCTURED_DATA')
+    return dict(schema=VERSION,status=reason,expected_name=company_name,missing_evidence=missing,
                 observed_employers=names,root_identity_matched=root_match,
                 root_url=root_url,detail_url=detail_url,
                 root_sha256=hashlib.sha256(root_html.encode()).hexdigest(),
