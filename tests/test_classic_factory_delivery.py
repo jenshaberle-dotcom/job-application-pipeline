@@ -80,6 +80,7 @@ class FakeConnection:
 
 
 def prepare(monkeypatch, tmp_path, count):
+    monkeypatch.setattr(runner, 'promote_silver', lambda key: dict(selected=0,included=0,skipped=0,completed=True))
     rows = [{'id': i + 1, 'company_key': f'company-{i}'} for i in range(count)]
     monkeypatch.setattr(runner, 'qualify', lambda row, args: {
         'candidate_id': row['id'], 'company_key': row['company_key'],

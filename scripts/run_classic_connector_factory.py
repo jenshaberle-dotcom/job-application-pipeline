@@ -190,6 +190,22 @@ def qualify(row: dict, args) -> dict:
     return result
 
 
+def promote_silver(company_key: str) -> dict:
+    """Only the freshly admitted employer's backlog; no repeat source requests."""
+    from src.run_silver_jobs import main as silver_main
+    from contextlib import redirect_stdout
+    import io
+    counts = dict(selected=0, included=0, skipped=0)
+    for _ in range(100):
+        with redirect_stdout(io.StringIO()):
+            batch = silver_main(['--source', 'generic_origin:' + company_key, '--limit', '500'])
+        for key in counts:
+            counts[key] += batch[key]
+        if batch['selected'] < 500:
+            return dict(counts, source='generic_origin:' + company_key, completed=True)
+    raise RuntimeError('SILVER_BACKLOG_NOT_DRAINED')
+
+
 def verify_activation(conn, rows: list[dict]) -> None:
     keys = [row["company_key"] for row in rows]
     count = conn.execute(
@@ -236,6 +252,7 @@ def execute(conn, candidates: list[dict], journal: DeliveryJournal, args) -> dic
         key = row["company_key"]
         try:
             journal.stage("ingest:" + key, lambda key=key: ingest(key, journal), effect=True)
+            journal.stage("silver:" + key, lambda key=key: promote_silver(key), effect=True)
         except Exception:
             # Preserve ambiguous effects and continue the remaining admitted population.
             # No automatic retry, no silently successful zero-job conversion.
@@ -243,6 +260,12 @@ def execute(conn, candidates: list[dict], journal: DeliveryJournal, args) -> dic
     summary = delivery_summary(journal.data["stages"], len(candidates))
     summary["qualified_sources"] = len(rows)
     summary["qualification_gaps"] = len(candidates) - len(rows)
+    silver = [v['result'] for k,v in journal.data['stages'].items()
+              if k.startswith('silver:') and v.get('state') == 'SUCCEEDED']
+    summary['silver_sources_completed'] = len(silver)
+    summary['silver_selected'] = sum(v['selected'] for v in silver)
+    summary['silver_included'] = sum(v['included'] for v in silver)
+    summary['silver_skipped'] = sum(v['skipped'] for v in silver)
     return summary
 
 

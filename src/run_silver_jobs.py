@@ -83,7 +83,7 @@ def _decision_evidence(raw_job: dict) -> dict[str, str | None]:
     }
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> dict:
     args = build_parser().parse_args(argv)
     repository = SilverJobRepository()
 
@@ -95,7 +95,7 @@ def main(argv: list[str] | None = None) -> None:
 
     if not raw_jobs:
         print("No unprocessed raw jobs found.")
-        return
+        return {"selected": 0, "included": 0, "skipped": 0}
 
     transformed_count = 0
     skipped_count = 0
@@ -152,6 +152,7 @@ def main(argv: list[str] | None = None) -> None:
     print("---")
     print(f"Transformed raw jobs: {transformed_count}")
     print(f"Skipped raw jobs: {skipped_count}")
+    return {"selected": len(raw_jobs), "included": transformed_count, "skipped": skipped_count}
 
 
 if __name__ == "__main__":
