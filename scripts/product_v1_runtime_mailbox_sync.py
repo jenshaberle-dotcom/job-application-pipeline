@@ -182,6 +182,8 @@ def _scan_normalized(output: Path) -> dict[str, object]:
 
     command = [
         sys.executable,
+        str(ROOT / "scripts" / "run_product_mailbox_bridge.py"),
+        "--bridge-path",
         str(bridge),
         "scan",
         "--client-config",

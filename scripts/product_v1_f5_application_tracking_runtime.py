@@ -8,6 +8,8 @@ remain outside this public repository.
 """
 from __future__ import annotations
 
+from scripts.product_v1_f5_application_actions import canonical_sha256
+
 from collections import Counter
 import re
 from typing import Any, Mapping
@@ -282,6 +284,7 @@ def build_application_tracking_payload(
         rows.append(
             {
                 "application_id": application_id,
+                "identity_revision": canonical_sha256(snapshot) if isinstance(snapshot, Mapping) else None,
                 "application_key": row.get("application_key"),
                 "silver_job_id": silver_job_id,
                 "job_link_status": "linked" if silver_job_id is not None else "external",

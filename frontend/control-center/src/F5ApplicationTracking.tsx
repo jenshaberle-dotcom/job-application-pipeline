@@ -27,6 +27,7 @@ type EvidenceCandidate = {
 
 type TrackedApplication = {
   application_id: number;
+  identity_revision?: string | null;
   silver_job_id?: number | null;
   job_link_status?: "linked" | "external" | string;
   discovery_kind?: string | null;
@@ -237,7 +238,12 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
       });
       const payload = await response.json() as { status?: string; reason?: string; message?: string; error_type?: string };
       if (!response.ok) {
-        const detail = payload.reason || payload.message;
+        const reason = payload.reason || payload.message;
+        const detail = reason === "application_identity_changed_refresh_required"
+          ? "This application changed. Refresh it before saving the title."
+          : reason === "application_employer_mismatch"
+            ? "The employer information changed. Refresh the application and try again."
+            : reason;
         throw new Error(detail ? `${payload.error_type ? payload.error_type + ": " : ""}${detail}` : `HTTP ${response.status}`);
       }
       setState("saved");
@@ -402,6 +408,7 @@ export default function F5ApplicationTracking({
   async function correctMissingJobTitle(
     applicationId: number,
     employerName: string,
+    identityRevision?: string | null,
   ) {
     const jobTitle = (titleDrafts[applicationId] || "").trim();
     if (!jobTitle) {
@@ -422,7 +429,7 @@ export default function F5ApplicationTracking({
           action: "correct_application_job_title",
           application_id: applicationId,
           job_title: jobTitle,
-          expected_employer_name: employerName,
+          ...(identityRevision ? { expected_identity_sha256: identityRevision } : { expected_employer_name: employerName }),
         }),
       });
       const payload = await response.json() as {
@@ -614,7 +621,7 @@ export default function F5ApplicationTracking({
               <button
                 type="button"
                 disabled={titleCorrection?.status === "saving"}
-                onClick={() => void correctMissingJobTitle(application.application_id, employer)}
+                onClick={() => void correctMissingJobTitle(application.application_id, employer, application.identity_revision)}
               >
                 {titleCorrection?.status === "saving" ? "Saving …" : "Save title"}
               </button>

@@ -64,6 +64,8 @@ def normalize_company(value: object) -> str:
 
 
 def normalize_title(value: object) -> str:
+    # Common technical abbreviation; employer and uniqueness checks still apply.
+    value = re.sub(r"\bsdlc\b", "software development lifecycle", str(value or ""), flags=re.I)
     return " ".join(
         token for token in _ascii_words(value) if token not in TITLE_NOISE_TOKENS
     )
