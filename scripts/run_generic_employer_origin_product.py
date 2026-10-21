@@ -103,7 +103,8 @@ def discover_navigation_candidates(
         delegated_hosts=delegated_hosts,
     )
     if provider is None:
-        return tuple(result)
+        from src.search_intelligence.factory_learning import navigation_priority
+        return tuple(sorted(result, key=lambda item: navigation_priority(item.url)))
 
     for url in provider_detail_urls(
         provider=provider,
@@ -144,7 +145,8 @@ def discover_navigation_candidates(
                 False,
             )
         )
-    return tuple(result)
+    from src.search_intelligence.factory_learning import navigation_priority
+    return tuple(sorted(result, key=lambda item: navigation_priority(item.url)))
 
 
 def _promote_workday(

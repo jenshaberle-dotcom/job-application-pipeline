@@ -501,7 +501,9 @@ def acquire_broad_records(source_name, source):
     if outcome.mechanism == "none" or outcome.stop_reason in {
         "inventory_request_failed", "search_request_failed", "origin_unreachable"}:
         raise GenericProductAcquisitionError("broad_inventory_unavailable:" + outcome.stop_reason)
+    from src.search_intelligence.factory_learning import coverage_state
     BROAD_INVENTORY_REPORTS[source_name] = dict(
+        state=coverage_state(fetched=True, exhausted=outcome.exhausted, jobs=len(outcome.jobs)),
         exhausted=outcome.exhausted, stop_reason=outcome.stop_reason,
         scope="discovered_inventory_surface", personal_filter=False)
     records = []

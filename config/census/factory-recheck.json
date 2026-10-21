@@ -1,4 +1,4 @@
 {
-  "parent_run": "classic-native-census:93ac615348c0eb38abe7fd5ebcbbe7265af8c154",
-  "purpose": "Employer identity revalidation including all 190 prior qualifications; reuse only current-schema receipts with fresh job evidence. All 2240 candidates, no activation."
+  "parent_run": "classic-native-census:4060ae847f7695a5dd4556739383abe1433f88f3",
+  "purpose": "Frozen 2240-employer comparison: preserve Census URLs, classify portal families and failures, reuse identity-bound recipes with fresh proof; no activation or location filter."
 }

@@ -282,10 +282,13 @@ def factory_batch(db, run_id, index, state, progress=None):
             continue
         db.execute("INSERT INTO native_census_factory_results(candidate_id,state,result) VALUES (%s,'ASSESSING','{}')",
                    (candidate_id,))
-        websites = observation["websites"]
+        from src.search_intelligence.factory_learning import discovery_plan, learning_receipt
+        plan = discovery_plan(observation)
+        websites = plan["ordered_urls"]
         row = {"id": candidate_id, "company_key": observation["company_key"],
                "company_name": observation["company_name"],
-               "candidate_url": websites[0] if len(websites) == 1 else None}
+               "candidate_url": websites[0] if len(websites) == 1 else None,
+               "observed_urls": websites, "discovery_plan": plan}
         # Read prior receipts by stable employer key, never by transient row ID.
         # The product validates the receipt again and reacquires current evidence.
         prior = db.execute("""SELECT f.result FROM native_census_factory_results f
@@ -298,27 +301,27 @@ def factory_batch(db, run_id, index, state, progress=None):
         input_path, output_path = state / f"{candidate_id}-input.json", state / f"{candidate_id}-result.json"
         atomic_json(input_path, row)
         result = {}
-        if len(websites) > 1:
-            outcome, result = "IDENTITY_REVIEW", {"reason": "MULTIPLE_OBSERVED_WEBSITES"}
-        else:
-            try:
-                with (state / f"{candidate_id}.log").open("xb") as log:
-                    completed = subprocess.run([sys.executable, "-m", "scripts.run_native_census_campaign",
-                                                "--assess", str(input_path), "--output", str(output_path)],
-                                               cwd=ROOT, stdout=log, stderr=log, timeout=45)
-                if completed.returncode == 0 and output_path.stat().st_size <= 2_000_000:
-                    result = json.loads(output_path.read_text())
-                    if result.get("candidate_id") != candidate_id or result.get("company_key") != row["company_key"]:
-                        raise ValueError("ASSESSMENT_IDENTITY_MISMATCH")
-                    outcome = ("QUALIFIED" if result.get("recipe_ready") is True else
-                               "IDENTITY_REVIEW" if result.get("first_failure_reason") ==
-                               "EMPLOYER_ATTRIBUTION_REVIEW_REQUIRED" else "TECHNICAL_GAP")
-                else:
-                    outcome = "ASSESSMENT_FAILED"
-            except subprocess.TimeoutExpired:
-                outcome = "TIME_LIMIT"
-            except (OSError, ValueError):
+        # Multiple links are hypotheses for discovery, not an automatic identity
+        # conflict or permission to qualify. Fresh employer binding remains mandatory.
+        try:
+            with (state / f"{candidate_id}.log").open("xb") as log:
+                completed = subprocess.run([sys.executable, "-m", "scripts.run_native_census_campaign",
+                                            "--assess", str(input_path), "--output", str(output_path)],
+                                           cwd=ROOT, stdout=log, stderr=log, timeout=45)
+            if completed.returncode == 0 and output_path.stat().st_size <= 2_000_000:
+                result = json.loads(output_path.read_text())
+                if result.get("candidate_id") != candidate_id or result.get("company_key") != row["company_key"]:
+                    raise ValueError("ASSESSMENT_IDENTITY_MISMATCH")
+                outcome = ("QUALIFIED" if result.get("recipe_ready") is True else
+                           "IDENTITY_REVIEW" if result.get("first_failure_reason") ==
+                           "EMPLOYER_ATTRIBUTION_REVIEW_REQUIRED" else "TECHNICAL_GAP")
+            else:
                 outcome = "ASSESSMENT_FAILED"
+        except subprocess.TimeoutExpired:
+            outcome = "TIME_LIMIT"
+        except (OSError, ValueError):
+            outcome = "ASSESSMENT_FAILED"
+        result["factory_learning"] = learning_receipt(observation, result, outcome)
         # No job writes or activation occur in assess_one; diagnosed gaps are terminal outcomes.
         db.execute("""UPDATE native_census_factory_results SET state=%s,result=%s,completed_at=now()
                       WHERE candidate_id=%s AND state='ASSESSING'""",

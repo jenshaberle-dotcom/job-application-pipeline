@@ -218,7 +218,7 @@ def _resolve_origin_uncached(row: dict[str, Any], args: argparse.Namespace) -> t
         origin_args.candidate_identity = {
             key: row.get(key) for key in (
                 "id", "company_key", "company_name", "candidate_url",
-                "source_family_candidate", "status", "risk_level"
+                "source_family_candidate", "status", "risk_level", "observed_urls"
             )
         }
         payload = run_origin_discovery(origin_args, str(row["company_key"]))
