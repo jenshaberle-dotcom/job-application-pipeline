@@ -269,11 +269,24 @@ def execute(conn, candidates: list[dict], journal: DeliveryJournal, args) -> dic
             # Preserve ambiguous effects and continue the remaining admitted population.
             # No automatic retry, no silently successful zero-job conversion.
             continue
+    # Independent of ingestion success: existing approved vacancies also need a
+    # current check when a source import failed or delivered no new rows.
+    from scripts.product_v1_delivery_quality import maintain_source
+    from scripts.run_product_v1_assessment_materialization import authorized_recurring_employer_origin_sources
+    quality_results = []
+    for source in sorted(authorized_recurring_employer_origin_sources(JobIngestionRepository())):
+        quality = maintain_source(source, journal)
+        quality_results.append(quality)
+        atomic_json(args.state_dir / ('quality-' + fingerprint(source) + '.json'), quality)
     atomic_json(args.state_dir / "proof.json", {
         "authority": {"sole_connector_truth": activation.GENERIC_AUTHORITY,
                       "source_validity_gate": "proof=PASS"}, "results": results,
     })
     summary = delivery_summary(journal.data["stages"], len(candidates))
+    summary['quality_checked'] = sum(r['checked'] for r in quality_results)
+    summary['quality_scored'] = sum(r['scored'] for r in quality_results)
+    summary['quality_unavailable'] = sum(r['unavailable'] for r in quality_results)
+    summary['quality_blocked'] = sum(len(r['blocked']) for r in quality_results)
     summary["qualified_sources"] = len(qualified_rows)
     summary["qualification_gaps"] = len(candidates) - len(qualified_rows)
     summary["qualification_errors"] = failures

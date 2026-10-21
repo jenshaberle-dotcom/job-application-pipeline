@@ -24,7 +24,9 @@ def enrich_identity(row: dict) -> dict:
 def install_policy(bridge):
     bridge._GMAIL_SEARCH_SIGNAL_QUERIES = tuple(
         (kind, query[:-1] + ' "müssen wir dir leider absagen" "müssen wir Ihnen leider absagen" "dein Profil nicht ganz unseren Vorstellungen"}')
-        if kind == "rejection" else (kind, query)
+        if kind == "rejection" else
+        (kind, query[:-1] + ' "zu einem Gespräch einladen"}') if kind == 'interview_invitation' else
+        (kind, query[:-1] + ' "meine Bewerbung" "Rückzug Ihrer Bewerbung"}') if kind == 'withdrawal_confirmation' else (kind, query)
         for kind, query in bridge._GMAIL_SEARCH_SIGNAL_QUERIES
     )
     original = bridge._impl.normalize_gmail_message

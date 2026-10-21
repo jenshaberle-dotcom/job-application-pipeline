@@ -226,6 +226,11 @@ def build_application_tracking_payload(
             row.get("effective_stage"),
             fallback=observed_stage or authoritative_stage,
         )
+        from scripts.product_v1_operator_status import status_history
+        operator_history = status_history(row.get('operator_provenance'))
+        operator_status = operator_history[-1] if operator_history else None
+        if operator_status and operator_status.get('status') != 'automatic':
+            effective_stage = 'interview' if operator_status['status'] == 'interview' else 'closed'
 
         discovery_kind = str(row.get("discovery_kind") or "jap_prepared")
         snapshot = row.get("job_identity_snapshot")
@@ -284,6 +289,8 @@ def build_application_tracking_payload(
         rows.append(
             {
                 "application_id": application_id,
+                "operator_status": operator_status,
+                "operator_status_revision": len(operator_history),
                 "identity_revision": canonical_sha256(snapshot) if isinstance(snapshot, Mapping) else None,
                 "application_key": row.get("application_key"),
                 "silver_job_id": silver_job_id,
@@ -314,8 +321,8 @@ def build_application_tracking_payload(
                 "observed_at": row.get("observed_at"),
                 "observed_confidence": row.get("observed_confidence"),
                 "effective_stage": effective_stage,
-                "effective_stage_basis": row.get("effective_stage_basis")
-                or ("mailbox_observed" if observed_stage else "authoritative_fallback"),
+                "effective_stage_basis": ('operator_confirmed' if operator_status and operator_status.get('status') != 'automatic' else
+                    row.get("effective_stage_basis") or ("mailbox_observed" if observed_stage else "authoritative_fallback")),
                 "authoritative_event_count": int(
                     row.get("authoritative_event_count") or 0
                 ),
@@ -389,11 +396,13 @@ def load_application_tracking_payload() -> dict[str, object]:
                 """
                 SELECT
                     tracking.*,
+                    operator_application.provenance AS operator_provenance,
                     silver.title,
                     silver.company_name,
                     silver.company_name AS display_company_name,
                     silver.source_url
                 FROM gold_product_v1_application_tracking tracking
+                JOIN applications operator_application ON operator_application.id = tracking.application_id
                 LEFT JOIN silver_jobs silver
                   ON silver.id = tracking.silver_job_id
                 ORDER BY

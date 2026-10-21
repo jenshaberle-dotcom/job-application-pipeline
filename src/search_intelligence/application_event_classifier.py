@@ -74,6 +74,7 @@ _RULES: dict[str, tuple[tuple[str, str], ...]] = {
         (r"\bwe\s+would\s+like\s+to\s+offer\s+you\b", "we would like to offer you"),
     ),
     "interview_invitation": (
+        (r"\b(?:möchten|laden)\s+(?:wir\s+)?(?:sie|dich)\b.{0,80}\bzu\s+einem\s+gespräch\s+einladen\b", "Einladung zu einem Gespräch"),
         (r"\b(?:einladung|termin)\s+(?:zu|zum|für)\s+(?:einem\s+)?(?:vorstellungsgespräch|interview)\b", "Einladung zum Interview"),
         (r"\bvorstellungsgespräch\b", "Vorstellungsgespräch"),
         (r"\binterview\s+(?:invitation|appointment|slot)\b", "interview invitation"),
@@ -230,6 +231,12 @@ def classify_application_evidence(
         )
 
     direction = _normalize(mail_direction)
+    current_excerpt = re.split(r'(?m)^\s*(?:>|am .+ schrieb|on .+ wrote|von:|from:)', excerpt_text, maxsplit=1)[0]
+    if (direction == "outbound" and 'nicht zurück' not in current_excerpt
+        and re.search(r'\b(?:ziehe ich|ich ziehe|muss ich)\b.{0,80}\bmeine bewerbung\b.{0,80}\b(?:zurück|zurückziehen)\b', current_excerpt)):
+        return ClassificationResult(candidate_class='withdrawal_confirmation', confidence=0.99,
+            reason_code='explicit_outbound_application_withdrawal', evidence_span=excerpt_text[:240],
+            matched_terms=('explicit applicant withdrawal',))
     if direction == "outbound" and _OUTBOUND_APPLICATION_SUBJECT.search(subject_text):
         # Keep the schema's existing applied-observation bucket while preserving
         # the materially different evidence reason. This is mailbox evidence only;

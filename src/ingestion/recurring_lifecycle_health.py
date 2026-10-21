@@ -190,6 +190,13 @@ def reconcile_recurring_exact_detail_health(
             continue
 
         unverifiable_count += 1
+        # Preserve uncertainty instead of silently leaving an old positive as
+        # current. This is not a closure and a later positive can restore it.
+        observation_id = health_repository.append_health_observation(
+            expected_target=target, classification=classification,
+            observed_by=RECURRING_HEALTH_OBSERVER, ingestion_run_id=ingestion_run_id,
+        )
+        written_ids.append(observation_id)
 
     return RecurringLifecycleHealthSummary(
         target_count=len(targets),

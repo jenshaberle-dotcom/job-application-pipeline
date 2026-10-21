@@ -137,6 +137,9 @@ def parse_submission_record_request(
     payload: Mapping[str, object],
 ) -> SubmissionRecordRequest | SubmissionRemovalRequest | ApplicationTitleCorrectionRequest:
     action = str(payload.get("action") or "")
+    if action == 'set_operator_application_status':
+        from scripts.product_v1_operator_status import parse_operator_status
+        return parse_operator_status(payload)
     if action == REMOVE_ACTION_NAME:
         return parse_submission_removal_request(payload)
     if action == CORRECT_TITLE_ACTION_NAME:
@@ -560,6 +563,9 @@ def remove_operator_submission_confirmation(
                     }
 
                 submission_id = application.get("submission_id")
+                from scripts.product_v1_operator_status import status_history
+                if status_history(application.get('provenance')):
+                    raise ApplicationActionError('application_status_history_must_be_preserved')
                 if submission_id is None:
                     raise ApplicationActionError(
                         "operator_submission_confirmation_not_present"
@@ -652,6 +658,9 @@ def record_operator_confirmed_submission(
     surface does not need a second write path.
     """
 
+    from scripts.product_v1_operator_status import OperatorStatusRequest, record_operator_status
+    if isinstance(request, OperatorStatusRequest):
+        return record_operator_status(request)
     if isinstance(request, SubmissionRemovalRequest):
         return remove_operator_submission_confirmation(request)
     if isinstance(request, ApplicationTitleCorrectionRequest):

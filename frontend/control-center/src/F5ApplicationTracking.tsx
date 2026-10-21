@@ -27,6 +27,8 @@ type EvidenceCandidate = {
 
 type TrackedApplication = {
   application_id: number;
+  operator_status_revision?: number;
+  operator_status?: { status: string; reason: string; recorded_at: string } | null;
   identity_revision?: string | null;
   silver_job_id?: number | null;
   job_link_status?: "linked" | "external" | string;
@@ -334,6 +336,10 @@ export default function F5ApplicationTracking({
     message: string;
   }>({ applicationId: null, status: "idle", message: "" });
   const [titleDrafts, setTitleDrafts] = useState<Record<number, string>>({});
+  const [statusDrafts, setStatusDrafts] = useState<Record<number, string>>({});
+  const [statusReasons, setStatusReasons] = useState<Record<number, string>>({});
+  const [statusMessages, setStatusMessages] = useState<Record<number, string>>({});
+  const [statusSaving, setStatusSaving] = useState<number | null>(null);
   const [titleCorrectionState, setTitleCorrectionState] = useState<{
     applicationId: number | null;
     status: "idle" | "saving" | "saved" | "error";
@@ -403,6 +409,26 @@ export default function F5ApplicationTracking({
       else next.add(applicationId);
       return next;
     });
+  }
+
+  async function saveOperatorStatus(application: TrackedApplication) {
+    const id = application.application_id;
+    const reason = (statusReasons[id] || '').trim();
+    if (!reason) { setStatusMessages(current => ({...current, [id]: 'Bitte einen Grund angeben.'})); return; }
+    setStatusSaving(id);
+    try {
+      const response = await fetch('/api/v1/product-v1/application-submission-record', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'set_operator_application_status', application_id: id,
+          status: statusDrafts[id] || 'closed', reason, expected_identity_sha256: application.identity_revision,
+          expected_revision: application.operator_status_revision || 0, request_id: crypto.randomUUID()}),
+      });
+      if (!response.ok) throw new Error('Nicht gespeichert. Bitte aktualisieren und erneut prüfen.');
+      await refreshProductTruth();
+      setStatusMessages(current => ({...current, [id]: 'Status gespeichert. Es wurde keine Nachricht versendet.'}));
+    } catch (error) {
+      setStatusMessages(current => ({...current, [id]: error instanceof Error ? error.message : 'Speichern fehlgeschlagen.'}));
+    } finally { setStatusSaving(null); }
   }
 
   async function correctMissingJobTitle(
@@ -604,6 +630,19 @@ export default function F5ApplicationTracking({
                 ? <div className="f5-linked-job-outside-view">Job #{linkedJobId} is linked but outside the current All Jobs view.</div>
                 : null}
             {warning && <div className="f5-attention-note">{warning}</div>}
+            <div className="f5-title-correction">
+              <div><b>Bewerbungsstatus korrigieren</b><small>Deine Entscheidung bleibt erhalten, auch beim nächsten Postfachabruf. Keine E-Mail wird versendet.</small>
+                {application.operator_status && <small>Manuell: {application.operator_status.status} · {application.operator_status.reason}</small>}
+              </div>
+              <select aria-label="Bewerbungsstatus" value={statusDrafts[application.application_id] || 'closed'} onChange={event => setStatusDrafts(current => ({...current, [application.application_id]: event.target.value}))}>
+                <option value="closed">Abgeschlossen</option><option value="withdrawn">Bewerbung zurückgezogen</option>
+                <option value="rejected">Absage erhalten</option><option value="interview">Gespräch vereinbart</option>
+                <option value="automatic">Manuelle Vorgabe aufheben</option>
+              </select>
+              <input aria-label="Grund der Statuskorrektur" placeholder="Grund / Hinweis" maxLength={1000} value={statusReasons[application.application_id] || ''} onChange={event => setStatusReasons(current => ({...current, [application.application_id]: event.target.value}))}/>
+              <button type="button" disabled={statusSaving !== null || !application.identity_revision} onClick={() => void saveOperatorStatus(application)}>{statusSaving === application.application_id ? 'Speichert …' : 'Status speichern'}</button>
+            </div>
+            {statusMessages[application.application_id] && <p role="status">{statusMessages[application.application_id]}</p>}
             {missingJobTitle && application.discovery_kind === "mailbox_observed" && <div className="f5-title-correction">
               <div>
                 <b>Job title missing</b>
