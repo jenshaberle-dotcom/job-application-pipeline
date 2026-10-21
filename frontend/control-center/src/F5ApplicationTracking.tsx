@@ -141,7 +141,7 @@ function attentionMessage(application: TrackedApplication) {
 function StageStrip({ stage }: { stage: Stage }) {
   const current = STAGES.indexOf(stage);
   return <div className="f5-stage-strip" aria-label={`Current application status ${stageLabel[stage]}`}>
-    {STAGES.map((item, index) => <span key={item} className={index <= current ? "reached" : "future"}>
+    {STAGES.map((item, index) => <span key={item} className={index === current ? "reached" : "future"}>
       <i aria-hidden="true" />{stageLabel[item]}
     </span>)}
   </div>;
@@ -630,9 +630,9 @@ export default function F5ApplicationTracking({
                 ? <div className="f5-linked-job-outside-view">Job #{linkedJobId} is linked but outside the current All Jobs view.</div>
                 : null}
             {warning && <div className="f5-attention-note">{warning}</div>}
-            <div className="f5-title-correction">
+            <div className="f5-title-correction f5-status-correction">
               <div><b>Bewerbungsstatus korrigieren</b><small>Deine Entscheidung bleibt erhalten, auch beim nächsten Postfachabruf. Keine E-Mail wird versendet.</small>
-                {application.operator_status && <small>Manuell: {application.operator_status.status} · {application.operator_status.reason}</small>}
+                {application.operator_status && <small>Manuell: {({closed:'Abgeschlossen',withdrawn:'Zurückgezogen',rejected:'Absage',interview:'Gespräch vereinbart',automatic:'Automatische Erkennung'} as Record<string,string>)[application.operator_status.status]} · {application.operator_status.reason}</small>}
               </div>
               <select aria-label="Bewerbungsstatus" value={statusDrafts[application.application_id] || 'closed'} onChange={event => setStatusDrafts(current => ({...current, [application.application_id]: event.target.value}))}>
                 <option value="closed">Abgeschlossen</option><option value="withdrawn">Bewerbung zurückgezogen</option>
