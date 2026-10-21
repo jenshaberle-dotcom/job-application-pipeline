@@ -5,6 +5,8 @@ from src.connectors.classic_factory_delivery import DeliveryJournal
 
 
 def test_delivery_finishes_before_next_employer_qualification(tmp_path, monkeypatch):
+    from scripts import run_product_v1_assessment_materialization as materialization
+    monkeypatch.setattr(materialization,'authorized_recurring_employer_origin_sources',lambda repository:set())
     calls=[]
     def qualify(row,args):
         calls.append('qualify:'+row['company_key'])

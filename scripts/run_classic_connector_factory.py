@@ -232,7 +232,7 @@ def verify_activation(conn, rows: list[dict]) -> None:
         raise RuntimeError("activation_receipt_mismatch")
 
 
-def execute(conn, candidates: list[dict], journal: DeliveryJournal, args) -> dict:
+def execute(conn, candidates: list[dict], journal: DeliveryJournal, args, *, qualifier=None, quality_sources=None) -> dict:
     __import__("os").environ["JAP_BROAD_CORPUS"] = "1"
     product.layer_core.run_origin_discovery = product.run_origin_discovery
     product.layer_core.discover_navigation_candidates = product.discover_navigation_candidates
@@ -242,7 +242,7 @@ def execute(conn, candidates: list[dict], journal: DeliveryJournal, args) -> dic
     for row in candidates:
         try:
             result = journal.stage(
-                "qualify:" + row["company_key"], lambda row=row: qualify(row, args), effect=False,
+                "qualify:" + row["company_key"], lambda row=row: (qualifier or qualify)(row, args), effect=False,
             )
             results.append(result)
         except Exception:
@@ -278,7 +278,8 @@ def execute(conn, candidates: list[dict], journal: DeliveryJournal, args) -> dic
     from scripts.product_v1_delivery_quality import maintain_source
     from scripts.run_product_v1_assessment_materialization import authorized_recurring_employer_origin_sources
     quality_results = []
-    for source in sorted(authorized_recurring_employer_origin_sources(JobIngestionRepository())):
+    authorized = authorized_recurring_employer_origin_sources(JobIngestionRepository())
+    for source in sorted(authorized if quality_sources is None else authorized.intersection(quality_sources)):
         key = source.removeprefix('generic_origin:')
         if source.startswith('generic_origin:'):
             try:
