@@ -54,7 +54,7 @@ def database_session():
         yield conn
 
 
-def preflight(conn, sha: str) -> tuple[dict, list[dict]]:
+def preflight(conn, sha: str, delivery_scope: str = 'active') -> tuple[dict, list[dict]]:
     with conn.transaction():
         conn.execute("SET TRANSACTION READ ONLY")
         missing = [name for name in REQUIRED_RELATIONS if not conn.execute(
@@ -63,6 +63,15 @@ def preflight(conn, sha: str) -> tuple[dict, list[dict]]:
         if missing:
             raise RuntimeError("HOST_SCHEMA_MISSING:" + ",".join(missing))
         candidates = product.layer_core._load_candidates(conn)
+        if delivery_scope == 'active':
+            active = {row['company_key'] for row in conn.execute(
+                "SELECT a.company_key FROM generic_employer_origin_active_sources a "
+                "JOIN search_profiles p ON p.source_name=a.source_name "
+                "WHERE a.proof_state='pass' AND p.is_active AND p.recurring_ingestion_enabled"
+            ).fetchall()}
+            candidates = [row for row in candidates if row['company_key'] in active]
+        elif delivery_scope != 'full':
+            raise ValueError('unknown_delivery_scope')
         if not candidates:
             raise ValueError("candidate_population_empty")
         identity = [{key: row[key] for key in ("id", "company_key", "candidate_url")}
@@ -72,6 +81,7 @@ def preflight(conn, sha: str) -> tuple[dict, list[dict]]:
             "source_sha": sha,
             "database": fingerprint({key: config[key] for key in ("host", "port", "dbname", "user")}),
             "population": fingerprint(identity),
+            "delivery_scope": delivery_scope,
         }
         # Preflight never performs source requests or changes activation.
         return {"binding": binding, "population_count": len(candidates),
@@ -223,43 +233,50 @@ def execute(conn, candidates: list[dict], journal: DeliveryJournal, args) -> dic
     product.layer_core.run_origin_discovery = product.run_origin_discovery
     product.layer_core.discover_navigation_candidates = product.discover_navigation_candidates
     results = []
+    qualified_rows = []
     failures = []
     for row in candidates:
         try:
-            results.append(journal.stage(
+            result = journal.stage(
                 "qualify:" + row["company_key"], lambda row=row: qualify(row, args), effect=False,
-            ))
+            )
+            results.append(result)
         except Exception:
             failures.append(row["company_key"])
-    if failures:
-        raise RuntimeError("FACTORY_QUALIFICATION_ERRORS")
-    payload = {"authority": {"sole_connector_truth": activation.GENERIC_AUTHORITY,
-                             "source_validity_gate": "proof=PASS"}, "results": results}
-    atomic_json(args.state_dir / "proof.json", payload)
-    rows = activation._proof_rows(payload)
-    if not rows:
-        raise RuntimeError("NO_QUALIFIED_SOURCES")
+            continue
+        payload = {"authority": {"sole_connector_truth": activation.GENERIC_AUTHORITY,
+                                 "source_validity_gate": "proof=PASS"}, "results": [result]}
+        rows = activation._proof_rows(payload)
+        if not rows:
+            continue
+        qualified_rows.extend(rows)
+        key = row['company_key']
 
-    def activate():
-        with conn.transaction():
-            origins = activation._resolve_projection_origins(conn, rows)
-            activation.apply_activation(conn, rows, origins, preserve_existing=True)
-            verify_activation(conn, rows)
-        return {"qualified_sources": len(rows)}
+        def activate(rows=rows):
+            with conn.transaction():
+                origins = activation._resolve_projection_origins(conn, rows)
+                activation.apply_activation(conn, rows, origins, preserve_existing=True)
+                verify_activation(conn, rows)
+            return {"qualified_sources": len(rows)}
 
-    journal.stage("activate", activate, effect=True)
-    for row in rows:
-        key = row["company_key"]
         try:
+            # Deliver each proven employer before exploring the next candidate.
+            # Separate durable keys preserve no-replay semantics for every effect.
+            journal.stage("activate:" + key, activate, effect=True)
             journal.stage("ingest:" + key, lambda key=key: ingest(key, journal), effect=True)
             journal.stage("silver:" + key, lambda key=key: promote_silver(key), effect=True)
         except Exception:
             # Preserve ambiguous effects and continue the remaining admitted population.
             # No automatic retry, no silently successful zero-job conversion.
             continue
+    atomic_json(args.state_dir / "proof.json", {
+        "authority": {"sole_connector_truth": activation.GENERIC_AUTHORITY,
+                      "source_validity_gate": "proof=PASS"}, "results": results,
+    })
     summary = delivery_summary(journal.data["stages"], len(candidates))
-    summary["qualified_sources"] = len(rows)
-    summary["qualification_gaps"] = len(candidates) - len(rows)
+    summary["qualified_sources"] = len(qualified_rows)
+    summary["qualification_gaps"] = len(candidates) - len(qualified_rows)
+    summary["qualification_errors"] = failures
     silver = [v['result'] for k,v in journal.data['stages'].items()
               if k.startswith('silver:') and v.get('state') == 'SUCCEEDED']
     summary['silver_sources_completed'] = len(silver)
@@ -275,6 +292,8 @@ def main() -> int:
     parser.add_argument("--reconcile-sha", help="Exact clean SHA; reconcile held ingestion from read-only DB evidence")
     parser.add_argument("--execute-sha", help="Explicit effect gate; exact clean checkout SHA")
     parser.add_argument("--target-location", default="Hannover")
+    parser.add_argument('--delivery-scope', choices=('active', 'full'), default='active',
+                        help='Routine delivery refreshes approved sources; a full discovery campaign must be explicit.')
     parser.add_argument("--origin-max-candidates", type=int, default=12,
                         help="URL discovery budget per company, never a population limit")
     parser.add_argument("--origin-timeout-seconds", type=float, default=5.0)
@@ -294,7 +313,7 @@ def main() -> int:
             locked = conn.execute("SELECT pg_try_advisory_lock(%s) AS acquired", (LOCK_ID,)).fetchone()["acquired"]
             if not locked:
                 raise RuntimeError("FACTORY_ALREADY_RUNNING")
-            check, candidates = preflight(conn, sha)
+            check, candidates = preflight(conn, sha, args.delivery_scope)
             report["preflight"] = check
             if not args.execute_sha and not args.reconcile_sha:
                 report["status"] = "PREFLIGHT_READY"
@@ -311,7 +330,7 @@ def main() -> int:
                     report["status"] = "RECONCILED" if not report["reconciliation"]["unresolved_stages"] else "INCOMPLETE"
                 else:
                     report.update(execute(conn, candidates, journal, args))
-                    report["status"] = "BRONZE_DELIVERED" if report["bronze_delivery_proven"] and not report["held_stages"] else "INCOMPLETE"
+                    report["status"] = "BRONZE_DELIVERED" if report["bronze_delivery_proven"] and not report["held_stages"] and not report["qualification_errors"] else "INCOMPLETE"
             report_file = "reconciliation.json" if args.reconcile_sha else (
                 "acceptance.json" if args.execute_sha else "preflight.json"
             )

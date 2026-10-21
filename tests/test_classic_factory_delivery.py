@@ -127,7 +127,7 @@ def test_failed_source_is_held_remaining_sources_continue(monkeypatch, tmp_path)
     assert report['e2e_accepted'] is False
 
 
-def test_qualification_exception_does_not_drop_rest_or_activate_partial_population(monkeypatch, tmp_path):
+def test_qualification_exception_remains_reported_and_unproven_sources_never_activate(monkeypatch, tmp_path):
     rows, journal, args = prepare(monkeypatch, tmp_path, 3)
     seen = []
 
@@ -139,8 +139,9 @@ def test_qualification_exception_does_not_drop_rest_or_activate_partial_populati
 
     monkeypatch.setattr(runner, 'qualify', qualify)
     monkeypatch.setattr(runner.activation, 'apply_activation', lambda *a: pytest.fail('partial activation'))
-    with pytest.raises(RuntimeError, match='QUALIFICATION_ERRORS'):
-        runner.execute(FakeConnection(), rows, journal, args)
+    result = runner.execute(FakeConnection(), rows, journal, args)
+    assert result['qualification_errors'] == ['company-1']
+    assert result['qualified_sources'] == 0
     assert seen == [1, 2, 3]
 
 

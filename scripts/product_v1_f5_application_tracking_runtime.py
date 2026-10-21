@@ -9,6 +9,7 @@ remain outside this public repository.
 from __future__ import annotations
 
 from collections import Counter
+import re
 from typing import Any, Mapping
 
 import psycopg
@@ -150,6 +151,25 @@ def _stage(value: object, *, fallback: str = "prepared") -> str:
     return text if text in STAGES else fallback
 
 
+def _display_identity(title: object, company: object) -> tuple[str | None, str | None, list[str]]:
+    """Presentation only: never invent a role or rematch stored applications."""
+    clean_title = str(title or '').strip() or None
+    clean_company = str(company or '').strip() or None
+    issues = []
+    if clean_company and clean_company.casefold().strip(' .!') in {
+        'uns', 'us', 'wir', 'we', 'unser unternehmen', 'our company',
+    }:
+        clean_company = None
+    if not clean_company:
+        issues.append('employer_identity_missing')
+    if not clean_title:
+        issues.append('job_title_missing')
+    if clean_title and clean_company:
+        # Remove only an exact, explicitly delimited employer suffix.
+        clean_title = re.sub(r'\s+(?:bei|at)\s+' + re.escape(clean_company) + r'\s*$', '', clean_title, flags=re.I).strip()
+    return clean_title, clean_company, issues
+
+
 def build_application_tracking_payload(
     *,
     applications: list[Mapping[str, object]],
@@ -212,6 +232,8 @@ def build_application_tracking_payload(
         company_name = row.get("company_name") or _snapshot_text(
             snapshot, "company_name", "employer_name", "company"
         )
+        had_identity = bool(title or company_name)
+        title, company_name, identity_issues = _display_identity(title, company_name)
 
         # Mailbox outcome/search evidence without a bounded employer or vacancy
         # identity is review evidence, not an application Product identity.
@@ -219,8 +241,7 @@ def build_application_tracking_payload(
             discovery_kind == "mailbox_observed"
             and silver_job_id is None
             and row.get("submission_id") is None
-            and not title
-            and not company_name
+            and not had_identity
         ):
             continue
 
@@ -231,7 +252,7 @@ def build_application_tracking_payload(
         if observed_stage is not None:
             observed_count += 1
 
-        display_company_name = row.get("display_company_name") or company_name
+        display_company_name = company_name
         source_url = row.get("source_url") or _snapshot_text(
             snapshot, "source_url", "job_url", "application_url"
         )
@@ -256,6 +277,7 @@ def build_application_tracking_payload(
         review_required_count = sum(
             1 for candidate in application_candidates if candidate["requires_review"]
         )
+        review_required_count += bool(identity_issues)
 
         rows.append(
             {
@@ -275,6 +297,7 @@ def build_application_tracking_payload(
                 "employer_evidence_source": employer_evidence_source,
                 "identity_source": identity_source,
                 "application_kind": application_kind,
+                "identity_review_reasons": identity_issues,
                 "prepared_at": row.get("prepared_at"),
                 "prepared_by": row.get("prepared_by"),
                 "submission_id": row.get("submission_id"),
@@ -315,6 +338,7 @@ def build_application_tracking_payload(
         "schema_version": SCHEMA_VERSION,
         "available": available,
         "summary": {
+            "review_item_count": len(unmatched_candidates) + sum(1 for row in rows if row['attention_candidate_count']),
             "application_count": len(rows),
             "submitted_count": sum(
                 1 for row in rows if row.get("submission_id") is not None

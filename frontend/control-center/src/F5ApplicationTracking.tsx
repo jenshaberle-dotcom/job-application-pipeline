@@ -70,6 +70,7 @@ export type F5ProductPayload = {
       mailbox_discovered_count?: number;
       observed_status_count?: number;
       attention_count: number;
+      review_item_count?: number;
       unmatched_candidate_count: number;
       stage_counts: Record<string, number>;
     };
@@ -526,7 +527,7 @@ export default function F5ApplicationTracking({
   return <section className="f5-tracking-shell" aria-label="Mailbox-first application tracking">
     <header className="f5-tracking-head">
       <div><span>Application lifecycle · mailbox-assisted</span><h2>Application Tracker</h2><p>Mailbox evidence helps discover and update applications. Uncertain signals stay in Review; authoritative corrections remain separate.</p></div>
-      <div className="f5-summary-pills"><b>{tracking.summary.application_count}<small>total</small></b><b>{tracking.summary.mailbox_discovered_count || 0}<small>from mailbox</small></b><b className={tracking.summary.attention_count ? "attention" : ""}>{tracking.summary.attention_count}<small>review</small></b></div>
+      <div className="f5-summary-pills"><b>{tracking.summary.application_count}<small>total</small></b><b>{tracking.summary.mailbox_discovered_count || 0}<small>from mailbox</small></b><b className={(tracking.summary.review_item_count ?? tracking.summary.attention_count) ? "attention" : ""}>{tracking.summary.review_item_count ?? tracking.summary.attention_count}<small>review</small></b></div>
     </header>
 
     <div className="f5-application-toolbar">
