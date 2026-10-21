@@ -12,7 +12,7 @@ def main():
     parser.add_argument("--previous", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    with connect() as db:
+    with connect() as db, db.transaction():
         db.execute("SET TRANSACTION READ ONLY")
         def rows(run):
             data = db.execute("""SELECT c.observation,f.state,f.result
