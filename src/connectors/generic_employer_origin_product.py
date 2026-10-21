@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import logging
+import os
 from typing import Any
 
 import psycopg
@@ -33,6 +34,7 @@ from src.ingestion.generic_origin_bronze_admission import (
 
 
 LOGGER = logging.getLogger(__name__)
+BROAD_INVENTORY_REPORTS = {}
 
 class GenericProductAcquisitionError(RuntimeError):
     """A failed acquisition must not become a successful zero-job ingestion."""
@@ -454,6 +456,8 @@ class GenericEmployerOriginProductConnector(GenericEmployerOriginConnector):
             return filter_generic_origin_bronze_records(records), final_url
 
         source = self.candidate_loader(self.company_key)
+        if os.environ.get("JAP_BROAD_CORPUS") == "1":
+            return acquire_broad_records(self.source_name, source)
         target_terms = load_company_target_terms(source.company_key)
         result = acquire_query_proven_jobs(
             source=source,
@@ -487,3 +491,32 @@ class GenericEmployerOriginProductConnector(GenericEmployerOriginConnector):
             len(target_terms),
         )
         return admitted, source.candidate_url
+
+
+def acquire_broad_records(source_name, source):
+    """Enumerate bounded inventories; never claim keyword discrimination or completeness."""
+    http = ProductSearchExecutor()
+    outcome = search_generic_origin(origin_url=source.candidate_url, query="", execute=http,
+        inventory_mode=True, job_cap=100, page_cap=10)
+    if outcome.mechanism == "none" or outcome.stop_reason in {
+        "inventory_request_failed", "search_request_failed", "origin_unreachable"}:
+        raise GenericProductAcquisitionError("broad_inventory_unavailable:" + outcome.stop_reason)
+    BROAD_INVENTORY_REPORTS[source_name] = dict(
+        exhausted=outcome.exhausted, stop_reason=outcome.stop_reason,
+        scope="discovered_inventory_surface", personal_filter=False)
+    records = []
+    cache = {}
+    for job in outcome.jobs:
+        evidence = _detail_evidence(job=job, executor=http, cache=cache)
+        if evidence is None:
+            continue
+        base = _record(source_name, source, job, "*")
+        raw = project_detail_evidence_into_raw_data(base.raw_data, evidence)
+        raw["corpus_collection"] = dict(mode="broad_inventory", personal_filter=False,
+            exhausted=outcome.exhausted, stop_reason=outcome.stop_reason,
+            mechanism=outcome.mechanism, candidates_seen=outcome.detail_candidates_seen)
+        records.append(RawJobRecord(source_name=base.source_name,source_url=base.source_url,
+            external_job_id=base.external_job_id,raw_data=raw))
+    print(__import__('json').dumps(dict(stage="broad_inventory",source=source_name,
+        observed=len(records),exhausted=outcome.exhausted,stop_reason=outcome.stop_reason)),flush=True)
+    return filter_generic_origin_bronze_records(records), source.candidate_url

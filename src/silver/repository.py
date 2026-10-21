@@ -23,6 +23,7 @@ class SilverJobRepository:
         source_patterns: list[str] | None,
         ingestion_run_id: int | None,
         enforce_read_only: bool,
+        broad_corpus: bool = False,
     ) -> tuple[list[dict], str | None]:
         source_patterns = source_patterns or []
 
@@ -48,6 +49,7 @@ class SilverJobRepository:
             filters.append("r.ingestion_run_id = %s")
             params.append(ingestion_run_id)
 
+        broad_reconsider = "OR d.decision = 'skipped'" if broad_corpus else ""
         filter_sql = ""
         if filters:
             filter_sql = "AND " + " AND ".join(filters)
@@ -75,17 +77,17 @@ class SilverJobRepository:
                         r.external_job_id,
                         r.source_url,
                         CASE
-                            WHEN d.id IS NOT NULL
+                            WHEN d.id IS NOT NULL AND observation.id IS NOT NULL
                             THEN observation.normalized_evidence -> 'raw_evidence'
                             ELSE r.raw_data
                         END AS raw_data,
                         CASE
-                            WHEN d.id IS NOT NULL
+                            WHEN d.id IS NOT NULL AND observation.id IS NOT NULL
                             THEN observation.normalized_evidence_hash
                             ELSE NULL
                         END AS _silver_evidence_hash,
                         CASE
-                            WHEN d.id IS NOT NULL
+                            WHEN d.id IS NOT NULL AND observation.id IS NOT NULL
                             THEN observation.evidence_contract_version
                             ELSE NULL
                         END AS _silver_evidence_contract_version
@@ -114,6 +116,7 @@ class SilverJobRepository:
                     WHERE s.id IS NULL
                       AND (
                           d.id IS NULL
+                          {broad_reconsider}
                           OR (
                               d.decision = 'skipped'
                               AND d.reason = 'missing_accessibility_signal'
@@ -141,12 +144,14 @@ class SilverJobRepository:
         limit: int = 100,
         source_patterns: list[str] | None = None,
         ingestion_run_id: int | None = None,
+        broad_corpus: bool = False,
     ) -> list[dict]:
         rows, _ = self._load_unprocessed_raw_jobs(
             limit=limit,
             source_patterns=source_patterns,
             ingestion_run_id=ingestion_run_id,
             enforce_read_only=False,
+            broad_corpus=broad_corpus,
         )
         return rows
 

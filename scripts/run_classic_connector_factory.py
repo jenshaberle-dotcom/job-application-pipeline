@@ -114,7 +114,10 @@ def ingest(company_key: str, journal: DeliveryJournal) -> dict:
     journal.save(repository.stage)
     run_profile(repository, profile, recurring_health_enabled=True)
     with repository.get_connection() as conn:
-        return verify_ingestion_receipt(conn, repository.run_ids, company_key, expected)
+        result = verify_ingestion_receipt(conn, repository.run_ids, company_key, expected)
+        from src.connectors.generic_employer_origin_product import BROAD_INVENTORY_REPORTS
+        result["inventory_coverage"] = BROAD_INVENTORY_REPORTS.get(profile.source_name)
+        return result
 
 
 def verify_ingestion_receipt(conn, run_ids: list[int], company_key: str, expected: dict) -> dict:
@@ -208,7 +211,7 @@ def promote_silver(company_key: str) -> dict:
     counts = dict(selected=0, included=0, skipped=0)
     for _ in range(100):
         with redirect_stdout(io.StringIO()):
-            batch = silver_main(['--source', 'generic_origin:' + company_key, '--limit', '500'])
+            batch = silver_main(['--source', 'generic_origin:' + company_key, '--limit', '500', '--broad-corpus'])
         for key in counts:
             counts[key] += batch[key]
         if batch['selected'] < 500:
@@ -230,6 +233,7 @@ def verify_activation(conn, rows: list[dict]) -> None:
 
 
 def execute(conn, candidates: list[dict], journal: DeliveryJournal, args) -> dict:
+    __import__("os").environ["JAP_BROAD_CORPUS"] = "1"
     product.layer_core.run_origin_discovery = product.run_origin_discovery
     product.layer_core.discover_navigation_candidates = product.discover_navigation_candidates
     results = []
@@ -275,6 +279,12 @@ def execute(conn, candidates: list[dict], journal: DeliveryJournal, args) -> dic
     from scripts.run_product_v1_assessment_materialization import authorized_recurring_employer_origin_sources
     quality_results = []
     for source in sorted(authorized_recurring_employer_origin_sources(JobIngestionRepository())):
+        key = source.removeprefix('generic_origin:')
+        if source.startswith('generic_origin:'):
+            try:
+                journal.stage('silver:' + key, lambda key=key: promote_silver(key), effect=True)
+            except Exception:
+                pass  # A held stage stays held; never replay an ambiguous write.
         quality = maintain_source(source, journal)
         quality_results.append(quality)
         atomic_json(args.state_dir / ('quality-' + fingerprint(source) + '.json'), quality)
@@ -283,6 +293,9 @@ def execute(conn, candidates: list[dict], journal: DeliveryJournal, args) -> dic
                       "source_validity_gate": "proof=PASS"}, "results": results,
     })
     summary = delivery_summary(journal.data["stages"], len(candidates))
+    summary['inventory_coverage'] = {k.removeprefix('ingest:'): v['result'].get('inventory_coverage')
+        for k,v in journal.data['stages'].items() if k.startswith('ingest:') and v.get('state') == 'SUCCEEDED'}
+    summary['corpus_mode'] = 'broad_inventory_without_personal_filters'
     summary['quality_checked'] = sum(r['checked'] for r in quality_results)
     summary['quality_scored'] = sum(r['scored'] for r in quality_results)
     summary['quality_unavailable'] = sum(r['unavailable'] for r in quality_results)

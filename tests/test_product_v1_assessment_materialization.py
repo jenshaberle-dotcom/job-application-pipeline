@@ -128,6 +128,22 @@ def test_non_authoritative_lifecycle_reason_is_rejected() -> None:
         )
 
 
+def test_fresh_exact_detail_health_allows_initial_assessment() -> None:
+    row = _row(lifecycle_evidence_reason="exact_detail_url_and_title_confirmed",
+               latest_health_coverage="exact_detail")
+    assert validate_materialization_authority(row, authorized_sources={SOURCE})
+    with pytest.raises(MaterializationStop, match="profile authority"):
+        validate_materialization_authority(row, authorized_sources=set())
+    with pytest.raises(MaterializationStop, match="observation URL"):
+        validate_materialization_authority(
+            dict(row, latest_observation_source_url=DETAIL_URL + "-wrong"),
+            authorized_sources={SOURCE})
+    with pytest.raises(MaterializationStop, match="exact detail coverage"):
+        validate_materialization_authority(
+            dict(row, latest_health_coverage="complete_inventory"),
+            authorized_sources={SOURCE})
+
+
 def test_current_observation_must_be_exact_bound_to_silver_url() -> None:
     with pytest.raises(MaterializationStop, match="observation URL"):
         validate_materialization_authority(

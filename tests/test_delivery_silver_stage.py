@@ -14,7 +14,7 @@ def test_silver_drains_only_authorized_employer(monkeypatch):
     monkeypatch.setattr(run_silver_jobs,'main',run)
     result=factory.promote_silver('acme')
     assert result==dict(source='generic_origin:acme',selected=503,included=401,skipped=102,completed=True)
-    assert calls==[['--source','generic_origin:acme','--limit','500']]*2
+    assert calls==[['--source','generic_origin:acme','--limit','500','--broad-corpus']]*2
 
 
 def test_failed_silver_is_held_and_never_replays_ingestion(tmp_path):

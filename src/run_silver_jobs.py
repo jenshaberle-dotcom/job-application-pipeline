@@ -46,6 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional exact ingestion run id to bind Bronze selection.",
     )
     parser.add_argument("--limit", type=int, default=100)
+    parser.add_argument("--broad-corpus", action="store_true", help="Normalize without personal relevance filters")
     return parser
 
 
@@ -91,6 +92,7 @@ def main(argv: list[str] | None = None) -> dict:
         limit=args.limit,
         source_patterns=resolve_source_patterns(args.source),
         ingestion_run_id=args.ingestion_run_id,
+        **({"broad_corpus": True} if args.broad_corpus else {}),
     )
 
     if not raw_jobs:
@@ -106,7 +108,7 @@ def main(argv: list[str] | None = None) -> dict:
         accessibility_matches = get_accessibility_matches(raw_job)
         decision_evidence = _decision_evidence(raw_job)
 
-        if not is_relevant_for_silver(raw_job):
+        if not args.broad_corpus and not is_relevant_for_silver(raw_job):
             repository.record_processing_decision(
                 raw_job_id=raw_job["id"],
                 decision="skipped",
@@ -136,7 +138,7 @@ def main(argv: list[str] | None = None) -> dict:
         repository.record_processing_decision(
             raw_job_id=raw_job["id"],
             decision="included",
-            reason="relevant_for_silver",
+            reason="broad_corpus_normalized" if args.broad_corpus else "relevant_for_silver",
             role_matches=role_matches,
             skill_matches=skill_matches,
             accessibility_matches=accessibility_matches,

@@ -128,6 +128,8 @@ class GenericEmployerOriginProductBiteConnector(GenericEmployerOriginProductConn
         if search_term.search_term != NEUTRAL_TRIGGER_TERM:
             return super().fetch_jobs(profile, search_term)
 
+        if __import__("os").environ.get("JAP_BROAD_CORPUS") == "1":
+            return super().fetch_jobs(profile, search_term)
         source = self.candidate_loader(self.company_key)
         target_terms = load_company_target_terms(source.company_key)
         bite = acquire_bite_query_proven_jobs(
