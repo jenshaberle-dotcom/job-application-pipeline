@@ -12,6 +12,11 @@ def test_explicit_outbound_withdrawal_is_not_an_application_receipt():
         text_excerpt='Da ein Umzug nicht in Frage kommt, muss ich meine Bewerbung für die Stelle leider zurückziehen.')
     assert result.candidate_class == 'withdrawal_confirmation'
 
+def test_negated_withdrawal_is_not_closed():
+    result = classify_application_evidence(subject='Meine Bewerbung', mail_direction='outbound',
+        text_excerpt='Ich ziehe nicht meine Bewerbung zurück.')
+    assert result.candidate_class != 'withdrawal_confirmation'
+
 
 def test_rejection_phrase_is_evidence_only() -> None:
     result = classify_application_evidence(

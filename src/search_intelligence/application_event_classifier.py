@@ -232,8 +232,9 @@ def classify_application_evidence(
 
     direction = _normalize(mail_direction)
     current_excerpt = re.split(r'(?m)^\s*(?:>|am .+ schrieb|on .+ wrote|von:|from:)', excerpt_text, maxsplit=1)[0]
-    if (direction == "outbound" and 'nicht zurück' not in current_excerpt
-        and re.search(r'\b(?:ziehe ich|ich ziehe|muss ich)\b.{0,80}\bmeine bewerbung\b.{0,80}\b(?:zurück|zurückziehen)\b', current_excerpt)):
+    withdrawal = re.search(r'\b(?:ziehe ich|ich ziehe|muss ich)\b.{0,80}\bmeine bewerbung\b.{0,80}\b(?:zurück|zurückziehen)\b', current_excerpt)
+    if (direction == "outbound" and withdrawal
+        and not re.search(r'\b(?:nicht|keinesfalls|niemals)\b', withdrawal.group())):
         return ClassificationResult(candidate_class='withdrawal_confirmation', confidence=0.99,
             reason_code='explicit_outbound_application_withdrawal', evidence_span=excerpt_text[:240],
             matched_terms=('explicit applicant withdrawal',))
