@@ -30,7 +30,7 @@ from src.search_intelligence.product_v1_application_context import (
 )
 
 
-DEFAULT_MODEL = "gpt-5.6-sol"
+DEFAULT_MODEL = "gpt-6-astra"
 DEFAULT_REASONING_EFFORT = "high"
 DEFAULT_TIMEOUT_SECONDS = 180.0
 MAX_VACANCY_CHARS = 16_000
@@ -192,6 +192,9 @@ class CodexRuntimeStatus:
             "billing_authority": "chatgpt_included_allowance_then_eligible_credits",
             "api_key_fallback": False,
             "automatic_credit_purchase": False,
+            # A successful login proves authentication, not entitlement to a model.
+            "model_availability": "not_verified",
+            "model_fallback": False,
         }
 
 
@@ -553,6 +556,16 @@ def _safe_error(text: str) -> str:
 
 def _classify_failure(text: str) -> tuple[str, str]:
     folded = text.casefold()
+    if any(pattern in folded for pattern in (
+        "model_not_found", "unsupported model", "model is not supported",
+        "model is not available", "does not exist or you do not have access",
+        "not supported when using codex with a chatgpt account",
+    )):
+        return (
+            "codex_model_unavailable",
+            "The selected model is unavailable to this ChatGPT Codex runtime. "
+            "No other model or API billing fallback was used.",
+        )
     if any(pattern in folded for pattern in CAPACITY_PATTERNS):
         return (
             "codex_capacity_unavailable",
@@ -1076,6 +1089,10 @@ def request_codex_application_adaptation(
             "read-only",
             "--model",
             selected_model,
+            "-c",
+            'forced_login_method="chatgpt"',
+            "-c",
+            'model_provider="openai"',
             "-c",
             f'model_reasoning_effort="{selected_reasoning_effort}"',
             "--output-schema",

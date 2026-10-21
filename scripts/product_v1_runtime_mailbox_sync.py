@@ -266,11 +266,28 @@ def _apply_idempotent(rows: list[dict[str, object]]) -> dict[str, object]:
                 raise MailboxRuntimeSyncError("candidate_noop_delta_mismatch")
             if actual["candidate_supersessions"] != plan.candidate_supersessions:
                 raise MailboxRuntimeSyncError("candidate_supersession_delta_mismatch")
+            # Use the just-established message bindings in this same transaction.
+            # No Git checkout or separate mailbox scan is required at runtime.
+            identity_enrichment = _enrich_missing_titles(conn, rows)
 
     return {
         "plan": asdict(plan),
         "actual": actual,
+        "identity_enrichment": identity_enrichment,
     }
+
+
+def _enrich_missing_titles(conn, rows: list[dict[str, object]]) -> dict[str, int]:
+    from scripts.run_product_v1_f5_mailbox_identity_backfill import (
+        input_titles, read_state, build_plan, apply_updates,
+    )
+    evidence = input_titles(rows)
+    if not evidence:
+        return {"updated": 0, "review_required": 0}
+    bindings, applications = read_state(conn, sorted(evidence), lock=True)
+    plan = build_plan(evidence, bindings, applications)
+    apply_updates(conn, plan, applications)
+    return {"updated": len(plan['updates']), "review_required": len(plan['review'])}
 
 
 def sync_mailbox(*, reason: str) -> dict[str, object]:

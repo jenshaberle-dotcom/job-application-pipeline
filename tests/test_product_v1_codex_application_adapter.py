@@ -206,7 +206,9 @@ def test_embedded_codex_maps_complete_letter_identity_without_template_leak(
         )
         assert "--full-auto" not in command
         assert command[command.index("--sandbox") + 1] == "read-only"
-        assert command[command.index("--model") + 1] == "gpt-5.6-sol"
+        assert command[command.index("--model") + 1] == "gpt-6-astra"
+        assert 'forced_login_method="chatgpt"' in command
+        assert 'model_provider="openai"' in command
         assert 'model_reasoning_effort="high"' in command
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
@@ -276,6 +278,37 @@ def test_missing_chatgpt_login_stops_before_model_request(
     assert result.reason_code == "codex_auth_required"
     assert result.attempted is False
     assert result.package is None
+
+
+def test_requested_astra_unavailable_does_not_retry_or_fallback(monkeypatch):
+    monkeypatch.delenv("JAP_CODEX_DRAFT_MODEL", raising=False)
+    monkeypatch.setattr(adapter, "_resolve_codex", lambda: "/runtime/codex")
+    monkeypatch.setattr(adapter, "_codex_version", lambda _: "codex-cli 0.154.0")
+    monkeypatch.setattr(adapter, "_codex_login_status", lambda _: (True, "Logged in using ChatGPT"))
+    calls = []
+
+    def unavailable(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=1, stdout="", stderr="model_not_found")
+
+    monkeypatch.setattr(adapter.subprocess, "run", unavailable)
+    result = adapter.request_codex_application_adaptation(context=_context())
+    assert result.model == "gpt-6-astra"
+    assert result.reason_code == "codex_model_unavailable"
+    assert result.package is None
+    assert len(calls) == 1
+
+
+def test_login_does_not_claim_selected_model_entitlement(monkeypatch):
+    monkeypatch.delenv("JAP_CODEX_DRAFT_MODEL", raising=False)
+    monkeypatch.setattr(adapter, "_resolve_codex", lambda: "/runtime/codex")
+    monkeypatch.setattr(adapter, "_codex_version", lambda _: "codex-cli 0.154.0")
+    monkeypatch.setattr(adapter, "_codex_login_status", lambda _: (True, "Logged in using ChatGPT"))
+    status = adapter.inspect_codex_runtime_status().to_json()
+    assert status["model"] == "gpt-6-astra"
+    assert status["chatgpt_authenticated"] is True
+    assert status["model_availability"] == "not_verified"
+    assert status["model_fallback"] is False
 
 
 def test_codex_login_status_accepts_chatgpt_only(

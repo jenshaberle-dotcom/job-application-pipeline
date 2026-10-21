@@ -8,7 +8,8 @@ separately auditable.
 from __future__ import annotations
 
 from typing import Mapping
-from urllib.parse import urlsplit, urlunsplit
+import re
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import psycopg
 from psycopg.rows import dict_row
@@ -286,7 +287,14 @@ def _canonical_review_url(value: object) -> str | None:
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         return None
     path = parsed.path.rstrip("/") or "/"
-    return urlunsplit((parsed.scheme.casefold(), parsed.netloc.casefold(), path, parsed.query, ""))
+    # Remove only established advertising attribution parameters. Job IDs,
+    # tenant, locale and all unknown parameters remain identity-bearing.
+    query = urlencode([
+        (key, value) for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if not key.casefold().startswith("utm_")
+        and key.casefold() not in {"gclid", "fbclid", "msclkid"}
+    ])
+    return urlunsplit((parsed.scheme.casefold(), parsed.netloc.casefold(), path, query, ""))
 
 
 def _origin_identity_keys(row: Mapping[str, object]) -> tuple[tuple[str, str, str], ...]:
@@ -409,6 +417,38 @@ def _deduplicate_origin_rows(
     return unique, duplicates
 
 
+def _annotate_related_vacancies(rows: list[object]) -> list[object]:
+    """Expose similar roles for comparison, never as proof of duplication.
+
+    A shared employer and multi-word role heading before a subtitle is only a
+    navigation hint. Distinct URLs, requisitions, dates and conditions survive.
+    """
+    groups: dict[tuple[str, str], list[int]] = {}
+    row_keys: dict[int, tuple[str, str]] = {}
+    for position, row in enumerate(rows):
+        if not isinstance(row, Mapping) or not isinstance(row.get("silver_job_id"), int):
+            continue
+        employer = " ".join(str(row.get("company_name") or "").casefold().split())
+        title = str(row.get("title") or "")
+        heading = re.split(r"\s+[–—-]\s+", title, maxsplit=1)[0]
+        heading = re.sub(r"\((?:m/w/d|m/f/d|f/m/d|all genders)\)", "", heading, flags=re.I)
+        role = " ".join(heading.casefold().split())
+        if not employer or len(role.split()) < 2:
+            continue
+        key = (employer, role)
+        row_keys[position] = key
+        groups.setdefault(key, []).append(row["silver_job_id"])
+    result: list[object] = []
+    for position, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            result.append(row)
+            continue
+        related = sorted(set(groups.get(row_keys.get(position), [])) - {row.get("silver_job_id")})
+        result.append({**row, "related_vacancy_ids": related,
+                       "related_vacancy_reason": "same_employer_role_compare_conditions" if related else None})
+    return result
+
+
 def enrich_product_payload_for_operator(
     payload: Mapping[str, object],
     *,
@@ -458,7 +498,7 @@ def enrich_product_payload_for_operator(
             continue
         review_scope.append(item)
 
-    result["job_readiness"] = review_scope
+    result["job_readiness"] = _annotate_related_vacancies(review_scope)
     result["out_of_profile_jobs"] = out_of_profile
     result["historical_jobs"] = historical_jobs
     result["discovery_source_jobs"] = discovery_source_jobs

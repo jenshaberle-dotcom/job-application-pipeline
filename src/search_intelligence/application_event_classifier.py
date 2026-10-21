@@ -43,6 +43,7 @@ class ClassificationResult:
 
 _RULES: dict[str, tuple[tuple[str, str], ...]] = {
     "rejection": (
+        (r"\b(?:ihre|deine)\s+bewerbung\b.{0,100}\bnicht\s+(?:weiter\s+)?in\s+(?:die|der)\s+engere[n]?\s+auswahl\s+(?:gekommen\s+ist|berücksichtigen\s+(?:können|konnten))\b", "Bewerbung nicht in engerer Auswahl"),
         (r"\bleider\s+(?:nicht|keine)\b", "leider nicht"),
         (
             r"\bleider\b.{0,120}\bmitteilen\b.{0,180}\bnicht\s+geklappt\b",
@@ -50,7 +51,7 @@ _RULES: dict[str, tuple[tuple[str, str], ...]] = {
         ),
         (r"\babsage\b", "Absage"),
         (r"\bnicht\s+berücksichtigen\b", "nicht berücksichtigen"),
-        (r"\b(?:ihre|deine)\s+bewerbung\b.{0,100}\bnicht\s+(?:weiter\s+)?(?:berücksichtigen|beruecksichtigen|verfolgen)\b", "Bewerbung nicht weiter berücksichtigen"),
+        (r"\b(?:ihre|deine)\s+bewerbung\b.{0,100}\bnicht\s+(?:weiter\s+)?(?:berücksichtigen|beruecksichtigen|verfolgen)\b(?!\s+(?:möchten|wollen|möchtest|willst)\b)", "Bewerbung nicht weiter berücksichtigen"),
         (r"\b(?:wir\s+haben\s+uns|haben\s+wir\s+uns)\s+für\s+(?:einen\s+anderen\s+kandidaten|eine\s+andere\s+kandidatin|andere\s+(?:bewerber|kandidaten))\s+entschieden\b", "andere Kandidaten ausgewählt"),
         (r"\bwe\s+(?:have\s+)?decided\s+not\s+to\s+(?:proceed|progress|continue)\s+with\s+your\s+application\b", "application will not proceed"),
         (r"\bnot\s+(?:be\s+)?moving\s+forward\b", "not moving forward"),

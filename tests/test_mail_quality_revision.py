@@ -4,6 +4,47 @@ import pytest
 from scripts import product_v1_f5_application_actions as actions
 from scripts.run_product_mailbox_bridge import enrich_identity, install_policy
 from src.search_intelligence.application_identity_matching import ExistingApplicationIdentity, match_existing_application_identity
+from src.search_intelligence.application_event_classifier import classify_application_evidence
+
+
+@pytest.mark.parametrize('text', [
+    'Wir müssen dir leider mitteilen, dass wir deine Bewerbung nicht weiter in der engeren Auswahl berücksichtigen konnten.',
+    'Leider müssen wir Ihnen heute mitteilen, dass Ihre Bewerbung nicht in die engere Auswahl gekommen ist.',
+])
+def test_shortlist_rejection_overrides_polite_receipt(text):
+    result = classify_application_evidence(subject='Ihre Bewerbung auf unsere Stelle Systemtester Maschinen- und Anlagentechnik (m/w/d)',
+        text_excerpt='Vielen Dank für Ihre Bewerbung. ' + text)
+    assert result.candidate_class == 'rejection'
+    assert result.authority == 'evidence_only'
+
+
+@pytest.mark.parametrize('text', [
+    'Ihre Bewerbung ist in die engere Auswahl gekommen.',
+    'Ihre Bewerbung ist noch nicht abschließend geprüft. Die engere Auswahl treffen wir morgen.',
+    'Bitte sagen Sie uns, falls Sie Ihre Bewerbung nicht weiter verfolgen möchten.',
+])
+def test_pending_or_positive_shortlist_is_not_rejection(text):
+    assert classify_application_evidence(subject='Ihre Bewerbung', text_excerpt=text).candidate_class != 'rejection'
+
+
+def test_explicit_position_subject_recovers_missing_title_without_changing_employer():
+    row = dict(subject='AW: Ihre Bewerbung auf unsere Stelle Systemtester Maschinen- und Anlagentechnik (m/w/d)',
+        employer_name='Bundesdruckerei-Gruppe', job_title=None)
+    enriched = enrich_identity(row)
+    assert enriched['job_title'] == 'Systemtester Maschinen- und Anlagentechnik (m/w/d)'
+    assert enriched['employer_name'] == row['employer_name']
+    assert row['job_title'] is None
+    assert enrich_identity({**row, 'job_title': 'Manuell korrigierter Titel'})['job_title'] == 'Manuell korrigierter Titel'
+
+
+def test_search_policy_covers_truncated_shortlist_outcomes_without_generic_withdrawal_phrase():
+    bridge = SimpleNamespace(_GMAIL_SEARCH_SIGNAL_QUERIES=(('rejection', '{"old"}'), ('withdrawal_confirmation', '{"withdrawal of application"}')),
+        _impl=SimpleNamespace(normalize_gmail_message=lambda row: row))
+    install_policy(bridge)
+    queries = dict(bridge._GMAIL_SEARCH_SIGNAL_QUERIES)
+    assert '"Bewerbung nicht in die engere Auswahl gekommen"' in queries['rejection']
+    assert '"Bewerbung nicht weiter in der engeren Auswahl berücksichtigen"' in queries['rejection']
+    assert '"meine Bewerbung"' not in queries['withdrawal_confirmation']
 
 
 def test_subject_restores_role_and_rejects_boilerplate_employer():

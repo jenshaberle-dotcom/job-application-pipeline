@@ -554,7 +554,7 @@ def _load_source_connector_overview(
     # payload import path. The Sources panel opts into them explicitly.
     from src.connectors.registry import build_default_connector_registry
 
-    return build_source_connector_overview(
+    overview = build_source_connector_overview(
         registry=build_default_connector_registry(),
         candidates=_load_source_candidates(conn),
         search_profiles=_load_search_profile_summary(conn),
@@ -568,6 +568,26 @@ def _load_source_connector_overview(
             "silver_jobs": _relation_exists(conn, "silver_jobs"),
         },
     )
+    # Never equate all discovery companies with activated job connectors.
+    from src.search_intelligence.source_population import reconcile_population
+    required = ('bronze_native_census_runs', 'bronze_native_census_candidates',
+                'native_census_factory_results', 'employer_origin_source_candidates')
+    if all(_relation_exists(conn, table) for table in required):
+        runs = _fetch_all(conn, 'SELECT run_id, created_at FROM bronze_native_census_runs ORDER BY created_at DESC, run_id DESC LIMIT 1')
+        if runs:
+            rows = _fetch_all(conn, """SELECT c.company_key, f.state AS factory_state,
+                EXISTS(SELECT 1 FROM employer_origin_source_candidates e
+                       WHERE e.company_key=c.company_key OR EXISTS(
+                           SELECT 1 FROM jsonb_array_elements(c.observation->'observations') o
+                           WHERE o->>'source'='classic_existing_candidates'
+                           AND o->'row'->>'company_key'=e.company_key)) AS registered
+                FROM bronze_native_census_candidates c
+                LEFT JOIN native_census_factory_results f ON f.candidate_id=c.id
+                WHERE c.run_id=%s""", (runs[0]['run_id'],))
+            overview['population_reconciliation'] = dict(
+                reconcile_population(rows, overview['summary']['source_count']),
+                run_id=runs[0]['run_id'], observed_campaign_created_at=runs[0]['created_at'])
+    return overview
 
 
 def load_source_connector_overview_payload() -> dict[str, object]:
