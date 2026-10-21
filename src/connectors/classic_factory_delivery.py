@@ -41,6 +41,8 @@ class DeliveryJournal:
     def __init__(self, path: Path, binding: dict) -> None:
         self.path = path
         self.stage_dir = path.with_suffix(".stages")
+        from .workload_progress import WorkloadProgress
+        self.progress = WorkloadProgress(path.parent / "native-progress.json")
         self.data = {"schema": "jap.classic_factory_delivery.v1", "binding": binding, "stages": {}}
         if path.exists():
             saved = json.loads(path.read_text())
@@ -71,18 +73,27 @@ class DeliveryJournal:
             "started_at": datetime.now(UTC).isoformat(),
         }
         self.save(key)  # intent must be durable before the first possible effect
+        worker = self.progress.begin(key)
         try:
             result = operation()
         except BaseException as exc:
             self.data["stages"][key].update(
                 state="HELD" if effect else "FAILED", error_type=type(exc).__name__,
             )
-            self.save(key)
+            try:
+                self.save(key)
+            finally:
+                self.progress.end(key, worker, failed=True)
             raise
         self.data["stages"][key].update(
             state="SUCCEEDED", result=result, completed_at=datetime.now(UTC).isoformat(),
         )
-        self.save(key)
+        try:
+            self.save(key)
+        except BaseException:
+            self.progress.end(key, worker, failed=True)
+            raise
+        self.progress.end(key, worker)
         return result
 
 

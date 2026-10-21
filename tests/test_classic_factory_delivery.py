@@ -80,6 +80,8 @@ class FakeConnection:
 
 
 def prepare(monkeypatch, tmp_path, count):
+    from scripts import run_product_v1_assessment_materialization as assessment
+    monkeypatch.setattr(assessment, "authorized_recurring_employer_origin_sources", lambda _: [])
     monkeypatch.setattr(runner, 'promote_silver', lambda key: dict(selected=0,included=0,skipped=0,completed=True))
     rows = [{'id': i + 1, 'company_key': f'company-{i}'} for i in range(count)]
     monkeypatch.setattr(runner, 'qualify', lambda row, args: {
