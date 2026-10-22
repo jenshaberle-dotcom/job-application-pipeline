@@ -46,6 +46,16 @@ The checked-in Worktree gate and host-probe scripts have **source-level isolated
 
 The existing portfolio policy requires `delete_branch_on_merge=true` independently on each of the three repositories. Current API readback on 22 October was `false`. The sole bounded helper, [`RCC tools/linux/Set-PortfolioDeleteOnMerge.sh`](https://github.com/jenshaberle-dotcom/Runner-Control-Center---RCC/blob/governance/workchat-wsl-reentry-20261022/tools/linux/Set-PortfolioDeleteOnMerge.sh), accepts `--inspect` (GET only) or explicit `--apply` (PATCH only these three repo settings, then exact readback). Syntax qualified in an isolated shell; **admin application NOT executed** by the current GitHub connector. It does not merge, delete any branch, or prove native automatic post-merge absence. Do not report lifecycle complete before a normal qualified PR merge actually demonstrates deletion and absence.
 
+## Operator host preflight and repository setting — 22 October 2026
+
+**Live GitHub readback:** `delete_branch_on_merge=true` for RCC, JAP Classic and JPR; this resolves the setting itself, **not** the first real qualified post-merge source-ref absence proof.
+
+A read-only real-WSL inventory was executed from exact RCC source blob `3f79524a32bdacf24a562ef86a5a23554a36cee2` and returned `host_reentry_pass=false`. All three canonical checkouts are clean and have exact GitHub origins, but **RCC canonical main** is `a29a7c9b6d3fccc0f44e0067dc5802573785f8cd`, remote `2355858961c145788b6a01e97120fe8e4f7d9749` (GitHub compare: 145 strictly remote-only commits); **JAP Classic main** is `effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1`, remote `819e0df0a9ea8c92866dfdb2ac4f17acdee0d10f` (63 strictly remote-only commits); **JPR main** is `f477e2316448cb42812f9e87a1786fca1ff7b4af` on both local and remote. There are many registered old RCC/JAP worktrees, including **RECOVERY_SOURCE_PRESERVE** worktrees and a separate JAP Control Center installed runtime Git worktree outside the declared engineering root. Never prune that runtime worktree as if it were unowned source debt.
+
+**Next bounded host step:** execute the current source-only `RCC tools/linux/Classify-PortfolioWorktrees.py --summary` from [RCC governance PR #756](https://github.com/jenshaberle-dotcom/Runner-Control-Center---RCC/pull/756), pinned by exact Git blob SHA. It classifies every locally registered worktree's branch/HEAD, dirty state, unique history relative to the **stale** local main, and limited process cwd evidence. This inventory authorizes **no deletion**, `git pull`, reinstall, service restart, `worktree prune` or retry. Source and local WSL test are separately gated.
+
+**Do not fast-forward the stale canonical RCC/JAP main checkouts before checking which running services and installed product files depend on them.** The two main histories are fast-forward related according to the live GitHub comparison, but that is not a host-impact proof. Work Local filesystem containment has **not** been proved under the real Work execution identity. Remainder: host worktree/branch harvest, allowed-path negative write test, exact PR source CI, and post-merge absence evidence.
+
 ## Outstanding Work containment qualification
 
 - The repository gate refuses writes **when invoked** outside WSL declared paths; `AGENTS.md` supplies agent admission guidance.
