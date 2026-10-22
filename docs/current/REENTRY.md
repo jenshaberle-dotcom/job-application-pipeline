@@ -1,5 +1,18 @@
 # JAP Classic engineering re-entry
 
+## Current source and recovery checkpoint — 2026-10-22 (candidate, not main acceptance)
+
+The dated October 2 material below is **historical**, not the live current head. Repository `main` remains `819e0df0a9ea8c92866dfdb2ac4f17acdee0d10f` as of the documented checkpoint. Current Classic operator direction is **active Connector Factory + job delivery**, not the superseded September 30 Cloud-only feature-freeze (#1154).
+
+- Active delivery [PR #1173](https://github.com/jenshaberle-dotcom/job-application-pipeline/pull/1173), exact recovered head `442ab273cb913d81c0cf196e6ed0faead8441352`: 14 local commits recovered and remote SHA verified.
+- New native market occurrence sources are bounded (20 new/retry candidates plus 50 active sources per run) and retain backlog/uncertain-stage receipts. Source-only unit tests 34/34 PASS; this **does not** qualify production sensor → Origin → Bronze → Silver → Product/UI E2E or release/adoption.
+- The three Windows Launcher source files were separately salvaged and remain untracked in the approved local recovery worktree, not included in #1173 yet. There is **no** GitHub replacement for these local bytes until qualified/committed.
+- RCC candidate [#753](https://github.com/jenshaberle-dotcom/Runner-Control-Center---RCC/pull/753) head `49ccac9d0c3612ec581dd208ba05e87b906ce0f9`; private Runtime due-work candidate [#399](https://github.com/jenshaberle-dotcom/job-pipeline-runtime/pull/399) must not introduce a competing scheduler.
+- Existing GitHub/branch harvest is tracked by [#1172](https://github.com/jenshaberle-dotcom/job-application-pipeline/issues/1172), [#704](https://github.com/jenshaberle-dotcom/job-application-pipeline/issues/704), with the fully paginated branch census in [`BRANCH-CENSUS-20261022.json`](BRANCH-CENSUS-20261022.json).
+- Future Work Cloud source changes use authenticated GitHub commits only; Work Local requires registered WSL worktrees and real host containment admission. See `AGENTS.md` and [the Work continuation](WORKCHAT-REENTRY-20261022.md). No other local checkout gains project authority.
+
+**Do not silently reconcile the 2026-10-02 version/model statements below to current installed truth.** Installed desktop, live DB, release and native RCC host state remain independently unverified until fresh evidence.
+
 Inspected: 2026-10-02. Repository ID: `1230805345`.
 Baseline before this documentation hardcut: `effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1`.
 This is a dated inspection record, not a lock on a moving `main`.
