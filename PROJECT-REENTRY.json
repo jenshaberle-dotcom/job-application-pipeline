@@ -34,6 +34,8 @@
   "extensions": {
     "repository_identity": "docs/current/REPOSITORY-IDENTITY.json",
     "project_character": "PROJECT_CHARACTER.md",
-    "employer_origin_product_authority": "docs/current/REENTRY.md"
+    "employer_origin_product_authority": "docs/current/REENTRY.md",
+    "workchat_continuation": "docs/current/WORKCHAT-REENTRY-20261022.md",
+    "workchat_workspace_gate": "tools/workchat_workspace_gate.py"
   }
 }

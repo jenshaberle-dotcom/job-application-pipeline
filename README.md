@@ -1,5 +1,7 @@
 # JAP Classic — Job Application Pipeline
 
+> **Engineering re-entry (2026-10-22):** Current source, blockers and WSL Workchat guard are in [the Workchat continuation](docs/current/WORKCHAT-REENTRY-20261022.md) and [agent admission](AGENTS.md). Older version/architecture statements below are dated evidence, not proof of current host operation.
+
 Status: Connector Factory development, benchmark and experiment lab for JAP Cloud.
 JAP Classic is no longer a product to preserve. The current lab execution contract and RCC gate
 are documented in [Multi-Region Connector Factory Lab](docs/current/HANNOVER-CONNECTOR-MASS-CENSUS.md).
