@@ -32,6 +32,16 @@ No source-authoritative copy may persist outside the allowed project roots; old 
 5. Validate narrowed tests, native workflows, host effects and product-visible results separately. Do not treat a source commit as installed or accepted.
 6. Commit each coherent unit via GitHub expected-head lease or local fast-forward push; independently read back exact remote SHA. For Work Local also run the checked-in gate `--phase after-push`. Record remaining blockers in existing PR/issue; never leave unpushed results trapped in a Work workspace.
 
+## Cross-project host admission test — source prepared, host evidence missing
+
+The single cross-repository inventory and opt-in containment probe is maintained **only** in [RCC #756](https://github.com/jenshaberle-dotcom/Runner-Control-Center---RCC/pull/756): `tools/linux/Inspect-WorkchatHost.py`. Do not fork it into JPR or JAP and do not add a monitoring daemon.
+
+**Safe read-only WSL inventory:** `python3 -B tools/linux/Inspect-WorkchatHost.py --mode inventory` from the qualified RCC source checkout. The report observes origin, current HEAD/branch, dirtiness, live `origin/main` and registered worktrees for all three repositories; it does not promote a restart gate to PASS.
+
+**Only inside a real Work Local WSL execution session**, explicitly run `python3 -B tools/linux/Inspect-WorkchatHost.py --mode containment --allowed-worktree "<actual registered WSL worktree root>" --denied-windows-codex "/mnt/c/Users/<WindowsUser>/Documents/Codex"`. The containment mode creates and removes only a unique zero-byte test sentinel at each designated location. It reports `PASS` only when the in-root write succeeds and an outside write fails with a real OS permission denial. A missing or inaccessible directory is `NOT_PROVEN`, not PASS; successful outside write is `FAIL_OUTSIDE_WRITE_POSSIBLE`. Do not run this test in an unrelated operator shell and claim it describes Work's own permissions.
+
+The checked-in Worktree gate and host-probe scripts have **source-level isolated regression evidence**: 5/5 for the shared guard in all three PRs, plus 5/5 for the RCC host probe, each with byte-for-byte Git blob SHA confirmation. These are not native WSL/Windows/Work isolation evidence; actual host security remains **UNVERIFIED**.
+
 ## Outstanding Work containment qualification
 
 - The repository gate refuses writes **when invoked** outside WSL declared paths; `AGENTS.md` supplies agent admission guidance.
