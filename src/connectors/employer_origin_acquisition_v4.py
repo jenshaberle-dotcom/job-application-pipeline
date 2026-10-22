@@ -172,7 +172,12 @@ def discover_navigation_candidates(
                 allowed_hosts=allowed_hosts,
             )
             continue
-        if looks_like_listing_navigation(clean, anchor_text):
+        career_landing = (
+            urlparse(clean).path.lower().strip("/").split("/")[-1] in
+                 {"career", "careers", "karriere", "karriereportal", "join-us"}
+            or anchor_text.strip().casefold() in {"career", "careers", "karriere", "join us"}
+        )
+        if looks_like_listing_navigation(clean, anchor_text) or career_landing:
             _add_candidate(
                 intermediate,
                 seen,
@@ -499,6 +504,7 @@ def acquire_genuine_job_pages(
     fetcher,
     max_followup_requests: int = 2,
     max_results: int = 1,
+    preferred_detail_urls: tuple[str, ...] = (),
 ) -> tuple[list[AcquiredJobPage], str]:
     """Acquire one genuine job with at most one strict extra follow-up."""
 
@@ -546,8 +552,11 @@ def acquire_genuine_job_pages(
         allowed_hosts=effective_allowed_hosts,
         known_detail_urls=known_detail_urls,
     )
+    preferred = [NavigationCandidate(url, "detail", "revalidated_recipe_hint", "", False)
+                 for url in preferred_detail_urls[:1]
+                 if allowed_host(url, effective_allowed_hosts) and not non_job_url(url)]
     queue: list[tuple[NavigationCandidate, int]] = [
-        (candidate, 0) for candidate in root_discovered
+        (candidate, 0) for candidate in (*preferred, *root_discovered)
     ]
     root_dynamic_items = _dynamic_route_candidates(
         root,
@@ -584,9 +593,33 @@ def acquire_genuine_job_pages(
         remaining += 1
         extra_followup_grants += 1
 
+    # Generic final discovery path when no observed navigation/provider applies.
+    # It consumes the existing budget and grants no additional host authority.
+    if not queue:
+        from src.connectors.employer_origin_sitemap_navigation import standard_same_host_sitemap_url
+        sitemap = standard_same_host_sitemap_url(
+            page_url=root.final_url, allowed_hosts=effective_allowed_hosts)
+        if sitemap and canonical_url(sitemap) not in fetched:
+            queue.append((NavigationCandidate(sitemap, "listing", "generic_sitemap", "", False), 0))
+
+    # Larger Census budgets must retain a different discovery strategy when
+    # observed career/language landings keep yielding only more landings.
+    # Reserve no extra requests and do not displace a concrete detail candidate.
+    fallback_sitemap = None
+    if max_followup_requests > 2:
+        from src.connectors.employer_origin_sitemap_navigation import standard_same_host_sitemap_url
+        fallback_sitemap = standard_same_host_sitemap_url(
+            page_url=root.final_url, allowed_hosts=effective_allowed_hosts)
+    listing_attempts = 0
     results: list[AcquiredJobPage] = []
 
     while queue and remaining > 0 and len(results) < max_results:
+        if (fallback_sitemap and listing_attempts >= 2 and remaining >= 2
+                and queue[0][0].kind != "detail"
+                and canonical_url(fallback_sitemap) not in fetched):
+            queue.insert(0, (NavigationCandidate(
+                fallback_sitemap, "listing", "generic_sitemap", "", False), 0))
+            fallback_sitemap = None
         candidate, depth = queue.pop(0)
         clean = canonical_url(candidate.url)
         if not clean or clean in fetched:
@@ -597,7 +630,14 @@ def acquire_genuine_job_pages(
         effective_allowed_hosts = candidate_hosts
         fetched.add(clean)
         remaining -= 1
-        html, final_url, status_code = fetcher(candidate.url)
+        if candidate.kind == "listing":
+            listing_attempts += 1
+        try:
+            html, final_url, status_code = fetcher(candidate.url)
+        except Exception:
+            # One broken observed link must not discard remaining authorized
+            # alternatives. Attempts still consume the outer GET/deadline budget.
+            continue
         page = parse_page(
             requested_url=candidate.url,
             html=str(html),
@@ -641,6 +681,19 @@ def acquire_genuine_job_pages(
         if candidate.kind != "listing":
             continue
 
+        if candidate.discovery_source in ("generic_sitemap", "generic_sitemap_index"):
+            from src.connectors.employer_origin_sitemap_navigation import sitemap_navigation
+            if page.status_code == 200 and allowed_host(page.final_url, effective_allowed_hosts) and depth < 3:
+                entries = sitemap_navigation(
+                    sitemap_url=page.final_url, body=page.html,
+                    allowed_hosts=effective_allowed_hosts)
+                queue = [
+                    (NavigationCandidate(url, "detail" if kind == "detail" else "listing",
+                                         "generic_sitemap_"+kind, "", False), depth + 1)
+                    for kind, url in entries if canonical_url(url) not in fetched
+                ] + queue
+            continue
+
         discovered = discover_navigation_candidates(
             page,
             allowed_hosts=effective_allowed_hosts,
@@ -650,6 +703,14 @@ def acquire_genuine_job_pages(
             (item, depth + 1)
             for item in discovered
             if item.kind == "detail" and canonical_url(item.url) not in fetched
+        ]
+        # Career landing -> vacancies -> department -> detail is a common
+        # observed chain. Previously every intermediate listing was discarded.
+        # Keep host authorization, visited set and the caller's request budget.
+        listing_items = [
+            (item, depth + 1) for item in discovered
+            if item.kind == "listing" and canonical_url(item.url) not in fetched and depth < 3
+            and max_followup_requests > 2
         ]
         dynamic_items = _dynamic_route_candidates(
             page,
@@ -699,7 +760,7 @@ def acquire_genuine_job_pages(
             remaining += 1
             extra_followup_grants += 1
 
-        queue = [*greenhouse_items, *dynamic_items, *detail_items, *provider_items, *queue]
+        queue = [*greenhouse_items, *dynamic_items, *detail_items, *provider_items, *listing_items, *queue]
 
     return results, root.final_url
 

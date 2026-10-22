@@ -27,6 +27,9 @@ type EvidenceCandidate = {
 
 type TrackedApplication = {
   application_id: number;
+  operator_status_revision?: number;
+  operator_status?: { status: string; reason: string; recorded_at: string } | null;
+  identity_revision?: string | null;
   silver_job_id?: number | null;
   job_link_status?: "linked" | "external" | string;
   discovery_kind?: string | null;
@@ -70,6 +73,7 @@ export type F5ProductPayload = {
       mailbox_discovered_count?: number;
       observed_status_count?: number;
       attention_count: number;
+      review_item_count?: number;
       unmatched_candidate_count: number;
       stage_counts: Record<string, number>;
     };
@@ -137,7 +141,7 @@ function attentionMessage(application: TrackedApplication) {
 function StageStrip({ stage }: { stage: Stage }) {
   const current = STAGES.indexOf(stage);
   return <div className="f5-stage-strip" aria-label={`Current application status ${stageLabel[stage]}`}>
-    {STAGES.map((item, index) => <span key={item} className={index <= current ? "reached" : "future"}>
+    {STAGES.map((item, index) => <span key={item} className={index === current ? "reached" : "future"}>
       <i aria-hidden="true" />{stageLabel[item]}
     </span>)}
   </div>;
@@ -236,7 +240,12 @@ function RecordSubmission({ jobs, trackedIds, onRecorded }: { jobs: F5TrackingJo
       });
       const payload = await response.json() as { status?: string; reason?: string; message?: string; error_type?: string };
       if (!response.ok) {
-        const detail = payload.reason || payload.message;
+        const reason = payload.reason || payload.message;
+        const detail = reason === "application_identity_changed_refresh_required"
+          ? "This application changed. Refresh it before saving the title."
+          : reason === "application_employer_mismatch"
+            ? "The employer information changed. Refresh the application and try again."
+            : reason;
         throw new Error(detail ? `${payload.error_type ? payload.error_type + ": " : ""}${detail}` : `HTTP ${response.status}`);
       }
       setState("saved");
@@ -327,6 +336,10 @@ export default function F5ApplicationTracking({
     message: string;
   }>({ applicationId: null, status: "idle", message: "" });
   const [titleDrafts, setTitleDrafts] = useState<Record<number, string>>({});
+  const [statusDrafts, setStatusDrafts] = useState<Record<number, string>>({});
+  const [statusReasons, setStatusReasons] = useState<Record<number, string>>({});
+  const [statusMessages, setStatusMessages] = useState<Record<number, string>>({});
+  const [statusSaving, setStatusSaving] = useState<number | null>(null);
   const [titleCorrectionState, setTitleCorrectionState] = useState<{
     applicationId: number | null;
     status: "idle" | "saving" | "saved" | "error";
@@ -398,9 +411,30 @@ export default function F5ApplicationTracking({
     });
   }
 
+  async function saveOperatorStatus(application: TrackedApplication) {
+    const id = application.application_id;
+    const reason = (statusReasons[id] || '').trim();
+    if (!reason) { setStatusMessages(current => ({...current, [id]: 'Bitte einen Grund angeben.'})); return; }
+    setStatusSaving(id);
+    try {
+      const response = await fetch('/api/v1/product-v1/application-submission-record', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: 'set_operator_application_status', application_id: id,
+          status: statusDrafts[id] || 'closed', reason, expected_identity_sha256: application.identity_revision,
+          expected_revision: application.operator_status_revision || 0, request_id: crypto.randomUUID()}),
+      });
+      if (!response.ok) throw new Error('Nicht gespeichert. Bitte aktualisieren und erneut prüfen.');
+      await refreshProductTruth();
+      setStatusMessages(current => ({...current, [id]: 'Status gespeichert. Es wurde keine Nachricht versendet.'}));
+    } catch (error) {
+      setStatusMessages(current => ({...current, [id]: error instanceof Error ? error.message : 'Speichern fehlgeschlagen.'}));
+    } finally { setStatusSaving(null); }
+  }
+
   async function correctMissingJobTitle(
     applicationId: number,
     employerName: string,
+    identityRevision?: string | null,
   ) {
     const jobTitle = (titleDrafts[applicationId] || "").trim();
     if (!jobTitle) {
@@ -421,7 +455,7 @@ export default function F5ApplicationTracking({
           action: "correct_application_job_title",
           application_id: applicationId,
           job_title: jobTitle,
-          expected_employer_name: employerName,
+          ...(identityRevision ? { expected_identity_sha256: identityRevision } : { expected_employer_name: employerName }),
         }),
       });
       const payload = await response.json() as {
@@ -526,7 +560,7 @@ export default function F5ApplicationTracking({
   return <section className="f5-tracking-shell" aria-label="Mailbox-first application tracking">
     <header className="f5-tracking-head">
       <div><span>Application lifecycle · mailbox-assisted</span><h2>Application Tracker</h2><p>Mailbox evidence helps discover and update applications. Uncertain signals stay in Review; authoritative corrections remain separate.</p></div>
-      <div className="f5-summary-pills"><b>{tracking.summary.application_count}<small>total</small></b><b>{tracking.summary.mailbox_discovered_count || 0}<small>from mailbox</small></b><b className={tracking.summary.attention_count ? "attention" : ""}>{tracking.summary.attention_count}<small>review</small></b></div>
+      <div className="f5-summary-pills"><b>{tracking.summary.application_count}<small>total</small></b><b>{tracking.summary.mailbox_discovered_count || 0}<small>from mailbox</small></b><b className={(tracking.summary.review_item_count ?? tracking.summary.attention_count) ? "attention" : ""}>{tracking.summary.review_item_count ?? tracking.summary.attention_count}<small>review</small></b></div>
     </header>
 
     <div className="f5-application-toolbar">
@@ -596,6 +630,19 @@ export default function F5ApplicationTracking({
                 ? <div className="f5-linked-job-outside-view">Job #{linkedJobId} is linked but outside the current All Jobs view.</div>
                 : null}
             {warning && <div className="f5-attention-note">{warning}</div>}
+            <div className="f5-title-correction f5-status-correction">
+              <div><b>Bewerbungsstatus korrigieren</b><small>Deine Entscheidung bleibt erhalten, auch beim nächsten Postfachabruf. Keine E-Mail wird versendet.</small>
+                {application.operator_status && <small>Manuell: {({closed:'Abgeschlossen',withdrawn:'Zurückgezogen',rejected:'Absage',interview:'Gespräch vereinbart',automatic:'Automatische Erkennung'} as Record<string,string>)[application.operator_status.status]} · {application.operator_status.reason}</small>}
+              </div>
+              <select aria-label="Bewerbungsstatus" value={statusDrafts[application.application_id] || 'closed'} onChange={event => setStatusDrafts(current => ({...current, [application.application_id]: event.target.value}))}>
+                <option value="closed">Abgeschlossen</option><option value="withdrawn">Bewerbung zurückgezogen</option>
+                <option value="rejected">Absage erhalten</option><option value="interview">Gespräch vereinbart</option>
+                <option value="automatic">Manuelle Vorgabe aufheben</option>
+              </select>
+              <input aria-label="Grund der Statuskorrektur" placeholder="Grund / Hinweis" maxLength={1000} value={statusReasons[application.application_id] || ''} onChange={event => setStatusReasons(current => ({...current, [application.application_id]: event.target.value}))}/>
+              <button type="button" disabled={statusSaving !== null || !application.identity_revision} onClick={() => void saveOperatorStatus(application)}>{statusSaving === application.application_id ? 'Speichert …' : 'Status speichern'}</button>
+            </div>
+            {statusMessages[application.application_id] && <p role="status">{statusMessages[application.application_id]}</p>}
             {missingJobTitle && application.discovery_kind === "mailbox_observed" && <div className="f5-title-correction">
               <div>
                 <b>Job title missing</b>
@@ -613,7 +660,7 @@ export default function F5ApplicationTracking({
               <button
                 type="button"
                 disabled={titleCorrection?.status === "saving"}
-                onClick={() => void correctMissingJobTitle(application.application_id, employer)}
+                onClick={() => void correctMissingJobTitle(application.application_id, employer, application.identity_revision)}
               >
                 {titleCorrection?.status === "saving" ? "Saving …" : "Save title"}
               </button>

@@ -470,6 +470,7 @@ def search_finite_inventory_surface(
     execute: RequestExecutor,
     detail_cap: int = DEFAULT_FINITE_INVENTORY_DETAIL_CAP,
     job_cap: int = DEFAULT_JOB_CAP,
+    inventory_mode: bool = False,
 ) -> GenericSearchOutcome | None:
     """Search a bounded first-party finite inventory by proven detail title.
 
@@ -514,7 +515,7 @@ def search_finite_inventory_surface(
         if not job_key or job_key in seen_job_urls:
             continue
         seen_job_urls.add(job_key)
-        if not _query_matches_detail(
+        if not inventory_mode and not _query_matches_detail(
             query=query,
             title=job.title,
             anchor_text=job.anchor_text,
@@ -708,7 +709,10 @@ def search_generic_origin(
     page_size: int = DEFAULT_PAGE_SIZE,
     page_cap: int = DEFAULT_PAGE_CAP,
     job_cap: int = DEFAULT_JOB_CAP,
+    inventory_mode: bool = False,
 ) -> GenericSearchOutcome:
+    if inventory_mode and query:
+        raise ValueError("inventory mode must not contain a personal query")
     root_body_raw, root_final_raw, root_status_raw = execute(
         SearchRequest(origin_url)
     )
@@ -745,7 +749,7 @@ def search_generic_origin(
     if outcome is not None:
         return outcome
 
-    outcome = search_form_surface(
+    outcome = None if inventory_mode else search_form_surface(
         root=root,
         query=query,
         allowed_hosts=allowed_hosts,
@@ -757,6 +761,7 @@ def search_generic_origin(
         return outcome
 
     outcome = search_finite_inventory_surface(
+                inventory_mode=inventory_mode,
         root=root,
         query=query,
         allowed_hosts=allowed_hosts,
@@ -789,7 +794,7 @@ def search_generic_origin(
             )
             if outcome is not None:
                 return outcome
-            outcome = search_form_surface(
+            outcome = None if inventory_mode else search_form_surface(
                 root=listing,
                 query=query,
                 allowed_hosts=effective_hosts,
@@ -800,6 +805,7 @@ def search_generic_origin(
             if outcome is not None:
                 return outcome
             outcome = search_finite_inventory_surface(
+                inventory_mode=inventory_mode,
                 root=listing,
                 query=query,
                 allowed_hosts=effective_hosts,

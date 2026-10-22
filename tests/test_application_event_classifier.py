@@ -2,6 +2,21 @@ from src.search_intelligence.application_event_classifier import (
     classify_application_evidence,
 )
 
+def test_german_conversation_invitation():
+    result = classify_application_evidence(subject='Ihre Bewerbung auf die Stelle Anforderungsmanager',
+        text_excerpt='Dies hat unser Interesse geweckt und wir möchten Sie deshalb gerne zu einem Gespräch einladen.')
+    assert result.candidate_class == 'interview_invitation'
+
+def test_explicit_outbound_withdrawal_is_not_an_application_receipt():
+    result = classify_application_evidence(subject='Meine Bewerbung', mail_direction='outbound',
+        text_excerpt='Da ein Umzug nicht in Frage kommt, muss ich meine Bewerbung für die Stelle leider zurückziehen.')
+    assert result.candidate_class == 'withdrawal_confirmation'
+
+def test_negated_withdrawal_is_not_closed():
+    result = classify_application_evidence(subject='Meine Bewerbung', mail_direction='outbound',
+        text_excerpt='Ich ziehe nicht meine Bewerbung zurück.')
+    assert result.candidate_class != 'withdrawal_confirmation'
+
 
 def test_rejection_phrase_is_evidence_only() -> None:
     result = classify_application_evidence(

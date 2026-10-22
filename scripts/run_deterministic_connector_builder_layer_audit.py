@@ -185,7 +185,22 @@ def _origin_args(args: argparse.Namespace) -> argparse.Namespace:
 
 
 def _resolve_origin(row: dict[str, Any], args: argparse.Namespace) -> tuple[str | None, dict[str, object]]:
+    cache = getattr(args, "_origin_cache", None)
+    key = tuple(str(row.get(k) or "") for k in ("company_key", "company_name", "candidate_url"))
+    if cache is not None and key in cache:
+        return cache[key]
+    result = _resolve_origin_uncached(row, args)
+    if cache is not None:
+        cache[key] = result
+    return result
+
+
+def _resolve_origin_uncached(row: dict[str, Any], args: argparse.Namespace) -> tuple[str | None, dict[str, object]]:
+    hint = getattr(args, "_search_recipe", None)
     persisted = str(row.get("candidate_url") or "").strip()
+    if hint and (not persisted or url_host(persisted) == url_host(hint["root_url"])):
+        return hint["root_url"], {"source": "revalidated_search_recipe_hint",
+                                  "selected_url": _url_shape(hint["root_url"])}
     if persisted:
         return (
             persisted if _valid_https(persisted) else None,
@@ -197,7 +212,16 @@ def _resolve_origin(row: dict[str, Any], args: argparse.Namespace) -> tuple[str 
         )
 
     try:
-        payload = run_origin_discovery(_origin_args(args), str(row["company_key"]))
+        origin_args = _origin_args(args)
+        # Census identities need not exist in the legacy candidate table.
+        # Pass a bounded identity record, never silently substitute another firm.
+        origin_args.candidate_identity = {
+            key: row.get(key) for key in (
+                "id", "company_key", "company_name", "candidate_url",
+                "source_family_candidate", "status", "risk_level", "observed_urls"
+            )
+        }
+        payload = run_origin_discovery(origin_args, str(row["company_key"]))
     except BaseException as exc:
         return None, {
             "source": "provider_free_origin_discovery",
@@ -291,30 +315,23 @@ def _assessment(
         clean = canonical_url(url)
         if clean in cache:
             return cache[clean]
-        if len(calls) >= ABSOLUTE_ACQUISITION_GET_CAP:
+        cap = min(12, max(ABSOLUTE_ACQUISITION_GET_CAP, getattr(args, "acquisition_get_cap", 4)))
+        if len(calls) >= cap:
             raise RuntimeError("absolute acquisition GET cap exceeded")
         if not _valid_https(url):
             raise RuntimeError("layer audit permits HTTPS GET only")
-        response = session.get(url, timeout=args.http_timeout_seconds, allow_redirects=True)
-        body = response.content
-        if len(body) > MAX_BODY_BYTES:
-            raise RuntimeError("response body cap exceeded")
-        text = body.decode(response.encoding or "utf-8", errors="replace")
-        result = (text, str(response.url), int(response.status_code))
-        calls.append(
-            {
-                "requested": _url_shape(url),
-                "final": _url_shape(str(response.url)),
-                "status": int(response.status_code),
-                "body_bytes": len(body),
-            }
-        )
+        from src.connectors.bounded_http import get_with_evidence
+        result = get_with_evidence(
+            session, url, timeout=args.http_timeout_seconds, calls=calls,
+            limit=cap, shape=_url_shape,
+            max_body_bytes=MAX_BODY_BYTES)
         cache[clean] = result
-        cache[canonical_url(str(response.url))] = result
+        cache[canonical_url(result[1])] = result
         return result
 
     try:
-        root_html, root_final_url, root_status = fetcher(origin_url)
+        from src.connectors.origin_entry_recovery import fetch_entry
+        root_html, root_final_url, root_status = fetch_entry(fetcher, origin_url)
     except Exception as exc:
         return ConnectorBuilderAssessment(
             candidate_id,
@@ -386,8 +403,16 @@ def _assessment(
         status_code=root_status,
     )
 
+    def capture_binding(detail_url):
+        from src.search_intelligence.employer_binding import employer_binding
+        observed = cache.get(canonical_url(detail_url))
+        if observed:
+            args._employer_binding = employer_binding(
+                company_name, root.html, observed[0], root.final_url, observed[1])
+
     root_proof = genuine_job_detail_proof(root, allowed_hosts=allowed_hosts, known_detail=False)
     if root_proof:
+        capture_binding(root.final_url)
         layers.extend(
             [
                 skipped("delegation", "origin itself is already a strict job detail"),
@@ -504,11 +529,13 @@ def _assessment(
     v4_error: str | None = None
     try:
         jobs, observed_root = acquire_genuine_job_pages(
-            listing_url=origin_url,
+            listing_url=root_final_url,
             allowed_hosts=tuple(sorted(allowed_hosts)),
             known_detail_urls=(),
+            preferred_detail_urls=(args._search_recipe["detail_url"],)
+                if getattr(args, "_search_recipe", None) else (),
             fetcher=fetcher,
-            max_followup_requests=2,
+            max_followup_requests=min(6, max(2, getattr(args, "navigation_hops", 2))),
             max_results=1,
         )
     except Exception as exc:
@@ -518,6 +545,7 @@ def _assessment(
 
     if jobs:
         job = jobs[0]
+        capture_binding(job.final_url)
         layers.extend(
             [
                 passed(

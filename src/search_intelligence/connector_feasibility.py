@@ -531,7 +531,11 @@ def classify_evidence_links(origin_url: str, html: str, *, limit: int = 80) -> E
     rejected: list[EvidenceLink] = []
     seen: set[str] = set()
     for raw_href, link_text in _anchor_candidates(html):
-        absolute = urljoin(origin_url, raw_href)
+        try:
+            absolute = urljoin(origin_url, raw_href)
+            urlparse(absolute).hostname
+        except ValueError:
+            continue
         if absolute in seen:
             continue
         seen.add(absolute)

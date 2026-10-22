@@ -1,6 +1,32 @@
 from __future__ import annotations
 
 from scripts.product_v1_job_presentation_runtime import enrich_product_payload_for_operator
+from scripts.product_v1_job_presentation_runtime import _canonical_review_url, _deduplicate_origin_rows, _annotate_related_vacancies
+
+
+def test_tracking_attribution_aliases_merge_but_job_query_ids_do_not():
+    a = {"silver_job_id": 1, "source_url": "https://jobs.example/view?id=42&utm_source=email"}
+    b = {"silver_job_id": 2, "source_url": "https://jobs.example/view?id=42&gclid=ad"}
+    c = {"silver_job_id": 3, "source_url": "https://jobs.example/view?id=43"}
+    unique, duplicates = _deduplicate_origin_rows([a, b, c])
+    assert [r["silver_job_id"] for r in unique] == [1, 3]
+    assert [r["silver_job_id"] for r in duplicates] == [2]
+    assert _canonical_review_url("https://jobs.example/view?tenant=a&language=de&id=42") != _canonical_review_url("https://jobs.example/view?tenant=b&language=de&id=42")
+
+
+def test_jobleads_distinct_personio_requisitions_remain_separate_related_roles():
+    rows = [
+        {"silver_job_id": 677, "company_name": "JobLeads Careers", "title": "Data Engineer - fully remote (working hours 5am-2pm CEST) (m/f/d)", "source_url": "https://jobleads.jobs.personio.com/job/2746946", "origin_vacancy_identifier": "2746946-224991", "origin_identifier_evidence_kind": "schema_org"},
+        {"silver_job_id": 678, "company_name": "JobLeads Careers", "title": "Data Engineer - fully remote within Europe (m/f/d)", "source_url": "https://jobleads.jobs.personio.com/job/2791723", "origin_vacancy_identifier": "2791723-224991", "origin_identifier_evidence_kind": "schema_org"},
+    ]
+    unique, duplicates = _deduplicate_origin_rows(rows)
+    assert len(unique) == 2 and duplicates == []
+    annotated = _annotate_related_vacancies(unique)
+    assert annotated[0]["related_vacancy_ids"] == [678]
+    assert annotated[1]["related_vacancy_ids"] == [677]
+    assert "related_vacancy_ids" not in rows[0]
+    different_employer = [{**rows[0]}, {**rows[1], "company_name": "Other Employer"}]
+    assert all(not r["related_vacancy_ids"] for r in _annotate_related_vacancies(different_employer))
 
 
 def test_payload_enrichment_preserves_membership_scores_and_top5_authority() -> None:

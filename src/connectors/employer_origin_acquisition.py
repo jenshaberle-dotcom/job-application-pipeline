@@ -178,8 +178,16 @@ class PageExtractor(HTMLParser):
         href = dict(attrs).get("href")
         if not href:
             return
-        self._href = urljoin(self.base_url, href)
+        self._href = None
         self._link_text = []
+        try:
+            absolute = urljoin(self.base_url, href)
+            parsed = urlparse(absolute)
+            if parsed.scheme in ("http", "https") and parsed.hostname:
+                self._href = absolute
+        except ValueError:
+            # Invalid markup is local to this anchor, not the whole employer.
+            return
 
     def handle_data(self, data: str) -> None:
         self.text_parts.append(data)
@@ -219,7 +227,10 @@ def canonical_url(value: str) -> str:
 
 
 def url_host(value: str) -> str:
-    return (urlparse(value).hostname or "").casefold()
+    try:
+        return (urlparse(value).hostname or "").casefold()
+    except ValueError:
+        return ""
 
 
 def allowed_host(url: str, allowed_hosts: tuple[str, ...] | set[str]) -> bool:
@@ -229,7 +240,17 @@ def allowed_host(url: str, allowed_hosts: tuple[str, ...] | set[str]) -> bool:
 
 def non_job_url(url: str) -> bool:
     lowered = canonical_url(url).casefold()
-    return any(marker in lowered for marker in NON_JOB_URL_MARKERS)
+    try:
+        path = urlparse(lowered).path.rstrip("/")
+    except ValueError:
+        return True
+    if path.startswith("/wp-json/oembed/"):
+        return True
+    static_asset = path.endswith((
+        ".js", ".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
+        ".woff", ".woff2", ".ttf", ".map",
+    )) or path in ("/gtag/js", "/gtm.js")
+    return static_asset or any(marker in lowered for marker in NON_JOB_URL_MARKERS)
 
 
 def parse_page(
@@ -303,7 +324,10 @@ def extract_embedded_detail_urls(
                 return tuple(result)
             continue
 
-        parsed = urlparse(candidate)
+        try:
+            parsed = urlparse(candidate)
+        except ValueError:
+            continue
         suffix = parsed.path or "/"
         if parsed.query:
             suffix += f"?{parsed.query}"

@@ -45,7 +45,7 @@ def test_control_center_owns_one_mailbox_sync_endpoint() -> None:
     assert "MailboxSyncScheduler()" in source
 
 
-def test_existing_refresh_button_triggers_mailbox_sync_before_truth_reload() -> None:
+def test_view_refresh_does_not_trigger_mailbox_writes_or_oauth_retries() -> None:
     source = (
         __import__("pathlib").Path(__file__).parents[1]
         / "frontend"
@@ -53,10 +53,9 @@ def test_existing_refresh_button_triggers_mailbox_sync_before_truth_reload() -> 
         / "src"
         / "ProductTruthContext.tsx"
     ).read_text(encoding="utf-8")
-    sync = source.index('window.fetch("/api/v1/product-v1/mailbox-sync"')
-    truth = source.index("readProductTruth<unknown>({ fresh: true })")
-    assert sync < truth
-    assert "Mailbox sync returned" in source
+    assert "readProductTruth<unknown>({ fresh: true })" in source
+    assert "/api/v1/product-v1/mailbox-sync" not in source
+    assert 'method: "POST"' not in source
 
 
 def test_operator_refresh_waits_for_inflight_startup_sync_before_truth_reload() -> None:
@@ -90,10 +89,14 @@ def test_mailbox_failure_does_not_fail_closed_product_truth() -> None:
         / "src"
         / "ProductTruthContext.tsx"
     ).read_text(encoding="utf-8")
-    assert 'if (!sync.ok) mailboxSyncWarning = `Mailbox sync returned ${sync.status}`;' in source
     assert "const truth = await readProductTruth<unknown>({ fresh: true });" in source
-    assert "if (mailboxSyncWarning) console.warn(mailboxSyncWarning);" in source
-    assert 'if (!sync.ok) throw new Error(`Mailbox sync returned ${sync.status}`);' not in source
+    assert "/api/v1/product-v1/mailbox-sync" not in source
+    action = (
+        __import__("pathlib").Path(__file__).parents[1]
+        / "frontend/control-center/src/GoogleConnection.tsx"
+    ).read_text(encoding="utf-8")
+    assert 'fetch("/api/v1/product-v1/mailbox-sync", { method: "POST" })' in action
+    assert "Postfach jetzt synchronisieren" in action
 
 
 def test_private_runtime_adoption_is_exact_clean_main_fast_forward(monkeypatch, tmp_path) -> None:

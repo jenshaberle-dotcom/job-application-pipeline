@@ -2,11 +2,23 @@
 
 ## Current publication path
 
-`.github/workflows/jap-windows-desktop-host-release.yml` is the current publisher.
-RCC assigns it through the `windows-release` demand in `.rcc/workload-demands.json`.
-It verifies exact source, facade/assignment and qualified runtime before product checks,
-frontend build, desktop/runtime packaging and publication. No hosted fallback is supported.
-Workflow existence does not prove current RCC live readiness.
+Host audit on 2026-10-20: the installed updater still consumes immutable GitHub
+release assets. The last published desktop generation is 1.2.6. GitHub is the
+distribution channel; it is not the required execution platform.
+
+The retained `.github/workflows/jap-windows-desktop-host-release.yml` depends on
+retired Actions facades and is not a working RCC Direct release path.
+`scripts/Build-JapClassicRelease.ps1` extracts its validation, build and double
+payload verification into a PowerShell 7.1+ entry point without Actions context.
+It requires a clean exact-source checkout and a fresh output directory, performs
+Linux regression tests under WSL and package tests on Windows, and produces the
+same four assets. It neither publishes nor installs them.
+
+This entry point is currently an operator-local build, not an admitted native
+RCC recipe. The native Windows service currently executes fixed project-source
+checks. Release toolchain/workspace/network qualification and an explicit fixed
+build profile are required before automatic RCC release execution can be enabled.
+Do not interpret pool availability or a source-check PASS as release capability.
 
 ## Version and asset identity
 
@@ -30,7 +42,7 @@ transactional rollback; they never compile or fetch product source after consent
 
 1. Review and merge the product change after required exact-head checks pass.
 2. RCC admits an explicitly authorized publication workload for its exact source.
-3. Run the workflow's Windows/Python/frontend/product validation and asset integrity checks.
+3. Run the standalone builder's Linux/Windows/frontend/product validation and asset integrity checks.
 4. Publish only the qualified immutable identity; retain runtime/install proof separately.
 5. Describe shipped behavior and remaining limitations in product-facing release notes.
 

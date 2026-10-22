@@ -1,3 +1,4 @@
+import GoogleConnection from "./GoogleConnection";
 import { useEffect, useMemo, useState } from "react";
 import ApplicationSourceUpload from "./ApplicationSourceUpload";
 import JobReviewLabelControls, {
@@ -10,6 +11,8 @@ import "./operator-demo-hardening.css";
 
 type Job = {
   silver_job_id: number;
+  related_vacancy_ids?: number[];
+  related_vacancy_reason?: string;
   product_rank?: number;
   title?: string | null;
   company_name?: string | null;
@@ -184,6 +187,7 @@ type ProductPayload = {
     }>;
   };
   source_connector_overview: {
+    population_reconciliation?: { census_candidate_count:number; factory_checked_count:number; factory_qualified_count:number; source_overview_count:number; factory_complete:boolean; run_id:string; };
     schema_version?: string;
     summary: {
       source_count: number;
@@ -672,6 +676,7 @@ function JobDetail({ job, payload, refresh, applicationStage, onOpenApplications
   return <aside className="ow-job-detail">
     <div className="ow-detail-head"><span>Job #{job.silver_job_id}</span><h2>{job.title || "Untitled job"}</h2><p>{employerName(job)} · {locationText(job)}</p>{job.legal_entity_name && normalize(job.legal_entity_name) !== normalize(employerName(job)) && <small>Legal entity: {job.legal_entity_name}</small>}</div>
     <div className="ow-actions">{sourceUrl && <a className="ow-primary-link" href={sourceUrl} target="_blank" rel="noreferrer">Open original ↗</a>}{hasPersistedActiveLifecycle(job) && job.hard_filter_status !== "failed" && canPrepareApplication(applicationStage) && <OpenApplicationButton silverJobId={job.silver_job_id} disabled={liveCheck.status === "checking"} />}{applicationStage && onOpenApplications && <button type="button" onClick={onOpenApplications}>Open Application Tracker</button>}</div>
+    {Boolean(job.related_vacancy_ids?.length) && <div className="ow-callout info"><b>Ähnliche Stelle beim selben Arbeitgeber</b><span>Eigenständige Anzeigen – bitte Arbeitszeiten, Region und Anforderungen vergleichen.</span><div className="ow-actions">{job.related_vacancy_ids?.map(id => <button key={id} onClick={() => window.dispatchEvent(new CustomEvent("jap:navigate", {detail:{view:"jobs",silverJobId:id}}))}>Stelle #{id} vergleichen →</button>)}</div></div>}
     <JobReviewLabelControls silverJobId={job.silver_job_id} currentLabel={job.review_label} captureAvailable={payload.review_label_capture?.available === true} refreshProductTruth={refresh} />
     <section className="ow-facts"><div><span>Candidate fit</span><b>{candidateFitText(job)}</b></div><div><span>Fit evidence</span><Status value={job.profile_fit_coverage_status === "profile_fit_complete" ? "complete" : "incomplete"} /></div>{profileFitFactorRows.map(([name, value]) => <div key={name}><span>{name}</span><Status value={value || "unknown"} /></div>)}</section>
     <section className="ow-score-card"><h3>Affinity</h3>{scoreRows.map(([name, value]) => <div key={name}><span>{name}</span><i><b style={{ width: `${Math.max(0, Math.min(100, value || 0))}%` }} /></i><strong>{scoreText(value)}</strong></div>)}{job.affinity_authority_status !== "authoritative" && <p className="ow-score-note">Affinity is not authoritative yet. Candidate Fit is evaluated separately above.</p>}</section>
@@ -1262,6 +1267,9 @@ function Sources({ payload }: { payload: ProductPayload }) {
   const initialTab: SourceTab =
     groups.find((group) => groupCounts[group] > 0) || "All";
   const [activeTab, setActiveTab] = useState<SourceTab>(initialTab);
+  const [sourceQuery, setSourceQuery] = useState("");
+  const [sourcePage, setSourcePage] = useState(0);
+  const population = payload.source_connector_overview.population_reconciliation;
   const [selectedName, setSelectedName] = useState(
     sources.find((source) => source.current_blocker)?.source_name ||
     sources.find((source) => sourceGroup(source) === "Delivering now")?.source_name ||
@@ -1283,11 +1291,16 @@ function Sources({ payload }: { payload: ProductPayload }) {
     .map((group) => ({
       group,
       sources: sources
-        .filter((source) => sourceGroup(source) === group)
+        .filter((source) => sourceGroup(source) === group && normalize(`${source.source_label} ${source.source_name} ${source.current_blocker || ""}`).includes(normalize(sourceQuery)))
         .sort((left, right) => compareText(left.source_label, right.source_label)),
     }))
     .filter((entry) => entry.sources.length > 0);
-  const visible = visibleGroups.flatMap((entry) => entry.sources);
+  const matches = visibleGroups.flatMap((entry) => entry.sources);
+  const pageCount = Math.max(1, Math.ceil(matches.length / 40));
+  const currentPage = Math.min(sourcePage, pageCount - 1);
+  const visible = matches.slice(currentPage * 40, (currentPage + 1) * 40);
+  const visibleNames = new Set(visible.map(source => source.source_name));
+  const pageGroups = visibleGroups.map(entry => ({...entry, sources: entry.sources.filter(source => visibleNames.has(source.source_name))})).filter(entry => entry.sources.length);
   const selected =
     visible.find((source) => source.source_name === selectedName) ||
     visible[0] ||
@@ -1306,6 +1319,7 @@ function Sources({ payload }: { payload: ProductPayload }) {
 
   return <div className="ow-stack">
     <header className="ow-page-header"><div><span>Where jobs come from</span><h1>Sources</h1><p>See which employer sources currently deliver jobs, which discovery channels expand coverage and where attention is needed.</p></div><strong className="ow-big-count">{sources.length}</strong></header>
+    {population && <section className="ow-card"><h2>Firmen finden → prüfen → Stellen liefern</h2><div className="ow-source-summary-strip"><div><span>Firmen im letzten Census</span><b>{population.census_candidate_count}</b></div><div><span>Von der Factory geprüft</span><b>{population.factory_checked_count}</b></div><div><span>Qualifiziert · noch nicht automatisch aktiv</span><b>{population.factory_qualified_count}</b></div><div><span>Aktuell Stellen liefernde Quellen</span><b>{overview.active_last_run_loaded_count}</b></div></div><p>Census zählt Firmen eines Laufs. Diese Quellenübersicht enthält registrierte Kandidaten, Connectoren und Suchkanäle. Die Zahlen haben unterschiedliche Grundlagen; eine Qualifikation ist noch kein Stellenimport.</p><small>{population.factory_complete ? "Prüfung dieses Census abgeschlossen" : "Factory-Prüfung noch nicht vollständig"} · {population.run_id}</small></section>}
     {!sensorContractReady && <div className="ow-callout warn"><b>Market discovery runtime mismatch</b><span>The installed UI expects the v5 market-sensor evidence contract. Restart/update the JAP runtime before trusting discovery counts or sensor yield.</span></div>}
     <section className="ow-source-summary-strip">
       {summaryTruth.map(([name, value]) => <div key={name}><span>{name}</span><b>{value}</b></div>)}
@@ -1316,11 +1330,12 @@ function Sources({ payload }: { payload: ProductPayload }) {
         key={tab.id}
         className={activeTab === tab.id ? "active" : ""}
         aria-pressed={activeTab === tab.id}
-        onClick={() => setActiveTab(tab.id)}
+        onClick={() => { setActiveTab(tab.id); setSourcePage(0); }}
       ><span>{tab.label}</span><b>{tab.count}</b></button>)}
     </nav>
+    <div className="ow-actions"><label>⌕ Quellen suchen <input aria-label="Quellen suchen" placeholder="Firma, Quelle oder Problem" value={sourceQuery} onChange={event => {setSourceQuery(event.target.value); setSourcePage(0);}} /></label><span>{matches.length} Treffer · Seite {currentPage + 1} / {pageCount}</span><button disabled={currentPage === 0} onClick={() => setSourcePage(currentPage - 1)}>← Zurück</button><button disabled={currentPage + 1 >= pageCount} onClick={() => setSourcePage(currentPage + 1)}>Weiter →</button></div>
     <section className="ow-source-workspace">
-      <div className="ow-source-list">{visibleGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{sourceGroupDisplay(group)}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{sourcePurpose(source)} · {sourceActivityText(source)}</small></span><b className="ow-source-row-state">{isCoverageTarget(source) ? "Coverage target" : sourceGroupDisplay(sourceGroup(source))}</b></button>)}</div>)}</div>
+      <div className="ow-source-list">{pageGroups.map(({ group, sources: groupedSources }) => <div key={group}><div className="ow-source-group-title"><span>{sourceGroupDisplay(group)}</span><b>{groupedSources.length}</b></div>{groupedSources.map((source) => <button type="button" key={source.source_name} className={selected?.source_name === source.source_name ? "selected" : ""} onClick={() => setSelectedName(source.source_name)}><span><b>{source.source_label}</b><small>{sourcePurpose(source)} · {sourceActivityText(source)}</small></span><b className="ow-source-row-state">{isCoverageTarget(source) ? "Coverage target" : sourceGroupDisplay(sourceGroup(source))}</b></button>)}</div>)}</div>
       {selected && <article className="ow-card ow-source-detail">
         <span className="ow-kicker">{sourceGroupDisplay(sourceGroup(selected))}</span>
         <h2>{selected.source_label}</h2>
@@ -1420,9 +1435,10 @@ export default function OperatorWorkspace() {
 
   useEffect(() => {
     const navigate = (event: Event) => {
-      const detail = (event as CustomEvent<{ view?: View; jobFilter?: JobFilter }>).detail;
+      const detail = (event as CustomEvent<{ view?: View; jobFilter?: JobFilter; silverJobId?: number }>).detail;
       if (detail?.view !== "jobs") return;
       openJobs(detail.jobFilter || null);
+      if (typeof detail.silverJobId === "number") setSelectedJobId(detail.silverJobId);
     };
     window.addEventListener("jap:navigate", navigate);
     return () => window.removeEventListener("jap:navigate", navigate);
@@ -1446,7 +1462,7 @@ export default function OperatorWorkspace() {
     <div className="ow-content-shell">
       <header className="ow-topline">
         <div><b>{navItems.find((item) => item.id === view)?.label}</b><span>Live job data</span></div>
-        <div className="ow-topline-actions">
+        <div className="ow-topline-actions"><GoogleConnection />
           {refreshWarning && <><span className="ow-refresh-warning" role="status" title={refreshWarning}>Mailbox sync needs attention</span><button type="button" title={refreshWarning} onClick={() => setView("applications")}>Review tracker →</button></>}
           <button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? "Refreshing…" : "↻ Refresh"}</button>
         </div>

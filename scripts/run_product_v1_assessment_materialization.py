@@ -62,6 +62,7 @@ AUTHORITATIVE_LIFECYCLE_REASONS = frozenset(
     {
         "authoritative_verified_ats_feed_observation",
         "authoritative_employer_origin_job_observation",
+        "exact_detail_url_and_title_confirmed",
     }
 )
 EMPLOYER_ORIGIN_SOURCE_TYPES = frozenset(
@@ -235,6 +236,9 @@ def validate_materialization_authority(
         raise MaterializationStop("lifecycle evidence is not product-admissible origin proof")
     if str(row.get("latest_health_coverage") or "") not in AUTHORITATIVE_COVERAGE:
         raise MaterializationStop("authoritative lifecycle coverage is required")
+    if (row.get("lifecycle_evidence_reason") == "exact_detail_url_and_title_confirmed"
+            and row.get("latest_health_coverage") != "exact_detail"):
+        raise MaterializationStop("exact detail confirmation requires exact detail coverage")
     return _current_observation_raw_evidence(row)
 
 

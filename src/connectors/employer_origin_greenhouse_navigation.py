@@ -48,7 +48,10 @@ def _decoded(value: str) -> str:
 
 
 def _board_token_from_url(url: str) -> str | None:
-    parsed = urlparse(url)
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
     host = (parsed.hostname or "").casefold()
     parts = [part for part in (parsed.path or "").split("/") if part]
     if host == "boards-api.greenhouse.io":

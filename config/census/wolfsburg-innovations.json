@@ -1,0 +1,21 @@
+{
+  "source_id": "wolfsburg_innovation_ecosystem",
+  "geography": "WOLFSBURG",
+  "cohorts": [
+    "TECH"
+  ],
+  "start_url": "https://wolfsburg-ag.com/schwerpunkte/innovation/",
+  "coverage_issue": "PUBLIC_COMPANY_DIRECTORY_UNAVAILABLE",
+  "max_pages": 1,
+  "include_href": [
+    "unternehmen",
+    "startup",
+    "company",
+    "partner"
+  ],
+  "exclude_href": [
+    "kontakt",
+    "impressum",
+    "datenschutz"
+  ]
+}

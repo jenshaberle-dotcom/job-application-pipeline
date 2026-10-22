@@ -359,6 +359,8 @@ def _existing_application_identities(
             source_url=(
                 str(row["source_url"]) if row["source_url"] is not None else None
             ),
+                counterparty_domain=row.get("counterparty_domain"),
+                thread_reference=row.get("thread_reference"),
         )
         for row in cur.fetchall()
     ]

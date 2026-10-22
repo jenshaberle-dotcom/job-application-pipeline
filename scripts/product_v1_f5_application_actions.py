@@ -43,6 +43,7 @@ class ApplicationTitleCorrectionRequest:
     job_title: str
     expected_employer_name: str
     confirmed_by: str = "local_operator"
+    expected_identity_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -136,6 +137,9 @@ def parse_submission_record_request(
     payload: Mapping[str, object],
 ) -> SubmissionRecordRequest | SubmissionRemovalRequest | ApplicationTitleCorrectionRequest:
     action = str(payload.get("action") or "")
+    if action == 'set_operator_application_status':
+        from scripts.product_v1_operator_status import parse_operator_status
+        return parse_operator_status(payload)
     if action == REMOVE_ACTION_NAME:
         return parse_submission_removal_request(payload)
     if action == CORRECT_TITLE_ACTION_NAME:
@@ -239,6 +243,7 @@ def parse_application_title_correction_request(
         "application_id",
         "job_title",
         "expected_employer_name",
+        "expected_identity_sha256",
         "confirmed_by",
     }:
         raise ApplicationActionError("unexpected_application_title_correction_fields")
@@ -254,11 +259,14 @@ def parse_application_title_correction_request(
         limit=500,
         required=True,
     )
+    identity_token = payload.get("expected_identity_sha256")
+    if identity_token is not None and (not isinstance(identity_token, str) or len(identity_token) != 64 or any(c not in "0123456789abcdef" for c in identity_token)):
+        raise ApplicationActionError("invalid_expected_identity_sha256")
     expected_employer_name = _bounded_text(
         payload.get("expected_employer_name"),
         name="expected_employer_name",
         limit=300,
-        required=True,
+        required=identity_token is None,
     )
     confirmed_by = str(payload.get("confirmed_by") or "local_operator").strip()
     if confirmed_by != "local_operator":
@@ -266,7 +274,8 @@ def parse_application_title_correction_request(
     return ApplicationTitleCorrectionRequest(
         application_id=application_id,
         job_title=str(job_title),
-        expected_employer_name=str(expected_employer_name),
+        expected_employer_name=str(expected_employer_name or ""),
+        expected_identity_sha256=identity_token,
         confirmed_by=confirmed_by,
     )
 
@@ -430,7 +439,10 @@ def correct_application_job_title(
                     or current_snapshot.get("company_name")
                     or current_snapshot.get("company")
                 )
-                if _normalized_identity_text(employer) != _normalized_identity_text(
+                if request.expected_identity_sha256 is not None:
+                    if canonical_sha256(current_snapshot) != request.expected_identity_sha256:
+                        raise ApplicationActionError("application_identity_changed_refresh_required")
+                elif _normalized_identity_text(employer) != _normalized_identity_text(
                     request.expected_employer_name
                 ):
                     raise ApplicationActionError("application_employer_mismatch")
@@ -551,6 +563,9 @@ def remove_operator_submission_confirmation(
                     }
 
                 submission_id = application.get("submission_id")
+                from scripts.product_v1_operator_status import status_history
+                if status_history(application.get('provenance')):
+                    raise ApplicationActionError('application_status_history_must_be_preserved')
                 if submission_id is None:
                     raise ApplicationActionError(
                         "operator_submission_confirmation_not_present"
@@ -643,6 +658,9 @@ def record_operator_confirmed_submission(
     surface does not need a second write path.
     """
 
+    from scripts.product_v1_operator_status import OperatorStatusRequest, record_operator_status
+    if isinstance(request, OperatorStatusRequest):
+        return record_operator_status(request)
     if isinstance(request, SubmissionRemovalRequest):
         return remove_operator_submission_confirmation(request)
     if isinstance(request, ApplicationTitleCorrectionRequest):

@@ -1,9 +1,11 @@
 # JAP Classic — Job Application Pipeline
 
-Status: Connector Factory development, benchmark and experiment lab for JAP Cloud.
-JAP Classic is no longer a product to preserve. The current lab execution contract and RCC gate
-are documented in [Multi-Region Connector Factory Lab](docs/current/HANNOVER-CONNECTOR-MASS-CENSUS.md).
-The desktop implementation below describes retained code, not an obligation to maintain it.
+Status: JAP Classic desktop delivery and Connector Factory development.
+The operator has requested continued Classic updates, current jobs and mailbox
+integration. Factory lab work remains documented in
+[Multi-Region Connector Factory Lab](docs/current/HANNOVER-CONNECTOR-MASS-CENSUS.md).
+The legacy Actions release path is blocked by retired facades; native release
+admission is tracked in [release management](.github/RELEASE_MANAGEMENT.md).
 Project character: **A — Intent Locked**. Theme: **Deep Ocean / Search Intelligence**.
 
 ## Why this project exists
@@ -22,10 +24,10 @@ application preparation and tracking. Jens owns product intent.
 | Persistence | PostgreSQL; ordered migrations in `db/migrations/`. |
 | Windows app | .NET 8/WebView2 shell; Python/private environment through WSL. |
 | Updates | Immutable desktop/runtime assets; staged verification, consent, transactional cutover. |
-| CI and packaging | RCC General Pool; JAP declares demand and verifies exact assignment. |
+| CI and packaging | Standalone source-bound package builder; native RCC release admission pending. |
 | Cloud direction | Cloud parity and verified migration, then one normal Cloud product path. |
 
-Desktop product version: **1.2.6**. Published packages are listed in
+Desktop product version: **1.2.7** (candidate; not yet published). Published packages are listed in
 [GitHub Releases](https://github.com/jenshaberle-dotcom/job-application-pipeline/releases).
 `windows/JAP.ControlCenter.Desktop/VERSION` defines the build version.
 The root `VERSION` and frontend package version identify other components; they are not

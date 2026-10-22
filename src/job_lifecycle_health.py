@@ -613,6 +613,20 @@ def classify_exact_detail(
         source_url=target.source_url,
     )
     closure_marker = explicit_vacancy_closure_marker(response_scope)
+    # A branded ATS error page is vacancy evidence only on its concrete detail
+    # route. Generic error wording on arbitrary sites is never closure authority.
+    from urllib.parse import urlsplit
+    from src.search_intelligence.vacancy_page_signals import normalize_page_text
+    parts = urlsplit(target.source_url)
+    host = (parts.hostname or '').lower()
+    body = normalize_page_text(response_scope)
+    if url_identity_match and not title_match:
+        if host.endswith('.jobs.personio.de') and re.fullmatch(r'/job/\d+/?', parts.path):
+            if 'diese url existiert nicht' in body or 'this url does not exist' in body:
+                closure_marker = 'personio_exact_vacancy_missing'
+        elif host.endswith('.myworkdayjobs.com') and '/job/' in parts.path:
+            if 'the page you are looking for doesn t exist' in body and 'search for jobs' in body:
+                closure_marker = 'workday_exact_vacancy_missing'
     response_bytes = len(probe.response_text.encode("utf-8"))
 
     evidence: dict[str, object] = {
@@ -636,7 +650,7 @@ def classify_exact_detail(
             evidence=evidence,
         )
 
-    if probe.status_code == 410:
+    if probe.status_code == 410 and url_identity_match:
         return HealthClassification(
             outcome=OUTCOME_CLOSED,
             coverage=COVERAGE_EXACT_DETAIL,

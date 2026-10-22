@@ -1,0 +1,21 @@
+{
+  "startups": [
+    {
+      "id": "124733",
+      "title": "Appdevelz",
+      "slug": "appdevelz",
+      "website": "https://www.appdevelz.com/",
+      "industry": "IT/Technologie"
+    },
+    {
+      "id": "152800",
+      "title": "Fedcan",
+      "slug": "fedcan",
+      "website": "https://www.fedcan.de",
+      "industry": "Energy"
+    }
+  ],
+  "totalCount": 1534,
+  "cursor": "12",
+  "hasNextPage": true
+}

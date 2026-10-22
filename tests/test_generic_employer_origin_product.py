@@ -28,7 +28,7 @@ def test_product_entrypoint_does_not_import_versioned_or_demo_truth() -> None:
     assert not any(item in source for item in forbidden)
 
 
-def test_proof_pass_is_the_source_validity_gate() -> None:
+def test_job_proof_without_employer_binding_is_not_source_validity() -> None:
     assessment = ConnectorBuilderAssessment(
         1,
         "example",
@@ -46,7 +46,7 @@ def test_proof_pass_is_the_source_validity_gate() -> None:
         ),
     )
     assert assessment.layers[7].state == LayerState.PASS
-    assert proof_passed(assessment) is True
+    assert proof_passed(assessment) is False
 
 
 

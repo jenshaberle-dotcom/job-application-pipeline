@@ -10,6 +10,7 @@ from scripts.run_origin_source_discovery_agent import (
 )
 from src.search_intelligence.origin_candidate_plan_v2 import generate_company_url_candidates_v2
 from src.search_intelligence.origin_source_discovery_agent import (
+    OriginDiscoveryCandidate,
     discover_origin_source,
     result_to_json,
 )
@@ -18,8 +19,17 @@ from src.search_intelligence.origin_source_discovery_agent import (
 def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, object]:
     """Run the existing authority/scoring model with the breadth-first V2 plan."""
 
-    with connect() as conn:
-        candidate = load_candidate(conn, company_key)
+    supplied = getattr(args, "candidate_identity", None)
+    if supplied is not None:
+        if (not isinstance(supplied, dict)
+                or supplied.get("company_key") != company_key
+                or not isinstance(supplied.get("company_name"), str)
+                or not supplied["company_name"].strip()):
+            raise ValueError("INVALID_CANDIDATE_IDENTITY_HANDOFF")
+        candidate = dict(supplied)
+    else:
+        with connect() as conn:
+            candidate = load_candidate(conn, company_key)
 
     market_urls: list[str] = []
 
@@ -35,6 +45,15 @@ def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, obj
         source_family_candidate=str(candidate.get("source_family_candidate") or ""),
         max_candidates=args.max_candidates,
     )
+    from src.search_intelligence.factory_learning import discovery_plan
+    plan = discovery_plan(dict(company_key=company_key,
+                               websites=candidate.get("observed_urls") or []))
+    observed = tuple(OriginDiscoveryCandidate(url=u, provider="census_observed_link",
+        reason="Original Census URL; employer attribution must be verified", source_priority=1,
+        evidence={"authority": "hint", "company_key": company_key})
+        for u in plan["ordered_urls"][:max(1, args.max_candidates // 2)])
+    observed_set = {c.url for c in observed}
+    generated = (observed + tuple(c for c in generated if c.url not in observed_set))[:args.max_candidates]
 
     result = discover_origin_source(
         company_key=str(candidate["company_key"]),
@@ -56,6 +75,7 @@ def run_for_company(args: argparse.Namespace, company_key: str) -> dict[str, obj
     payload["candidate_risk_level"] = candidate.get("risk_level")
     payload["candidate_url_before"] = candidate.get("candidate_url")
     payload["market_evidence_url_count"] = len(market_urls)
+    payload["observed_census_url_count"] = len(observed)
     payload["search_result_count"] = len(search_results)
     payload["search_provider"] = (
         ",".join(provider for provider in args.search_provider if provider != "none")

@@ -103,6 +103,8 @@ F6_TEMPLATE_EXPORT_PROGRESS_PATH = "/api/v1/product-v1/f6-template-export-progre
 APPLICATION_SOURCE_UPLOAD_PATH = "/api/v1/product-v1/application-source-upload"
 APPLICATION_STARTER_TEMPLATE_PATH = "/api/v1/product-v1/application-starter-template"
 APPLICATION_SUBMISSION_RECORD_PATH = "/api/v1/product-v1/application-submission-record"
+from scripts.product_v1_google_connection import connection_status, start_connection, trusted_ui_request
+
 MAILBOX_SYNC_PATH = "/api/v1/product-v1/mailbox-sync"
 CODEX_STATUS_PATH = "/api/v1/product-v1/codex-status"
 CODEX_LOGIN_PATH = "/api/v1/product-v1/codex-login"
@@ -394,6 +396,9 @@ class ProductV1DemoHandler(ProductV1Handler):
 
     def do_GET(self) -> None:  # noqa: N802 - http.server API
         parsed = urlparse(self.path)
+        if parsed.path == "/api/v1/product-v1/google-connection":
+            self._send_json(connection_status())
+            return
         if parsed.path == PRODUCT_V1_PATH:
             try:
                 self._send_json(_load_operator_product_payload())
@@ -825,6 +830,12 @@ class ProductV1DemoHandler(ProductV1Handler):
 
     def do_POST(self) -> None:  # noqa: N802 - http.server API
         parsed = urlparse(self.path)
+        if parsed.path == "/api/v1/product-v1/google-connection":
+            if not trusted_ui_request(self.headers, self.server.server_address):
+                self._send_json({"state": "forbidden"}, status=HTTPStatus.FORBIDDEN)
+                return
+            self._send_json(start_connection())
+            return
         if parsed.path == MAILBOX_SYNC_PATH:
             result = sync_mailbox(reason="operator_refresh")
             status = HTTPStatus.OK if result.get("status") in {"pass", "already_running"} else HTTPStatus.SERVICE_UNAVAILABLE

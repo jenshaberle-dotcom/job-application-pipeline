@@ -46,6 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional exact ingestion run id to bind Bronze selection.",
     )
     parser.add_argument("--limit", type=int, default=100)
+    parser.add_argument("--broad-corpus", action="store_true", help="Normalize without personal relevance filters")
     return parser
 
 
@@ -83,7 +84,7 @@ def _decision_evidence(raw_job: dict) -> dict[str, str | None]:
     }
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> dict:
     args = build_parser().parse_args(argv)
     repository = SilverJobRepository()
 
@@ -91,11 +92,12 @@ def main(argv: list[str] | None = None) -> None:
         limit=args.limit,
         source_patterns=resolve_source_patterns(args.source),
         ingestion_run_id=args.ingestion_run_id,
+        **({"broad_corpus": True} if args.broad_corpus else {}),
     )
 
     if not raw_jobs:
         print("No unprocessed raw jobs found.")
-        return
+        return {"selected": 0, "included": 0, "skipped": 0}
 
     transformed_count = 0
     skipped_count = 0
@@ -106,7 +108,7 @@ def main(argv: list[str] | None = None) -> None:
         accessibility_matches = get_accessibility_matches(raw_job)
         decision_evidence = _decision_evidence(raw_job)
 
-        if not is_relevant_for_silver(raw_job):
+        if not args.broad_corpus and not is_relevant_for_silver(raw_job):
             repository.record_processing_decision(
                 raw_job_id=raw_job["id"],
                 decision="skipped",
@@ -136,7 +138,7 @@ def main(argv: list[str] | None = None) -> None:
         repository.record_processing_decision(
             raw_job_id=raw_job["id"],
             decision="included",
-            reason="relevant_for_silver",
+            reason="broad_corpus_normalized" if args.broad_corpus else "relevant_for_silver",
             role_matches=role_matches,
             skill_matches=skill_matches,
             accessibility_matches=accessibility_matches,
@@ -152,6 +154,7 @@ def main(argv: list[str] | None = None) -> None:
     print("---")
     print(f"Transformed raw jobs: {transformed_count}")
     print(f"Skipped raw jobs: {skipped_count}")
+    return {"selected": len(raw_jobs), "included": transformed_count, "skipped": skipped_count}
 
 
 if __name__ == "__main__":

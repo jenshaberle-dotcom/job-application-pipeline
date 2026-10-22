@@ -8,7 +8,10 @@ remain outside this public repository.
 """
 from __future__ import annotations
 
+from scripts.product_v1_f5_application_actions import canonical_sha256
+
 from collections import Counter
+import re
 from typing import Any, Mapping
 
 import psycopg
@@ -150,6 +153,25 @@ def _stage(value: object, *, fallback: str = "prepared") -> str:
     return text if text in STAGES else fallback
 
 
+def _display_identity(title: object, company: object) -> tuple[str | None, str | None, list[str]]:
+    """Presentation only: never invent a role or rematch stored applications."""
+    clean_title = str(title or '').strip() or None
+    clean_company = str(company or '').strip() or None
+    issues = []
+    if clean_company and clean_company.casefold().strip(' .!') in {
+        'uns', 'us', 'wir', 'we', 'unser unternehmen', 'our company',
+    }:
+        clean_company = None
+    if not clean_company:
+        issues.append('employer_identity_missing')
+    if not clean_title:
+        issues.append('job_title_missing')
+    if clean_title and clean_company:
+        # Remove only an exact, explicitly delimited employer suffix.
+        clean_title = re.sub(r'\s+(?:bei|at)\s+' + re.escape(clean_company) + r'\s*$', '', clean_title, flags=re.I).strip()
+    return clean_title, clean_company, issues
+
+
 def build_application_tracking_payload(
     *,
     applications: list[Mapping[str, object]],
@@ -204,6 +226,11 @@ def build_application_tracking_payload(
             row.get("effective_stage"),
             fallback=observed_stage or authoritative_stage,
         )
+        from scripts.product_v1_operator_status import status_history
+        operator_history = status_history(row.get('operator_provenance'))
+        operator_status = operator_history[-1] if operator_history else None
+        if operator_status and operator_status.get('status') != 'automatic':
+            effective_stage = 'interview' if operator_status['status'] == 'interview' else 'closed'
 
         discovery_kind = str(row.get("discovery_kind") or "jap_prepared")
         snapshot = row.get("job_identity_snapshot")
@@ -212,6 +239,8 @@ def build_application_tracking_payload(
         company_name = row.get("company_name") or _snapshot_text(
             snapshot, "company_name", "employer_name", "company"
         )
+        had_identity = bool(title or company_name)
+        title, company_name, identity_issues = _display_identity(title, company_name)
 
         # Mailbox outcome/search evidence without a bounded employer or vacancy
         # identity is review evidence, not an application Product identity.
@@ -219,8 +248,7 @@ def build_application_tracking_payload(
             discovery_kind == "mailbox_observed"
             and silver_job_id is None
             and row.get("submission_id") is None
-            and not title
-            and not company_name
+            and not had_identity
         ):
             continue
 
@@ -231,7 +259,7 @@ def build_application_tracking_payload(
         if observed_stage is not None:
             observed_count += 1
 
-        display_company_name = row.get("display_company_name") or company_name
+        display_company_name = company_name
         source_url = row.get("source_url") or _snapshot_text(
             snapshot, "source_url", "job_url", "application_url"
         )
@@ -256,10 +284,14 @@ def build_application_tracking_payload(
         review_required_count = sum(
             1 for candidate in application_candidates if candidate["requires_review"]
         )
+        review_required_count += bool(identity_issues)
 
         rows.append(
             {
                 "application_id": application_id,
+                "operator_status": operator_status,
+                "operator_status_revision": len(operator_history),
+                "identity_revision": canonical_sha256(snapshot) if isinstance(snapshot, Mapping) else None,
                 "application_key": row.get("application_key"),
                 "silver_job_id": silver_job_id,
                 "job_link_status": "linked" if silver_job_id is not None else "external",
@@ -275,6 +307,7 @@ def build_application_tracking_payload(
                 "employer_evidence_source": employer_evidence_source,
                 "identity_source": identity_source,
                 "application_kind": application_kind,
+                "identity_review_reasons": identity_issues,
                 "prepared_at": row.get("prepared_at"),
                 "prepared_by": row.get("prepared_by"),
                 "submission_id": row.get("submission_id"),
@@ -288,8 +321,8 @@ def build_application_tracking_payload(
                 "observed_at": row.get("observed_at"),
                 "observed_confidence": row.get("observed_confidence"),
                 "effective_stage": effective_stage,
-                "effective_stage_basis": row.get("effective_stage_basis")
-                or ("mailbox_observed" if observed_stage else "authoritative_fallback"),
+                "effective_stage_basis": ('operator_confirmed' if operator_status and operator_status.get('status') != 'automatic' else
+                    row.get("effective_stage_basis") or ("mailbox_observed" if observed_stage else "authoritative_fallback")),
                 "authoritative_event_count": int(
                     row.get("authoritative_event_count") or 0
                 ),
@@ -315,6 +348,7 @@ def build_application_tracking_payload(
         "schema_version": SCHEMA_VERSION,
         "available": available,
         "summary": {
+            "review_item_count": len(unmatched_candidates) + sum(1 for row in rows if row['attention_candidate_count']),
             "application_count": len(rows),
             "submitted_count": sum(
                 1 for row in rows if row.get("submission_id") is not None
@@ -362,11 +396,13 @@ def load_application_tracking_payload() -> dict[str, object]:
                 """
                 SELECT
                     tracking.*,
+                    operator_application.provenance AS operator_provenance,
                     silver.title,
                     silver.company_name,
                     silver.company_name AS display_company_name,
                     silver.source_url
                 FROM gold_product_v1_application_tracking tracking
+                JOIN applications operator_application ON operator_application.id = tracking.application_id
                 LEFT JOIN silver_jobs silver
                   ON silver.id = tracking.silver_job_id
                 ORDER BY

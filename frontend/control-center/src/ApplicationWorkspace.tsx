@@ -699,10 +699,11 @@ export default function ApplicationWorkspace() {
                 <div className={readinessTone(!codexRequired || codexReady)}><i /><span>Drafting mode</span><b>{!codexRequired
                   ? "Local only · no LLM transfer"
                   : codexReady
-                    ? `ChatGPT Codex connected · ${codexStatus?.version || "version verified"}`
+                    ? `ChatGPT verbunden · ${codexStatus?.model || "Modell noch nicht gemeldet"} · ${codexStatus?.reasoning_effort || ""}`
                     : codexStatus?.installed
                       ? "ChatGPT sign-in required"
                       : "Bundled Codex unavailable"}</b></div>
+                <div className="ready"><i /><span>Abrechnung</span><b>ChatGPT/Codex-Kontingent · kein API-Key-Fallback</b></div>
                 <div className="ready"><i /><span>Submission boundary</span><b>Review only · no auto-submit</b></div>
               </div>
 

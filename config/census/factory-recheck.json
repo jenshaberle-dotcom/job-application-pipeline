@@ -1,0 +1,4 @@
+{
+  "parent_run": "classic-native-census:4060ae847f7695a5dd4556739383abe1433f88f3",
+  "purpose": "Frozen 2240-employer comparison: preserve Census URLs, classify portal families and failures, reuse identity-bound recipes with fresh proof; no activation or location filter."
+}

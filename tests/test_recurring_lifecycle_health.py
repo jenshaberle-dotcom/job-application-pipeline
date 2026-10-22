@@ -188,7 +188,7 @@ def test_missing_target_still_active_writes_positive_exact_health() -> None:
     assert repository.writes[0][1].outcome == OUTCOME_SEEN_ACTIVE
 
 
-def test_unverifiable_probe_never_supersedes_positive_truth() -> None:
+def test_unverifiable_probe_records_uncertainty_without_closure() -> None:
     repository = FakeHealthRepository([target()])
 
     def not_found_fetcher(url: str, *, timeout_seconds: float) -> HttpProbeResult:
@@ -210,7 +210,7 @@ def test_unverifiable_probe_never_supersedes_positive_truth() -> None:
     assert summary.unverifiable_count == 1
     assert summary.closed_write_count == 0
     assert summary.seen_active_write_count == 0
-    assert repository.writes == []
+    assert len(repository.writes) == 1
 
 
 def test_bulk_miss_above_probe_cap_fails_before_network_or_write() -> None:

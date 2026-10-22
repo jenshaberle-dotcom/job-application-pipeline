@@ -224,6 +224,15 @@ def plan_rows(
                 application_key = matched_key
             elif not ambiguous_existing and should_create_application(classification):
                 application_key = mailbox_application_key(observation)
+                if application_key not in applications:
+                    application_identities.append(ExistingApplicationIdentity(
+                        application_key=application_key,
+                        employer_name=observation.employer_name,
+                        job_title=observation.job_title,
+                        source_url=observation.source_url,
+                        counterparty_domain=observation.counterparty_domain,
+                        thread_reference=observation.thread_reference,
+                    ))
                 applications.add(application_key)
 
         if (

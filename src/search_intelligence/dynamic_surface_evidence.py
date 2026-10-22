@@ -79,22 +79,29 @@ class _DynamicHtmlParser(HTMLParser):
             value = str(raw_value or "").strip()
             if not value:
                 continue
+            try:
+                absolute = urljoin(self.base_url, value)
+            except ValueError:
+                continue
             if tag_name == "script" and name == "src":
-                self.script_sources.append(urljoin(self.base_url, value))
+                self.script_sources.append(absolute)
             if name in {"href", "src", "action"} or name.startswith("data-"):
                 lowered = value.casefold()
                 if (
                     value.startswith(("/", "./", "../", "http://", "https://"))
                     and any(marker in lowered for marker in _ROUTE_MARKERS)
                 ):
-                    self.url_attributes.append(urljoin(self.base_url, value))
+                    self.url_attributes.append(absolute)
 
 
 def _normalize_http_url(value: str | None) -> str | None:
     raw = str(value or "").strip()
     if not raw:
         return None
-    parsed = urlparse(raw)
+    try:
+        parsed = urlparse(raw)
+    except ValueError:
+        return None
     if parsed.scheme.casefold() not in {"http", "https"} or not parsed.hostname:
         return None
     host = parsed.hostname.casefold().strip(".")

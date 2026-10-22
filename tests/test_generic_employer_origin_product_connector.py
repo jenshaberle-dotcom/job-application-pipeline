@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.connectors.base import RawJobRecord, SearchProfile, SearchTerm
 from src.connectors.employer_origin_acquisition import AcquiredJobPage
 from src.connectors.generic_employer_origin import GenericEmployerOriginConnector
@@ -217,8 +219,9 @@ def test_product_connector_drops_noncredible_query_proven_record(monkeypatch) ->
     assert records == []
 
 
-def test_product_connector_returns_zero_when_query_semantics_are_not_proven(
-    monkeypatch,
+@pytest.mark.parametrize("status", ["failed", "not_available"])
+def test_product_connector_fails_when_query_semantics_are_not_proven(
+    monkeypatch, status,
 ) -> None:
     from src.connectors import generic_employer_origin_product as product
 
@@ -227,7 +230,7 @@ def test_product_connector_returns_zero_when_query_semantics_are_not_proven(
         product,
         "acquire_query_proven_jobs",
         lambda **kwargs: QueryProvenSearchResult(
-            status="failed",
+            status=status,
             reason="impossible_control_query_returned_jobs",
             jobs=(),
             request_count=4,
@@ -238,9 +241,8 @@ def test_product_connector_returns_zero_when_query_semantics_are_not_proven(
         candidate_loader=_source,
     )
 
-    records, _ = connector.fetch_jobs(_profile(), SearchTerm("*"))
-
-    assert records == []
+    with pytest.raises(product.GenericProductAcquisitionError):
+        connector.fetch_jobs(_profile(), SearchTerm("*"))
 
 
 def test_query_semantics_matches_live_audit_discrimination_contract() -> None:
@@ -262,3 +264,11 @@ def test_query_semantics_matches_live_audit_discrimination_contract() -> None:
         target_outcomes=[_outcome(())],
         control_outcome=empty_control,
     ) == ("unconfirmed_zero", "target_and_control_queries_returned_zero_jobs")
+
+
+def test_failed_target_cannot_hide_behind_another_positive_query():
+    good = _outcome((_job(),))
+    failed = _outcome((), stop_reason="search_request_failed")
+    assert query_semantics_status(
+        target_outcomes=[good, failed], control_outcome=_outcome(()),
+    ) == ("failed", "target_query_request_failed")

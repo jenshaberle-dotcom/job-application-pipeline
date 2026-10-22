@@ -11,6 +11,7 @@ from src.search_intelligence.origin_source_discovery_agent import (
     corporate_identity_aliases,
     normalize_candidate_url,
     tokenize,
+    opaque_identity_key,
 )
 
 GENERATED_PROVIDER_KIND_V2 = "generated_company_domain_candidate_v2"
@@ -50,7 +51,7 @@ def _join(tokens: Sequence[str], *, compact: bool = False, limit: int = 4) -> st
 
 def _add_base(result: list[str], value: str) -> None:
     base = value.strip().casefold().strip("-.")
-    if len(base) < 2 or base in result:
+    if len(base) < 2 or len(base) > 63 or base in result:
         return
     result.append(base)
 
@@ -117,6 +118,12 @@ def prioritized_domain_bases(
 
     if len(non_local) == 1:
         _add_base(bases, non_local[0])
+    elif (non_local and len(non_local[0]) >= 4 and non_local[0] not in
+          {"deutsche", "deutscher", "german", "international", "global", "new",
+           "engineering", "consulting", "software", "digital", "system", "systems"}):
+        # Brand + business description commonly uses only the leading brand.
+        # This is a hypothesis, never identity proof; existing scoring still runs.
+        _add_base(bases, non_local[0])
 
     if non_local:
         _add_base(bases, _join(non_local[:2]))
@@ -130,7 +137,8 @@ def prioritized_domain_bases(
         for locality in localities[:1]:
             _add_base(bases, f"{acronym}-{locality}")
 
-    _add_base(bases, _compact(company_key))
+    if not opaque_identity_key(company_key):
+        _add_base(bases, _compact(company_key))
     return tuple(bases)
 
 
