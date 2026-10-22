@@ -13,6 +13,18 @@ SPEC.loader.exec_module(GATE)
 
 
 class WorkspaceGateTests(unittest.TestCase):
+    def test_windows_execution_is_denied_before_reading_project_files(self):
+        with patch.object(GATE.sys, "platform", "win32"):
+            with self.assertRaisesRegex(GATE.GateBlocked, "WSL_ONLY"):
+                GATE.verify("before-edit")
+
+    def test_worktree_ancestor_is_exact_not_prefix(self):
+        root = Path("/home/jens_h/worktrees/job-application-pipeline")
+        self.assertTrue(GATE.within_worktree(root / "feature-a", root))
+        self.assertFalse(GATE.within_worktree(root, root))
+        self.assertFalse(GATE.within_worktree(Path(str(root) + "-shadow/feature-a"), root))
+        self.assertFalse(GATE.within_worktree(Path("/mnt/c/Users/jensh/Documents/Codex/w"), root))
+
     def test_git_remote_identity_cannot_be_confused(self):
         name = "jenshaberle-dotcom/job-application-pipeline"
         self.assertTrue(GATE.accepted_origin("git@github.com:" + name + ".git", name))
