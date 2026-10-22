@@ -50,6 +50,13 @@ def accepted_origin(url: str, full_name: str) -> bool:
     ) is not None
 
 
+def restart_admits(snapshot: dict, phase: str) -> bool:
+    if phase == "inspect":
+        return True
+    admission = snapshot.get("work_admission") or {}
+    return snapshot.get("state") == "PASS" and admission.get("normal_new_project_mutation_blocked") is False
+
+
 def verify(phase: str) -> dict[str, str]:
     release = Path("/proc/sys/kernel/osrelease")
     require(sys.platform.startswith("linux") and release.is_file()
@@ -62,6 +69,12 @@ def verify(phase: str) -> dict[str, str]:
     require(contract["canonical_branch"] == "main"
             and contract["repository_id"] > 0, "WORKSPACE_CONTRACT_MISMATCH")
     require(full_name == "jenshaberle-dotcom/" + name, "REPOSITORY_IDENTITY_NOT_EXPECTED")
+
+    restart = json.loads((root / "POST-MIGRATION-RESTART.json").read_text())
+    require(restart["repository"]["repository_id"] == contract["repository_id"]
+            and restart["repository"]["full_name"] == full_name,
+            "RESTART_REPOSITORY_MISMATCH")
+    require(restart_admits(restart, phase), "RESTART_GATE_BLOCKED")
 
     home = str(Path.home())
     canonical = Path(contract["canonical_checkout"]["path"].replace("$HOME", home)).resolve()
