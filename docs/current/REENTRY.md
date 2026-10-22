@@ -1,5 +1,18 @@
 # JAP Classic engineering re-entry
 
+## Current source and recovery checkpoint — 2026-10-22 (candidate, not main acceptance)
+
+The dated October 2 material below is **historical**, not the live current head. Repository `main` remains `819e0df0a9ea8c92866dfdb2ac4f17acdee0d10f` as of the documented checkpoint. Current Classic operator direction is **active Connector Factory + job delivery**, not the superseded September 30 Cloud-only feature-freeze (#1154).
+
+- Active delivery [PR #1173](https://github.com/jenshaberle-dotcom/job-application-pipeline/pull/1173), current reviewed source `a9aaa58684bba398e32970fcb6596a57093815c3`: 14 recovered commits, three additional launcher files, and subsequent file-mode-only commit; remote ref SHA verified. Native release and Product E2E acceptance still pending.
+- New native market occurrence sources are bounded (20 new/retry candidates plus 50 active sources per run) and retain backlog/uncertain-stage receipts. Source-only unit tests 34/34 PASS; this **does not** qualify production sensor → Origin → Bronze → Silver → Product/UI E2E or release/adoption.
+- The three Windows Launcher source files are committed to #1173 with the exact blob contents retained; all three are now Git mode `100644`. Windows launcher provenance, signature/trusted independent manifest, crash/headless behaviors and actual .NET/PowerShell build/run remain unqualified. The local detached recovery checkout at `de35de62` is preserved rather than reset.
+- RCC candidate [#753](https://github.com/jenshaberle-dotcom/Runner-Control-Center---RCC/pull/753) head `22feaf4062edead845d991304e8174cd8a628c00`; private Runtime due-work candidate [#399](https://github.com/jenshaberle-dotcom/job-pipeline-runtime/pull/399) must not introduce a competing scheduler.
+- Existing GitHub/branch harvest is tracked by [#1172](https://github.com/jenshaberle-dotcom/job-application-pipeline/issues/1172), [#704](https://github.com/jenshaberle-dotcom/job-application-pipeline/issues/704), with the fully paginated branch census in [`BRANCH-CENSUS-20261022.json`](BRANCH-CENSUS-20261022.json).
+- Future Work Cloud source changes use authenticated GitHub commits only; Work Local requires registered WSL worktrees and real host containment admission. See `AGENTS.md` and [the Work continuation](WORKCHAT-REENTRY-20261022.md). No other local checkout gains project authority.
+
+**Do not silently reconcile the 2026-10-02 version/model statements below to current installed truth.** Installed desktop, live DB, release and native RCC host state remain independently unverified until fresh evidence.
+
 Inspected: 2026-10-02. Repository ID: `1230805345`.
 Baseline before this documentation hardcut: `effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1`.
 This is a dated inspection record, not a lock on a moving `main`.

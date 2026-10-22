@@ -1,0 +1,1652 @@
+{
+  "schema_version": "workchat.branch_census.v1",
+  "observed_date": "2026-10-22",
+  "repository": "jenshaberle-dotcom/job-application-pipeline",
+  "remote_main_sha": "819e0df0a9ea8c92866dfdb2ac4f17acdee0d10f",
+  "source": "GitHub REST fully paginated branches; observation NOT atomic across pages",
+  "pages": 3,
+  "branch_count": 270,
+  "open_pr_count": 15,
+  "known_protected_open_pr_refs": [
+    "agent/f4b-fit-affinity-reconciliation",
+    "docs/product-recovery-current-truth",
+    "feature/classic-factory-job-delivery-20261015",
+    "feature/connector-fleet-health-v1",
+    "fix/demo-runtime-recovery-stability-1.1.24",
+    "freeze2/external-index-site-bounded-query",
+    "freeze2/provider-agnostic-market-sensor",
+    "freeze2/searxng-market-search",
+    "governance/workchat-wsl-reentry-20261022",
+    "hardcut/f6-gpt-6-1-sol-quality-pipeline",
+    "hardcut/remove-demo-authority",
+    "hardcut/runner-authority-audit-20261003",
+    "hardening/current-employer-connector-census-20260930",
+    "proof/rcc-general-pool-20261001",
+    "proof/windows-release-rcc-20261003"
+  ],
+  "disposition_semantics": "PRESERVE_PENDING_HARVEST_PROOF forbids deletion. No Graph/content/local-host absence proof is implied. Exact ref+sha readback must precede further effects.",
+  "deletion_authority": false,
+  "host_preflight": "NOT_PERFORMED",
+  "branches": [
+    {
+      "ref": "refs/heads/agent/connector-control-plane-runtime-contract-20260920",
+      "sha": "a8b1762b8591a8b0c472a89653be3878aab8ffb5",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/demo-001-frontend-runtime-p0",
+      "sha": "c112491720ececc9fbd7d0621936219acff99b02",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/demo-learning-fi-ivv",
+      "sha": "46d5217921215ebc8448101378d66c18b06dc31d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f4a-r7-skill-evidence-reliability",
+      "sha": "d76fd543430878e9cb0809f7ceb2da09f732a242",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f4b-fit-affinity-reconciliation",
+      "sha": "3e948b01c7568c86df1f95e98a946b8a535c0509",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/agent/f4b-readonly-cohort",
+      "sha": "680cde13877d9df2f0170eb0f74affab49991d6f",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f4c-operator-feedback-hardening",
+      "sha": "3ee69b7b3da2131ac2ddc9f31350b28bd508c087",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-application-lifecycle-baseline",
+      "sha": "b990b1f16e8ee5e49e5e435afa2aab9578e435e5",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-authoritative-application-lifecycle",
+      "sha": "53d848ae42caf5d7eb6efe12c623238d46d005f6",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-auto-application-identity-reconciliation",
+      "sha": "4d7d9f29d1bad5eba15921d351173dd129a4cc02",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-candidate-preflight-trigger",
+      "sha": "0c99f757887cf0658acb234a4d0d417591827689",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-canonical-mailbox-semantics-contract",
+      "sha": "69b9c4b44e2c25f02c9f0b5b6d414070800166de",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-compact-applications-job-linkage",
+      "sha": "f0bd733150b032a2cb6868139c03d615552a55b7",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-final-linkage-operator-correction",
+      "sha": "f56acb6c162b4c0335b25fcf69ca8033700137d8",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-m113-view-order-fix",
+      "sha": "b1f481c6849c906f14bc5ace286e06f6e9bebd65",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-mailbox-batch-preflight",
+      "sha": "23f3f4ffcb777c78ad2d9e9a458bebfde42e8e60",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-mailbox-first-tracking",
+      "sha": "7a1dc96f38109420b0a239f519ac7448ef0780db",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-mailbox-observation-hardening",
+      "sha": "01dfc6b43bd85ffa3423cdc3936923f6c2716536",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-mailbox-preview-reentry",
+      "sha": "f2c2b269f63bec9d1faa2a4ab57dc1a0e680b6d0",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-mailbox-recall-identity-hardening",
+      "sha": "d079fe6e22ee086b2085246f18a8f27362bd2c68",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-mailbox-signal-hardening",
+      "sha": "3ddc4ee2869a4b60bd85f84585ecb45179c4fa98",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-mailbox-silver-reconciliation-preflight",
+      "sha": "74e2fb7f1261bb7102a0384f3d4e64322a01fe9a",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-optional-manual-reference",
+      "sha": "6a35b10711d5e5cd9e6ed157858c11e4da0b5743",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-persistence-preflight-reentry",
+      "sha": "f56ce8e29354788e7e7b798d8bbce60708ec5d86",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-postwrite-proof",
+      "sha": "c7b79c17649789338bd7d1c7764001dd0282be6f",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-postwrite-source-split",
+      "sha": "c2394d39a4d38aabaedcf2526afd5b05ad07b375",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-preflight-direct-entrypoint",
+      "sha": "3c7a7dfa8229e9a3fa306bb6a7cc6558f01f974f",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-preflight-no-db-driver",
+      "sha": "49f8466fa47e8cb6c1d7e07707e473394d3345e5",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-readonly-projected-job-linkage",
+      "sha": "67ed53d0e25dba558308501c185b1a24eac4ee06",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-reentry-after-outcome-hardening",
+      "sha": "14860996173fcd807448daecdb87256b0a70abab",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-resume-after-market-parity",
+      "sha": "33ae00cd470854b603c8a1a3ddef24e8b421d1c5",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-schema-comment-carrier",
+      "sha": "0c24d5638baab8d19aef0827e105e3827233c61c",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-signal-repreview-checkpoint",
+      "sha": "a1643aca07d7b5db002d8f251e3c210151af6a70",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-source-message-supersession",
+      "sha": "e7fbfad976e60e5a9aba308872176ed9bdd44a4d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-source-sha-validator-fix",
+      "sha": "38c8960336e49ea4d3144a2facc60e69170c173a",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-status-clusters-review-semantics",
+      "sha": "457bf551d0db67bf8ba772aceb8c6b0cdca901e7",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-tracking-runtime-ui",
+      "sha": "772d79530d7a9c82924addd34a6979b90b9b7a18",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-v1039-blue-runner-deploy-fix",
+      "sha": "01bcb1876786433127f998d585b439c5a56a7e35",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-v1039-delivery-reentry",
+      "sha": "64360a1b3217653363012b71f16967db79b07342",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-v1048-startup-accepted",
+      "sha": "75dd20d8311ce1b4e43fee620a423235404c3ff5",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/f5-valuny-title-ui-cleanup",
+      "sha": "d788c9188d1d897134d30bc7b28bd77a92f83e62",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/hornet-pipeline-minimal-unblock",
+      "sha": "f0920bacfb211f4164749827d66924f20126cf6c",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/market-parity-hornetsecurity-generic-origin",
+      "sha": "254bfb71aeb603850f95069ac9c8c1c1778695fd",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/market-sensor-authority-cleanup",
+      "sha": "e427503bf6d5f659b79c3e43561d3ad967152a2f",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/p1-connector-delivery-audit",
+      "sha": "857b805b4b3368e59875fff4253712c95d2b9bba",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/strict-proven-detail-delta-20260903",
+      "sha": "a2918d7a93eaf8ee30c6fbd8cf4d82675fc5b671",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/tmp-ignore",
+      "sha": "3ddc4ee2869a4b60bd85f84585ecb45179c4fa98",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/winapp-020-prebuilt-frontend-startup",
+      "sha": "98e735b27d684084c8b5218884da87ddab29cf09",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/winapp-direct-frontend-prewarm",
+      "sha": "c229607acc6ca2e9392594802cb969abc8cacd26",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/winapp-installed-runtime-smoke",
+      "sha": "66f2e8c7ae066bd1ce38f1f214068c3e6ac99982",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/winapp-prewarm-startup-hardening",
+      "sha": "341ba6ff54285d5c6f6a4680f10e8b0468553f01",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/winapp-process-probe-hardening",
+      "sha": "b258f654b1eb0cf0c7e9267e816e5f7f0ecd5847",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/winapp-wsl-detached-runtime-handoff",
+      "sha": "5c6ddc73a345ac7f0ec4f18c86f3f30a93ba72be",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/676-deterministic-connector-builder",
+      "sha": "14e60cd24cfdcc37a41ef9171e6ce269553c69ed",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/707-connector-evidence-gui-preview",
+      "sha": "0d307c489447a2af6842167c4c1ae39d94b52a46",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/869-general-linux-pool-canary",
+      "sha": "ff608aa3f135130e692d39d7b9d62e6dc046a0f5",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/869-shared-golden-canary",
+      "sha": "edcc7a3fb1a68477e237bc22e038ff2b0187387c",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/921-pwsh7-updater-golden-path",
+      "sha": "d198333444e4e5310fd712b6ceaeec701e153a29",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/agent/987-cgkb-product-update-only",
+      "sha": "6c220070cfecad09b23d8e139a9ea57dd97b0b23",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/chore/close-current-freeze-campaign",
+      "sha": "7d0c704f60e3b6935b6afc70149e4f2549af8d59",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/chore/1.2.6-final-release-trigger",
+      "sha": "48e994be94def3d3705c8c0a8559ff7cc222268e",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/cleanup/product-v1-retire-demo001-ui",
+      "sha": "2b454ae0f057e7f69eb248bd4fc8bf5f8ec24dd0",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/demo/product-v1-learning-sample",
+      "sha": "02066afac3cf88b84cabdda4022d2bc867c95fcd",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/demo/top5-materialize-before-refill",
+      "sha": "c010b326490edaf88d11834612676cc5da7c67a0",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/demo/top5-rankable-refill-authority",
+      "sha": "f1f08344c8bab9c882af952880ee83dd52c7d964",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/demo/top5-rankable-refill-authority-v2",
+      "sha": "daffbb0295754061c2d8a4e922ba38cfde8a21ba",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/demo-backup/jap-classic-remote",
+      "sha": "642e22992ea45f69aa88301a50e84254a1ef1356",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/diag/962-workstation-update",
+      "sha": "f978d86dc1904b0d3948bb9f902a62b214ebcd08",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/diag/986-startup-handoff",
+      "sha": "c3ec5a70f23091c6106e732e4edf905d5e0f6002",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/diagnostic/f6-626-assessment-authority",
+      "sha": "5b3bdcff0044536b140230bc8b9cb843e6d980e5",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/diagnostic/f6-top5-hard-filter",
+      "sha": "6bea7e2d2d8fbf91dd6cee1acd9128244e9a0ee5",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/docs/backlog-cc-geography-boundary",
+      "sha": "3264c5802780d223e901dba9dea8f0777559e7cd",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/docs/backlog-origin-truth-audit",
+      "sha": "2b49cccad2597b02d3ba3d81308829fefb802ce3",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/docs/classic-documentation-hardcut-20261002",
+      "sha": "4379cdb570ce6e0f6ccb002897f40ede014ce987",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/docs/f6-1-2-release-gate",
+      "sha": "f568fabb9d9bec003136c8130888c75508989cf5",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/docs/product-recovery-current-truth",
+      "sha": "2bc07bf4266b9fee3948f40fed0d5a8aeebe5402",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/drj/76-readonly-branch-observer-v1",
+      "sha": "f16f0b1ec4ce6ddbaf8c0be16fc51b109a5c5598",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/experiment/hannover-connector-mass-census",
+      "sha": "8f079209209e702e533ba51eb359b76a0b116ce1",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/f6-quality-context-1-1-11",
+      "sha": "44ffa42bda844b99d1a61b5ab33b624011193820",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feat/demo-frozen-fit-1.2.5",
+      "sha": "2c82831b6145140f27c6f52eaeae46309c73add7",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feat/737-runtime-mailbox-sync",
+      "sha": "621667a9aefa042fa75a1521f742bfb8d0d2cd14",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feat/962-product-local-update-agent",
+      "sha": "ec9e1b0f571a3b99ec69e5618ee9187f6d7d7073",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/classic-factory-job-delivery-20261015",
+      "sha": "442ab273cb913d81c0cf196e6ed0faead8441352",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/feature/connector-fleet-closed-loop-v1",
+      "sha": "4707cb7e29fd9b26c7e542bdc2d681326c39d5eb",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/connector-fleet-health-v1",
+      "sha": "d9a7a15bb7fa10a1eed3d4923078e5bad53c23e7",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/feature/demo-market-discovery-yield",
+      "sha": "f03e7e7c29e79a4b2bcb280b6873eab18d305020",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/f6-b-template-bound-renderer",
+      "sha": "e1981b1a7cd7c607f45e0d2ca6645cbcd441c5f4",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/f6-c-operator-selected-target",
+      "sha": "7ddcd865dcf5149f2f756a019d1ee9b14f81d26f",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/f6-c-review-export",
+      "sha": "da94840e0ef228b5fac05ef450b244ad8e910730",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/f6-c-single-finished-pdf",
+      "sha": "80cd53dfcefda8e5cc81ad25e18fe9830123401e",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/f6-template-authority",
+      "sha": "02ae4436d94e24db59edf31b4fc868557ad00f6b",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/product-fit-blocker-diagnostics",
+      "sha": "1f4bf055fbcba88e4c10456aacc6d307daabcb65",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/product-fit-blocker-reasons",
+      "sha": "9065bea3d0a2fc2c701bf319fdf6d7fe004afe5d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/product-local-assessment-refresh",
+      "sha": "7bd7dbe73148800d2877e39782965f0184bf0257",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/product-top5-fit-visibility",
+      "sha": "780bab870182c64925f9e9e3680554adbe48bde8",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/product-v1-generic-hard-filter-close",
+      "sha": "b2d9d82b67f74e46bb9135f2d626fbb477acd865",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/profile-fit-regional-or-remote",
+      "sha": "83c2191e9443632bec1c6594a3eb60be9e380ee3",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/feature/search-profile-product-owner-system-engineer-20261002",
+      "sha": "13d2605cf815aa30bfc15c3d04194711b761cc41",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/analytics-engineering-title-family",
+      "sha": "f43c09a31acbc654fc9c5e9140bf6a456bd9dd09",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/census-comparison-runtime-dependency",
+      "sha": "2df44ea3b3aa035d3680b2d268777de2a1575cc3",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/census-control-connector-import-boundary",
+      "sha": "e715c2f83497bf698ca3ad536e52d8aec910e629",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/census-directory-identity-20261005",
+      "sha": "59655aa93ce628c0fedf50e4ebdec508ee2c87e1",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/census-source-evidence-20261005",
+      "sha": "c499418366db46eaa2bddbe347e5e2e557183baf",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/classic-cli-exit-contract",
+      "sha": "b25f546bc86b57560ca0d3e8a838ad8180b3c446",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/classic-runtime-liveness-recovery",
+      "sha": "28c97189a379390cb13fce3932d646283ca053c3",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/data-layers-assessment-freshness",
+      "sha": "7e9a5ea821a4662c651f45c499ca17319028c321",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/demo-actionable-truth-1.2.1",
+      "sha": "f80ccf7f1c5697187ee110dbe4e8e1185efb7afc",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/demo-frontend-1.2.4",
+      "sha": "96f2105e5d64da9c941e0addfb3033b00bf23669",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/demo-runtime-recovery-stability-1.1.24",
+      "sha": "dac3f401c9cfcd77c3d714d5c5d3e28db0085464",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/fix/f5-private-runtime-fast-forward",
+      "sha": "55f6b87b50ef6288bc0796be77810a58383de6bf",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/f5-rejection-classification-real-mails",
+      "sha": "6f7cf71c94709bd00dd93254bf9a91ccef59916a",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/f6-action-affordance-regression-1.1.3",
+      "sha": "5dda8ad2bf1b38cea3f70dae2ac86701817bfb1c",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/f6-b-installed-pymupdf-runtime",
+      "sha": "0f074881c8ee91a9a310334d38de7c80eef0522a",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/f6-bundled-codex-1.1.1",
+      "sha": "1722cd377dda81b9456c57153cf51baba1aba980",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/f6-c-exact-target-compact-picker",
+      "sha": "b292a5c242cd0583215f20afc66a12a700819853",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/f6-codex-login-origin-authority-1.1.6",
+      "sha": "58f3e8cd9d9abcaa100c5bc39a6ef920fb1c16bb",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/f6-explicit-origin-blocker",
+      "sha": "e6fa4932fbcc34391271009c0035f179469cf283",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/f6-frozen-assessment-apply-gate",
+      "sha": "4e70164655d474aeeeb30e70d0b3d4d020b1e2db",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/f6-live-revalidation-1.1.4",
+      "sha": "a1bc9379ba7523e5c6a32fc86bfdb8b4279a6f10",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/f6-live-vacancy-freshness-1.1.2",
+      "sha": "235e8d50017fc94f60a0360c8fdac5210108d40d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/f6-origin-drift-recovery",
+      "sha": "7f3c8b54c4920b6a26abb4e1912cee08b6500826",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/f6-postwrite-workspace-probe",
+      "sha": "2ed00ea7fae4416de2bfdfacd72c3a06c811a4ff",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/freeze2-pre-candidate-dev-deps",
+      "sha": "5d4396fc1e8e5669238cf78f6ff489322ef3eaba",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/jap-cloud-bootstrap-auto-control",
+      "sha": "45dffcffa297073b533c6916616fe0ee7fc8c6ea",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/jap-cloud-bootstrap-linux-control",
+      "sha": "b9cf06545a63bd6685239d8a10f6c3fc22daa8f8",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/jap-cloud-bootstrap-workflow-yaml",
+      "sha": "e52cf97c5166a952bc4f42cc8eb0d0f537c1e082",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/jap-local-runtime-readiness-proof",
+      "sha": "43df93a882018bce572a0c32863da76fb1fdf18e",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/jap-updater-no-staged-powershell",
+      "sha": "22b331537dad68dc7469426dabf8f88f9952cac7",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/origin-search-provenance-authority",
+      "sha": "b2399b37d61dcae499e61b1743f7a317811a2322",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/origin-static-asset-rejection",
+      "sha": "b7b0451a479d8915eb9210bdf03d3bf1320f4ac6",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/product-v1-json-datetime",
+      "sha": "4eca5dc54f6e20e541d1ae943add815e901b1921",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/product-v1-refill-geography-authority",
+      "sha": "98a8ab027633580967405493cddf12fc9ca2b583",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/queue-missing-origin-discovery",
+      "sha": "7e110d30b1b5010345b4567a44467d845e3fef27",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/rcc-352-canary-run-identity",
+      "sha": "2da1c28c355419451f2247416798f7bcc3649862",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/release-gate-1.2.5",
+      "sha": "7854c6fb93595f00532b8806628c898b4432d00f",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/restore-rcc-pr-validation",
+      "sha": "9bf70ac1acc127d8099bfbd93001fa09c031aab0",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/top5-geography-boundary",
+      "sha": "8e29e8b93d0b1e35b66b975fec6ee98475441ffd",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/top5-geography-contract",
+      "sha": "8e7d4bc75c70a0bcc206a96a11deff6e4da0fc47",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/top5-lazy-connector-registry",
+      "sha": "fa5f235702f47e26a00ebf0c13f870cef726dfe8",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/top5-origin-location-authority",
+      "sha": "0efc016f2956d0a2e722ee1571154416e4c16ad2",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/top5-positive-geography-authority",
+      "sha": "31b2e04af5b9b7f9e87a14f9c7aba8f6d55a2bbc",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/top5-silver-location-truth",
+      "sha": "25e959355d0f9e5830e5d9e385c527e5eb4a43b8",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/top5-use-verified-rcc-runtime",
+      "sha": "23b727b9b3ea392d6751babda0e4a2831e65bc27",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/unify-market-sensor-evidence-boundary",
+      "sha": "f09718ad4f60721c628902efeb9ba34a88ef73de",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/updater-retry-cooldown-1.1.5",
+      "sha": "f1e0f0cb01f2de0c8824cd108d726028c36ed83f",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/windows-release-version-authority",
+      "sha": "e88e20e3f66de1351f3770d08c84430bf4e2d02d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/windows-single-instance-reactivation",
+      "sha": "3b88f664757e59089f35895e721d278f5a11fdd8",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.0.62-bootstrap-home-variable",
+      "sha": "f268b38bb258316f149a3527a0f2b4d4309ec236",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.0.62-product-release-frontend-install",
+      "sha": "55847495841fc442271662b2bb45b349b40a9c05",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.0.62-release-existence-probe",
+      "sha": "06a163ebde2b394e10b324273ea1fc7c9650c720",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.0.62-runtime-source-marker",
+      "sha": "2d51beaa22770b9573780d1b944be030dedc9ba1",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.0.64-about-compatibility-display",
+      "sha": "24bd4a6b9c45a9afa061cdce3a63da5c68eede53",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.0.65-product-update-download-lock",
+      "sha": "bad4b69e96f3f053c5ab22e85d4f476712da982a",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.0.67-update-handoff-race",
+      "sha": "61f02fc1f76d9e53ca6e05f5f61fa29181a5d266",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.0.69-live-runtime-lf-hardening",
+      "sha": "03175a72d9349deff143696f1164d517464dbffe",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.2.5-full-validation",
+      "sha": "206d43a30533d8b30df454267301ae7326e721a4",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.2.5-normalize-label",
+      "sha": "f07fb5ff39d80b1f5630263c9db6c55e8f75ed83",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.2.5-zip-pass2-paths",
+      "sha": "227644cd98982b874168c175b6e0633861d36bcb",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.2.5-zip-payload-verifier",
+      "sha": "21647f4186d35a21b6629bf8f94d4478d42e9338",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.2.6-runtime-contract-bom",
+      "sha": "b98764529d05b084d82b9b712087e03f9fddd1cd",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1.2.6-version-contract-tests",
+      "sha": "7655cffecd054fec65c62ac8d4309e9ab033e8f4",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/962-docker-postgres-startup-1054",
+      "sha": "c81210e0e8a1e0c5978771263dacd652a3fc0f82",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/962-native-runtime-handoff-1053",
+      "sha": "0cc105a4660e0c9ae02de44311f7c129601ad0aa",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/962-runner-bridge-only",
+      "sha": "dab994c2928e37b686f671e245c71e8fe38a8aa5",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/970-f5-sync-truth-continuity",
+      "sha": "185e43e5856e42d1d2061649bff31a9a8d6dcffe",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/971-f5-reconcile-entrypoint",
+      "sha": "abd0921dd9fd71248e99b14f0a4ce125fb93cf0d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/972-f5-reconcile-lifecycle-guard",
+      "sha": "42c6c0c3b1cd128f3f9eb92ce404c6938d02d860",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/973-f5-reconcile-dry-run",
+      "sha": "b8e923b8e02c38bd919d7c12730bd03e9935b776",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/975-mailbox-sync-degraded-refresh",
+      "sha": "f2e5e547450736330a67058c4d569cdf168a40bd",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/977-f5-mailbox-discovery-precision",
+      "sha": "d6dc2b37a15c1adb501f234fd44aa10f45617680",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/978-f5-mailbox-fp-cleanup",
+      "sha": "d8eb6d921e8121295febd97f90edf30d51b62062",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/980-f5-hide-unsafe-mailbox-identities",
+      "sha": "4a4150b1159092fd35be0a4dcbffcd653ac74135",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/982-f5-preflight-discovery-parity",
+      "sha": "8982fa33b3b309065a14cba07b0bc16c849cc788",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/984-fi-domain-silver-linkage",
+      "sha": "423adfae9ef0878c0d5285ea0e6db0887f25f196",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/985-release-orchestration-hardening",
+      "sha": "4f39976fa8df6d5fdf361e0da4de4432894bf2cc",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/986-transactional-update-recovery",
+      "sha": "3cc185b4010cc8f4dad87b99e729cebfef988a0d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix/1035-update-cutover-atomic-recovery",
+      "sha": "95a43a13147be6c7219ada7a8ebc408df9712dea",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix-f6-auto-layout-fit-1-1-9",
+      "sha": "0fb30df13bb62fe3b89e1d05b263d7a73f831873",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix-f6-deterministic-fit-1-1-10",
+      "sha": "e57d792d9e2cd0edbd5cba55dbc9315b4e1550d8",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix-f6-layout-1-1-8",
+      "sha": "4494e2054a9c6249fe04fbec25d33530910ca17b",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix-f6-operator-findings-1-1-7",
+      "sha": "4512ccef313571e8172c1ecf70de7107d08100e9",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/fix-f6-render-parity-telemetry-1-1-12",
+      "sha": "97be05c518df5ef9039be8335f724cfed67032c2",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/bing-redirect-generic-unwrapper",
+      "sha": "54b401c1b0771b1fb587d2c6cc5cb3ce6fdec389",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/census-canonical-market-intents",
+      "sha": "93b020cc2185b0b1aa1dcb7fb65d59b8aa6cc711",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/census-comparison-comment-trigger",
+      "sha": "8f9a50cbd0bed0407b3ccb52a8c2e08f2c61d9a0",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/census-comparison-flight-authority",
+      "sha": "2de35de9e4b7f46363286f9f6a2efe63809c987b",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/census-comparison-flight-authority-rebased",
+      "sha": "4d532dedd0480fcd4302688cea8b0ecb288749be",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/census-full-search-raster",
+      "sha": "40c770f4ce7dfd765b7c3725337e2c9d3ab6207b",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/census-location-authority",
+      "sha": "4e249c7a3ce0338f0ad8e23188115f81e552eb78",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/census-raw-record-adapter",
+      "sha": "87bc0a24764097785f2edb54311f8c4be0db856f",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/census-source-access-qualification",
+      "sha": "018a250158b50dce881b42308b4904bc17f3fd1c",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/connector-saturation-primary",
+      "sha": "5ce3fd0c3484aa6e4447c42ccd7fb2e4e7cf88fe",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/domain-scoped-market-search-intent",
+      "sha": "999326c5446f94141cc6d75544064e2804198aa2",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/external-index-job-observations",
+      "sha": "4a50cf4a1220691fea1463825a161f36a29d6d6d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/external-index-site-bounded-query",
+      "sha": "20ab987613b057b7b62c4918aaace5a2c0a28417",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/freeze2/hardcut-auto-activation-authority",
+      "sha": "9362b7a45f056f018a82b8671f390277290ef76b",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/job-first-census-flight",
+      "sha": "c25a691e71f5d2efa6965291e37e00bad2b5aafa",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/job-first-employer-discovery-census",
+      "sha": "8c683fa4d37600d0b99f9181d694eff7b070afad",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/linkedin-defensive-sensor-hardening",
+      "sha": "61970751b553e08cec36fec3ea8280f67ccba23c",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/market-search-backend-independence",
+      "sha": "16ad09828ab7ad8359e2ccefb89ae1ac5a1de9e8",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/market-search-free-backend-hardening",
+      "sha": "a28ac4e244df0c00c07191d9c48ce986f3d446cf",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/market-sensor-explicit-provider-authority",
+      "sha": "e37615d8f11021bec6b46de5c0a6509bc68a133e",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/market-sensor-provider-hardcut",
+      "sha": "eab3d12f8efdc53bf32d5125d7bb4b496a122394",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/market-sensor-result-shape-diagnostics",
+      "sha": "3026f3db2a415dbf0f458685f4f3aa84af32cf4c",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/official-site-sitemap-last-deterministic",
+      "sha": "56467b8e67dbb10245ebc797c8a153a06bad3fc8",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/pre-candidate-origin-resolution",
+      "sha": "366e6463673baaaffffb4ef0a79adcdeb6413a77",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/provider-agnostic-market-sensor",
+      "sha": "d515de644873027b4877a30af033968a2cad1ec3",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/freeze2/resolved-candidate-promotion-dry-run",
+      "sha": "340aba27fa2df371d5aab0635fbbec65f8500718",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/s0-owner-trigger",
+      "sha": "3d993b20e1979c1700a19a464880126bea37966d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/s0-source-truth-baseline",
+      "sha": "95643f46879235cea2fd29d6088116697906b949",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/s1-connector-fleet-completeness",
+      "sha": "c57e469e217892856ff3bf3d4de866dcd3224300",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/s1-s2-residual-classification",
+      "sha": "fe5ffb6398619e22b4b2dab3167f00e94a4e16f6",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/search-link-shape-diagnostics",
+      "sha": "bda003401223859dd0a2355eafca47aba4b6400d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/search-url-hint-intent",
+      "sha": "9eede5d747e95a1430845f5c4c2bac04c330d2ca",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/searxng-market-search",
+      "sha": "70f7032e70cdd579eba6d032ff59710a6101b983",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/freeze2/sensor-company-evidence-expansion-review",
+      "sha": "ea255dd73991e0b4be680c398498a5a307f34838",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/freeze2/sensor-first-candidate-expansion",
+      "sha": "b181486f91120cb93a5609eea3e5e27c27b90d53",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/governance/workchat-wsl-reentry-20261022",
+      "sha": "510cf30b3101ee42bb60836e9fff0ecd88ec2313",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/hardcut/f6-gpt-6-1-sol-quality-pipeline",
+      "sha": "70bd60b3f00b1fe486b44df4ff3f5645c6093189",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/hardcut/jap-demand-v2-contract",
+      "sha": "7eec8130a2ffd308baada9edd058877b8938b39c",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/hardcut/rcc-general-pool-release-20260930",
+      "sha": "fc4cb41be2681b9292619b32899dbd28f05272c5",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/hardcut/remove-demo-authority",
+      "sha": "3edd235c93dd6627902fad1734eb8664709ff3e6",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/hardcut/remove-jap-cloud-bootstrap",
+      "sha": "172883a211925f9039012f4a629e3eee1171b07f",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/hardcut/runner-authority-audit-20261003",
+      "sha": "3d1a7294f7ac7e9b62c0ee068e4c0f76d2526161",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/hardcut/warm-pool-only",
+      "sha": "7d10b0b992fce98035b0cc78710547fd71d6ff07",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/hardcut/warm-pool-residual-proof",
+      "sha": "e7584fb679ea720a994c2998bff72e2dcda9196f",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/hardening/current-employer-connector-census-20260930",
+      "sha": "187e794a2998b373fb297da1dd9d7dc305c60c47",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/hardening/1-1-18-update-stage-singleflight",
+      "sha": "98f6b34de3f99e7c3631b12e1883f9416c0b3d75",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/hotfix/restore-demo-product-release-publisher",
+      "sha": "c0b48d0f2e5a9582d3a371876e1e1c8a8c8a948e",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/hotfix/restore-demo-product-release-publisher-v2",
+      "sha": "2c8ac72e40e592cc1efd7511c9f6896f56647971",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/infra/jap-shared-pool-direct-assignment-fence",
+      "sha": "88b0099823b02ebc1fe4a2e5644ff9e65b9c0b9e",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/infra/rcc-warm-canary-pymupdf-drift-hardcut",
+      "sha": "af5d3bacc241d4328377f3a20efd92dc148258d6",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/main",
+      "sha": "819e0df0a9ea8c92866dfdb2ac4f17acdee0d10f",
+      "github_protected": false,
+      "disposition": "CANONICAL_MAIN"
+    },
+    {
+      "ref": "refs/heads/polish/demo-navigation-and-applications",
+      "sha": "c8a8ae7689edf8bc9c51c4c61a925aac778a89d0",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/polish/demo-navigation-and-applications-v2",
+      "sha": "4aedce882afada17240e9cc22a49122839ece6a1",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/polish/demo-user-language-round2",
+      "sha": "35bbbabebc02fcb607562e1d84827cc4a390e262",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/polish/english-ui-locale",
+      "sha": "b6d4fb86f77f5eab19cedd51c9a921623f4a9a6d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/product-1-1-13-export-progress-word-quality",
+      "sha": "a87483715fc10280726793559934eeba2422fb15",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/product-1-1-14-generic-employer-origin",
+      "sha": "0d3ad2983899a717a30eba4bbea60b018ed154d9",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/product-1-1-15-generic-semantic-validation",
+      "sha": "297f2c602d1062bd1628b313612081107fc961ef",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/product-1-1-16-semantic-hardening",
+      "sha": "ce3cce8617dd77578ef1c085bb0c8e05ded8555d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/product-1-1-17-generic-vacancy-title-verification",
+      "sha": "b70da69550dc2e9f51af46fc20565f1d6992b4c3",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/proof/rcc-exact-source-linux-20261003",
+      "sha": "8f3241662505cb4008bb7a12d16bab6487901ea1",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/proof/rcc-general-pool-20261001",
+      "sha": "40c01c543b23b181de8b6fcf2138d5e3ed8a5331",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/proof/windows-release-rcc-20261003",
+      "sha": "14245767702fc7fc2c5f5f12176df15217f669e1",
+      "github_protected": false,
+      "disposition": "OPEN_PR_PRESERVE"
+    },
+    {
+      "ref": "refs/heads/proof/workchat-validation-census-handoff-20261005",
+      "sha": "28b26736830e4c2d90e2339af1ab026bc6c27f98",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/refactor/product-v1-generic-rankable-refill",
+      "sha": "e8577787bc64bf73da76c52e551b1ae4875de0bb",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/jap-1.1.22-f5-tracking",
+      "sha": "c2498c0fb867b261018c3c98ea378b473a3fa8cb",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/jap-1.1.23-f5-runtime-sync",
+      "sha": "7cb04b0a520cc8f21a6dbc3860f2cedbbdbc1466",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/jap-1.2.0-demo-stability",
+      "sha": "f1a7492cd6c5380e9982eba57a30f7ad2269eb4d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/jap-1.2.1-market-discovery",
+      "sha": "982f1511842fdfeca47a70e582147f836d54583a",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/jap-1.2.2-assessment-cohort",
+      "sha": "a32487e528aaa48de2ac6736a791d21a7b7ca473",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/jap-classic-1.1.20",
+      "sha": "e48e59c132ba03b4972f81802611d028f800647a",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/jap-classic-1.1.21",
+      "sha": "7b749a856d2fdb1c9d0a4a14552eb80b7e6601d8",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/jap-control-center-1.0.37",
+      "sha": "de87f58491fd00dcfc2ccb3b0d140f29918babc5",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/jap-control-center-1.0.38",
+      "sha": "e0a8dc2eacc65333941998de251bb31a81baaa4d",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/jap-product-v1.2.2",
+      "sha": "fc075a83d0db7db99a5b354579027659cf6e5bba",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/1.0.66-routine-updater-proof",
+      "sha": "07786e34b10a9d0461e6e07a9dab0e3c08c09bc9",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/962-v1.0.52-self-stage-proof",
+      "sha": "661d5d7998edcfd676036fe7650803891edf2c82",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/969-runtime-mailbox-sync-1055",
+      "sha": "af0fc6c65e6121fe7a18d45984da6829bbcd8822",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/974-f5-truth-continuity-1056",
+      "sha": "501b90cc7ef8727c6052bc3e501629453f6bc69c",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/976-mailbox-degraded-refresh-1057",
+      "sha": "6b7c19bcb683264c4529aaef8e694517b8bbb705",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/981-f5-precision-1058",
+      "sha": "bb122feed753b7ee0a9db71d019c6c1dbba5d8dd",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/release/983-f5-preflight-parity-1059",
+      "sha": "de561638d50953fec16b5ad2089f5006a05a3ceb",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/tmp/jap-lockgen-final",
+      "sha": "d8d2f50ed783afac87e9dd223400c10e20c0da8f",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/wbaa/jap-cloud-linux-bootstrap-operator",
+      "sha": "04b674c468af75bb7fd9acab9f66e8d072869c26",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/wbaa/m3-live-source-extraction-20260917",
+      "sha": "b6d99dd61ade4dff625106c2ea87a1814f5b7d96",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/wbaa/m3-source-role-diagnostic-20260917",
+      "sha": "2746b96332bcb62420ff3c25fb29b91473b03f84",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/wbaa/m3-target-static-qualifier-20260917",
+      "sha": "27a5e78fb3041eee1b1f3964676f62d1db82a067",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    },
+    {
+      "ref": "refs/heads/wbaa/m3-v13-live-source-extraction-20260917",
+      "sha": "c1633674ecf0bc4c8b68dba62bebee3f8f9b3e72",
+      "github_protected": false,
+      "disposition": "PRESERVE_PENDING_HARVEST_PROOF"
+    }
+  ]
+}
