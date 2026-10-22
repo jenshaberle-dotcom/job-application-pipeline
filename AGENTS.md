@@ -34,7 +34,7 @@
 
 ## Current handoff
 
-PR #1173, source 442ab273cb913d81c0cf196e6ed0faead8441352; 14 October 21 local commits have been recovered and pushed. Three untracked Launcher source files remain in the WSL recovery worktree.
+PR #1173, source a9aaa58684bba398e32970fcb6596a57093815c3: 14 rescued commits, 3 additional Windows Launcher source files and a mode-only cleanup are now published and exact GitHub ref verified. The approved detached WSL recovery worktree is at the predecessor de35de62; preserve it and backups until future qualified handoff. Windows PowerShell/.NET native tests and signed launcher provenance are NOT accepted.
 
 Active operator decision restored Classic Connector Factory and job delivery; the September 30 Cloud-only freeze #1154 is superseded. Pipeline candidate daily budget is 20 new/retry firms plus 50 active sources; a retained backlog is not dropped. The code does not itself prove productive job ingest or UI projection. Avoid introducing a second timer: compare Runtime #399 with the RCC occurrence authority.
 
