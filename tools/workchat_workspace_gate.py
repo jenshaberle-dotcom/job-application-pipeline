@@ -57,6 +57,16 @@ def restart_admits(snapshot: dict, phase: str) -> bool:
     return snapshot.get("state") == "PASS" and admission.get("normal_new_project_mutation_blocked") is False
 
 
+def within_worktree(root: Path, allowed_root: Path) -> bool:
+    """Exact resolved ancestor, never a textual path-prefix match."""
+    return root != allowed_root and allowed_root in root.parents
+
+
+def cwd_is_in_repo(root: Path) -> bool:
+    here = Path.cwd().resolve()
+    return here == root or root in here.parents
+
+
 def verify(phase: str) -> dict[str, str]:
     release = Path("/proc/sys/kernel/osrelease")
     require(sys.platform.startswith("linux") and release.is_file()
@@ -84,6 +94,9 @@ def verify(phase: str) -> dict[str, str]:
     require(root == Path(git(root, "rev-parse", "--show-toplevel")).resolve(),
             "EXECUTION_OUTSIDE_GIT_ROOT")
 
+    if phase != "inspect":
+        require(cwd_is_in_repo(root), "CURRENT_DIRECTORY_OUTSIDE_WORKTREE")
+
     for folder in (canonical, root):
         require(accepted_origin(git(folder, "config", "--get", "remote.origin.url"), full_name),
                 "ORIGIN_IDENTITY_MISMATCH")
@@ -93,7 +106,7 @@ def verify(phase: str) -> dict[str, str]:
             "CANONICAL_MAIN_STALE")
 
     if phase != "inspect":
-        require(root != canonical and allowed_root in root.parents,
+        require(root != canonical and within_worktree(root, allowed_root),
                 "MUTATION_OUTSIDE_DECLARED_WSL_WORKTREE")
         expected = "worktree " + str(root)
         registered = git(canonical, "worktree", "list", "--porcelain").splitlines()
