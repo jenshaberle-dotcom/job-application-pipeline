@@ -42,6 +42,10 @@ The single cross-repository inventory and opt-in containment probe is maintained
 
 The checked-in Worktree gate and host-probe scripts have **source-level isolated regression evidence**: 5/5 for the shared guard in all three PRs, plus 5/5 for the RCC host probe, each with byte-for-byte Git blob SHA confirmation. These are not native WSL/Windows/Work isolation evidence; actual host security remains **UNVERIFIED**.
 
+## Native GitHub delete-on-merge setting — pending administrative execution
+
+The existing portfolio policy requires `delete_branch_on_merge=true` independently on each of the three repositories. Current API readback on 22 October was `false`. The sole bounded helper, [`RCC tools/linux/Set-PortfolioDeleteOnMerge.sh`](https://github.com/jenshaberle-dotcom/Runner-Control-Center---RCC/blob/governance/workchat-wsl-reentry-20261022/tools/linux/Set-PortfolioDeleteOnMerge.sh), accepts `--inspect` (GET only) or explicit `--apply` (PATCH only these three repo settings, then exact readback). Syntax qualified in an isolated shell; **admin application NOT executed** by the current GitHub connector. It does not merge, delete any branch, or prove native automatic post-merge absence. Do not report lifecycle complete before a normal qualified PR merge actually demonstrates deletion and absence.
+
 ## Outstanding Work containment qualification
 
 - The repository gate refuses writes **when invoked** outside WSL declared paths; `AGENTS.md` supplies agent admission guidance.
