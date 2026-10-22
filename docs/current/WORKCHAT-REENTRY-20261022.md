@@ -5,7 +5,7 @@ Canonical ref and repository identity are defined by `PROJECT-REENTRY.json` on `
 
 ## Current slices / exact source evidence
 
-PR #1173, source 442ab273cb913d81c0cf196e6ed0faead8441352; 14 October 21 local commits have been recovered and pushed. Three untracked Launcher source files remain in the WSL recovery worktree.
+PR #1173, source a9aaa58684bba398e32970fcb6596a57093815c3: 14 rescued commits, 3 Windows Launcher source files and a follow-up file-mode normalization are on GitHub, exact remote ref read back. The WSL recovery checkout is detached at the predecessor de35de62, with no uncommitted sources; preserve archives and verify host before any cleanup. Launcher remains a source-only candidate pending Windows .NET/PowerShell, signature/trusted-manifest, headless and update-handoff checks.
 
 ## Risks, evidence and constraints
 
