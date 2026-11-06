@@ -114,3 +114,45 @@ def test_search_result_cannot_authorize_portal():
     )
     assert result["companies"][0]["verified_portals"] == 0
     assert result["summary"]["factory_extracted"] == 0
+
+
+def test_ambiguous_census_websites_require_review():
+    census, openjobs, boards, catalog, captures = inputs()
+    census["candidates"][0]["websites"] = [
+        "https://alpha.example", "https://unrelated.example",
+    ]
+    result = analyze(census, openjobs, boards, catalog, get=replay_getter(captures))
+    alpha = result["companies"][0]
+    assert alpha["website"] == ""
+    assert alpha["verified_portals"] == 0
+    assert alpha["website_evidence"] == "AMBIGUOUS_CENSUS_WEBSITES"
+
+
+def test_search_not_charged_when_official_ats_link_is_verified():
+    census, openjobs, boards, catalog, captures = inputs()
+    visited = []
+
+    def search(name):
+        visited.append(name)
+        return []
+
+    result = analyze(census, openjobs, boards, catalog,
+                     get=replay_getter(captures), search=search)
+    alpha = result["companies"][0]
+    assert alpha["status"] == "EXTRACTED"
+    assert alpha["search_attempted"] is False
+    assert "Alpha Analytics GmbH" not in visited
+
+
+def test_unmeasured_portal_gap_is_not_reported_as_zero_or_full():
+    census, openjobs, boards, catalog, _ = inputs()
+    result = analyze(census, openjobs, boards, catalog)
+    assert result["summary"]["long_tail_portal_gap"] is None
+    assert result["summary"]["long_tail_factory_gap"] is None
+
+
+def test_tenantless_vendor_root_cannot_authorize_any_ats_board():
+    assert not related(
+        "https://boards.greenhouse.io/",
+        "https://boards.greenhouse.io/alphapoc/jobs/99",
+    )
