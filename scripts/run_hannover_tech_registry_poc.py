@@ -153,7 +153,11 @@ def emit(result: dict, output: Path) -> None:
     )
     for filename, rows in (
         ("companies.csv", result["companies"]),
-        ("long_tail.csv", [r for r in result["companies"] if r["verified_portals"] == 0]),
+        ("registry_gap.csv", [r for r in result["companies"]
+                              if r["registry_matches"] == 0]),
+        ("long_tail.csv", [r for r in result["companies"]
+                           if r["verified_portals"] == 0]
+         if result["live_evidence_checked"] else []),
     ):
         with (output / filename).open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=columns)
@@ -192,7 +196,6 @@ def emit(result: dict, output: Path) -> None:
         ("factory_recipe_built", "Factory-Rezept erstellt"),
         ("factory_extracted", "Factory-Live/Replay-Extraktion erfolgreich"),
         ("employers_with_target_role_jobs", "Arbeitgeber mit Titel-Treffern auf Zielrollen"),
-        ("target_role_jobs_observed", "Stellen mit Zielrollen-Titel-Treffern"),
         ("long_tail_registry_gap", "Ohne Registertreffer"),
         ("long_tail_portal_gap", "Ohne verifiziertes Portal"),
         ("long_tail_factory_gap", "Verifiziert, aber kein E2E-Extraktionserfolg"),
@@ -200,6 +203,11 @@ def emit(result: dict, output: Path) -> None:
         value = summary[key]
         lines.append(f"| {label} | {value if value is not None else 'n/a'} | "
                      f"{percentage(value, total) if value is not None else 'n/a'} |")
+    lines.append("")
+    lines.append(
+        f"- Stellen mit Zielrollen-Titel-Treffern: {summary['target_role_jobs_observed']}"
+        " (Jobanzahl, keine Arbeitgeber-Quote; keine persönliche Fit-Bewertung)"
+    )
     lines.extend([
         "",
         "## Abdeckung je Teilpopulation",
@@ -229,14 +237,16 @@ def emit(result: dict, output: Path) -> None:
         "## Long Tail (erste 30 Firmen)",
         "",
     ])
-    gaps = [r for r in result["companies"] if r["verified_portals"] == 0]
+    gaps = ([r for r in result["companies"] if r["verified_portals"] == 0]
+            if result["live_evidence_checked"] else [])
     lines += [f"- {row['company_name']}: {row['status']} ({row['website_evidence']})"
               for row in gaps[:30]]
     (output / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(json.dumps({
         "mode": result["evidence_mode"], "total": total, "summary": summary,
         "files": [str(output / f) for f in
-                  ("report.json", "report.md", "companies.csv", "long_tail.csv")],
+                  ("report.json", "report.md", "companies.csv",
+                   "registry_gap.csv", "long_tail.csv")],
     }, ensure_ascii=False, indent=2))
 
 
