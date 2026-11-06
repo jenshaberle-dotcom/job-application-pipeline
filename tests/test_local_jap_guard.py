@@ -102,6 +102,7 @@ class GateTests(unittest.TestCase):
         git(self.repo,'switch','-q','main')
         for name in ('job-application-pipeline','job-pipeline-runtime'):
             (self.out/f'{name}-backup.json').write_text('{"remote_verified":true}')
+        tool.plan_snapshot(self.repo, tool.CLASSIC, self.out)
         prev=tool.TESTS
         tool.TESTS=('tests/test_dummy.py',)
         try:
@@ -113,6 +114,32 @@ class GateTests(unittest.TestCase):
         applied=tool.apply_poc(self.repo,self.out)
         self.assertEqual(applied['status'],'applied_locally_not_pushed')
         self.assertTrue((self.repo/'tests'/'test_dummy.py').exists())
+
+    def test_staged_poc_includes_reviewed_uncommitted_source(self):
+        git(self.repo,'switch','-q','-c',tool.POC)
+        (self.repo/'tests').mkdir()
+        (self.repo/'tests'/'test_dummy.py').write_text('def test_hello(): assert True\n')
+        git(self.repo,'add','tests/test_dummy.py')
+        git(self.repo,'commit','-qm','PoC test')
+        git(self.repo,'push','-q','origin',tool.POC)
+        git(self.repo,'switch','-q','main')
+        (self.repo/'src'/'thing.py').write_text('uncommitted=1\n')
+        tool.plan_snapshot(self.repo, tool.CLASSIC, self.out)
+        for name in ('job-application-pipeline','job-pipeline-runtime'):
+            (self.out/f'{name}-backup.json').write_text('{"remote_verified":true}')
+        previous=tool.TESTS
+        tool.TESTS=('tests/test_dummy.py',)
+        try:
+            receipt=tool.stage_poc(self.repo, self.out)
+        finally:
+            tool.TESTS=previous
+        self.assertTrue(receipt['local_source_overlay']['overlay_created'])
+        self.assertEqual(receipt['status'],'staged_tested_not_applied')
+        staged=Path(receipt['worktree_path'])
+        self.assertEqual((staged/'src'/'thing.py').read_text(),'uncommitted=1\n')
+        self.assertEqual((self.repo/'src'/'thing.py').read_text(),'uncommitted=1\n')
+        with self.assertRaisesRegex(tool.GateError,'clean'):
+            tool.apply_poc(self.repo,self.out)
 
     def test_apply_rejects_dirty_worktree(self):
         (self.out/'integration-receipt.json').write_text(json.dumps({
