@@ -77,10 +77,10 @@ class GateTests(unittest.TestCase):
         self.assertEqual(len(git(self.remote,'rev-list','--all','--max-count=1').splitlines()),1)
 
     def test_backup_refuses_missing_or_stale_review_plan(self):
-        with self.assertRaisesRegex(tool.GateError, 'Run \\'plan\\''):
+        with self.assertRaisesRegex(tool.GateError, "Run 'plan'"):
             tool.backup(self.repo, 'test/repo', self.out)
         tool.plan_snapshot(self.repo, 'test/repo', self.out)
-        (self.repo/'src'/'thing.py').write_text('changed=1\\n')
+        (self.repo/'src'/'thing.py').write_text("changed=1\n")
         with self.assertRaisesRegex(tool.GateError, 'changed since'):
             tool.backup(self.repo, 'test/repo', self.out)
         self.assertFalse((self.out/'repo-backup.json').exists())
