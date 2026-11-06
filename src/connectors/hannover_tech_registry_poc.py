@@ -157,9 +157,9 @@ def population(census: dict) -> list[dict]:
             continue
         company_key = str(record.get("company_key") or "").strip().casefold()
         if not company_key or not record.get("company_name"):
-            raise ValueError("h-h-tech_identity_missing")
+            raise ValueError("hannover_tech_identity_missing")
         if company_key in rows:
-            raise ValueError("h-h-tech_duplicate_company_key")
+            raise ValueError("hannover_tech_duplicate_company_key")
         rows[company_key] = record
     if not rows:
         raise ValueError("no_hannover_tech_membership_found_fail_closed")
@@ -402,7 +402,7 @@ def _factory_e2e(row: dict, candidate: dict, catalog: dict,
             else AcquisitionResponse(url, get(url).status, get(url).body)
         ))
         return {
-            "status": "LIVE_EXTRACTION_PASS",
+            "status": "EXTRACTION_PASS",
             "recipe_id": result["recipe_id"],
             "definition_status": result["definition_status"],
             "definition_proof_id": result["qualification_proof_id"],
@@ -482,7 +482,7 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
                                 **_factory_e2e(row, candidate, catalog, digest, get)})
         registry_names = sorted({m["registry"] for m in matches})
         status = (
-            "LIVE_EXTRACTED" if any(f["status"] == "LIVE_EXTRACTION_PASS" for f in factory)
+            "EXTRACTED" if any(f["status"] == "EXTRACTION_PASS" for f in factory)
             else "VERIFIED_FACTORY_GAP" if verified
             else "PORTAL_CANDIDATE_UNVERIFIED" if candidates
             else "REGISTERED_WITHOUT_PORTAL" if matches
@@ -518,13 +518,13 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
             "registry_portal_candidate": count(lambda x: x["registry_portal_candidates"] > 0),
             "any_portal_candidate": count(lambda x: x["portal_candidates"] > 0),
             "verified_portal": count(lambda x: x["verified_portals"] > 0),
-            "factory_live_extracted": count(
-                lambda x: any(f["status"] == "LIVE_EXTRACTION_PASS" for f in x["factory"])),
+            "factory_extracted": count(
+                lambda x: any(f["status"] == "EXTRACTION_PASS" for f in x["factory"])),
             "long_tail_registry_gap": count(lambda x: x["registry_matches"] == 0),
             "long_tail_portal_gap": count(lambda x: x["verified_portals"] == 0),
             "long_tail_factory_gap": count(
                 lambda x: x["verified_portals"] > 0 and not any(
-                    f["status"] == "LIVE_EXTRACTION_PASS" for f in x["factory"])),
+                    f["status"] == "EXTRACTION_PASS" for f in x["factory"])),
         },
         "companies": rows,
     }
