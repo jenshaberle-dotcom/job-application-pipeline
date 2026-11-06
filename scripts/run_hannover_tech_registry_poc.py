@@ -165,7 +165,7 @@ def emit(result: dict, output: Path) -> None:
         ("registry_portal_candidate", "Register liefert Portalkandidaten"),
         ("any_portal_candidate", "Irgendein Portalkandidat"),
         ("verified_portal", "Eigentümerbezug geprüft"),
-        ("factory_live_extracted", "Factory-Rezept und Extraktion"),
+        ("factory_extracted", "Factory-Rezept und Extraktion"),
         ("long_tail_registry_gap", "Ohne Registertreffer"),
         ("long_tail_portal_gap", "Ohne verifiziertes Portal"),
         ("long_tail_factory_gap", "Verifiziert, aber kein E2E-Extraktionserfolg"),
