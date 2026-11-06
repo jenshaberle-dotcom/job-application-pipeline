@@ -172,6 +172,28 @@ def source_files(repo: Path) -> tuple[list[tuple[Path, bytes]], dict]:
     return chosen, {"eligible": len(chosen), "skipped": skipped, "bytes": size}
 
 
+def plan_snapshot(repo: Path, expected: str, output: Path) -> dict:
+    """Preview exact candidate paths and hashes; no Git writes or network calls."""
+    files, size = source_files(repo)
+    plan = {
+        "repository": expected,
+        "audit": audit_repo(repo),
+        "candidate_source_scope": size,
+        "selected_paths_sha256": {
+            path.as_posix(): hashlib.sha256(content).hexdigest()
+            for path, content in files
+        },
+        "warning": (
+            "Review every selected path before approving a push to a public "
+            "repository. Secret patterns are only a basic safety screen."
+        ),
+    }
+    target = output / (expected.split("/")[1] + "-plan.json")
+    target.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n",
+                      encoding="utf-8")
+    return {"plan": str(target), "scope": size}
+
+
 def backup(repo: Path, expected: str, output: Path) -> dict:
     audit = audit_repo(repo)
     files, size = source_files(repo)
@@ -289,7 +311,7 @@ def main() -> None:
     parser.add_argument("--classic", required=True, help="Path to live JAP Classic checkout")
     parser.add_argument("--runtime", required=True, help="Path to live JAP Runtime checkout")
     parser.add_argument("--output", default="~/jap-poc-guard", help="Receipts outside git repositories")
-    parser.add_argument("action", choices=("audit", "backup", "prepare", "apply"))
+    parser.add_argument("action", choices=("audit", "plan", "backup", "prepare", "apply"))
     parser.add_argument("--confirm", default="", help="Explicit mutation approval token")
     args = parser.parse_args()
     try:
@@ -301,6 +323,12 @@ def main() -> None:
         if args.action == "audit":
             print(json.dumps({"classic": audit_repo(classic),
                               "runtime": audit_repo(runtime)}, indent=2))
+            return
+        if args.action == "plan":
+            output.mkdir(parents=True, exist_ok=True)
+            print(json.dumps({"classic": plan_snapshot(classic, CLASSIC, output),
+                              "runtime": plan_snapshot(runtime, RUNTIME, output)},
+                             indent=2))
             return
         expected = {"backup": "BACKUP", "prepare": "BACKUP_AND_STAGE", "apply": "APPLY"}
         if args.confirm != expected[args.action]:
