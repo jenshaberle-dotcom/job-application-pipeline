@@ -7,7 +7,7 @@
       "company_name": "VGH Versicherungen",
       "geography": "REGION_HANNOVER",
       "sector": "FINANCE_INSURANCE",
-      "source_name": "Public regional sector listing / IHK",
+      "source_name": "visit-hannover:regional-sector-finance_insurance",
       "source_url": "https://www.visit-hannover.com/Hannoverweb/Wirtschaftsstandort-Hannover/Branchen%C3%BCbersicht/Finanzdienstleistungen",
       "website": "https://www.vgh.de"
     },
@@ -15,7 +15,7 @@
       "company_name": "VHV Gruppe",
       "geography": "REGION_HANNOVER",
       "sector": "FINANCE_INSURANCE",
-      "source_name": "Public regional sector listing / IHK",
+      "source_name": "visit-hannover:regional-sector-finance_insurance",
       "source_url": "https://www.visit-hannover.com/Hannoverweb/Wirtschaftsstandort-Hannover/Branchen%C3%BCbersicht/Finanzdienstleistungen",
       "website": "https://www.vhv-gruppe.de"
     },
@@ -23,7 +23,7 @@
       "company_name": "Talanx AG",
       "geography": "REGION_HANNOVER",
       "sector": "FINANCE_INSURANCE",
-      "source_name": "Public regional sector listing / IHK",
+      "source_name": "visit-hannover:regional-sector-finance_insurance",
       "source_url": "https://www.visit-hannover.com/Hannoverweb/Wirtschaftsstandort-Hannover/Branchen%C3%BCbersicht/Finanzdienstleistungen",
       "website": "https://www.talanx.com"
     },
@@ -31,7 +31,7 @@
       "company_name": "Hannover Rück",
       "geography": "REGION_HANNOVER",
       "sector": "FINANCE_INSURANCE",
-      "source_name": "Public regional sector listing / IHK",
+      "source_name": "visit-hannover:regional-sector-finance_insurance",
       "source_url": "https://www.visit-hannover.com/Hannoverweb/Wirtschaftsstandort-Hannover/Branchen%C3%BCbersicht/Finanzdienstleistungen",
       "website": "https://www.hannover-re.com"
     },
@@ -39,7 +39,7 @@
       "company_name": "NORD/LB",
       "geography": "REGION_HANNOVER",
       "sector": "FINANCE_INSURANCE",
-      "source_name": "Public regional sector listing / IHK",
+      "source_name": "visit-hannover:regional-sector-finance_insurance",
       "source_url": "https://www.visit-hannover.com/Hannoverweb/Wirtschaftsstandort-Hannover/Branchen%C3%BCbersicht/Finanzdienstleistungen",
       "website": "https://www.nordlb.de"
     },
@@ -47,7 +47,7 @@
       "company_name": "Sparkasse Hannover",
       "geography": "REGION_HANNOVER",
       "sector": "FINANCE_INSURANCE",
-      "source_name": "Public regional sector listing / IHK",
+      "source_name": "visit-hannover:regional-sector-finance_insurance",
       "source_url": "https://www.visit-hannover.com/Hannoverweb/Wirtschaftsstandort-Hannover/Branchen%C3%BCbersicht/Finanzdienstleistungen",
       "website": "https://www.sparkasse-hannover.de"
     },
@@ -55,7 +55,7 @@
       "company_name": "Finanz Informatik",
       "geography": "REGION_HANNOVER",
       "sector": "PUBLIC_IT",
-      "source_name": "Public regional sector listing / IHK",
+      "source_name": "visit-hannover:regional-sector-public_it",
       "source_url": "https://www.visit-hannover.com/Hannoverweb/Wirtschaftsstandort-Hannover/Branchen%C3%BCbersicht/Informationstechnologie",
       "website": "https://www.f-i.de"
     },
@@ -63,7 +63,7 @@
       "company_name": "enercity AG",
       "geography": "REGION_HANNOVER",
       "sector": "ENERGY",
-      "source_name": "Public regional sector listing / IHK",
+      "source_name": "visit-hannover:regional-sector-energy",
       "source_url": "https://www.visit-hannover.com/Hannoverweb/Wirtschaftsstandort-Hannover/Branchen%C3%BCbersicht/Energiewirtschaft",
       "website": "https://www.enercity.de"
     },
@@ -71,15 +71,15 @@
       "company_name": "Continental AG",
       "geography": "REGION_HANNOVER",
       "sector": "AUTOMOTIVE",
-      "source_name": "Public regional sector listing / IHK",
+      "source_name": "visit-hannover:regional-sector-automotive",
       "source_url": "https://www.visit-hannover.com/Presse/Pressetexte-Hannover-nach-Themen/Hannover-Texte/Wirtschaft",
       "website": "https://www.continental.com"
     },
     {
       "company_name": "TUI Group",
       "geography": "REGION_HANNOVER",
-      "sector": "LOGISTICS",
-      "source_name": "Public regional sector listing / IHK",
+      "sector": "TRAVEL_TOURISM",
+      "source_name": "visit-hannover:regional-sector-travel_tourism",
       "source_url": "https://www.visit-hannover.com/Presse/Pressetexte-Hannover-nach-Themen/Hannover-Texte/Wirtschaft",
       "website": "https://www.tuigroup.com"
     },
@@ -87,17 +87,26 @@
       "company_name": "Medizinische Hochschule Hannover",
       "geography": "REGION_HANNOVER",
       "sector": "HEALTH",
-      "source_name": "Public regional sector listing / IHK",
-      "source_url": "https://www.ihk.de/blueprint/servlet/resource/blob/5306012/237f0017ff8810696ee71d2d73a9cbc2/top-100-unternehmen-data.pdf",
+      "source_name": "visit-hannover:regional-sector-health",
+      "source_url": "https://www.visit-hannover.com/Hannoverweb/Wirtschaftsstandort-Hannover/Branchen%C3%BCbersicht/Gesundheitswirtschaft",
       "website": "https://www.mhh.de"
     },
     {
-      "company_name": "AOK Niedersachsen",
+      "company_name": "Leibniz Universität Hannover",
       "geography": "REGION_HANNOVER",
-      "sector": "HEALTH",
-      "source_name": "Public regional sector listing / IHK",
-      "source_url": "https://www.ihk.de/blueprint/servlet/resource/blob/5306012/237f0017ff8810696ee71d2d73a9cbc2/top-100-unternehmen-data.pdf",
-      "website": "https://www.aok.de/pk/niedersachsen/"
+      "sector": "SCIENCE_RESEARCH",
+      "source_name": "visit-hannover:research",
+      "source_url": "https://www.visit-hannover.com/Hannoverweb/Wirtschaftsstandort-Hannover/Branchen%C3%BCbersicht/Wissenschaft-und-Forschung",
+      "website": "https://www.uni-hannover.de"
+    },
+    {
+      "company_name": "htp GmbH",
+      "geography": "REGION_HANNOVER",
+      "sector": "ICT",
+      "source_name": "visit-hannover:it",
+      "source_url": "https://www.visit-hannover.com/Hannoverweb/Wirtschaftsstandort-Hannover/Branchen%C3%BCbersicht/Informationstechnologie",
+      "website": "https://www.htp.net"
     }
-  ]
+  ],
+  "dataset_date": "2026-11-06"
 }
