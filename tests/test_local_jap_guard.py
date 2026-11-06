@@ -44,6 +44,15 @@ class GateTests(unittest.TestCase):
         self.assertFalse(tool.is_safe(Path('scripts/token.json')))
         self.assertFalse(tool.is_safe(Path('tests/__pycache__/test.py')))
 
+    def test_plan_is_local_read_only_and_lists_candidate_hashes(self):
+        before = git(self.repo, 'status', '--porcelain=v1')
+        result = tool.plan_snapshot(self.repo, 'test/repo', self.out)
+        data = json.loads(Path(result['plan']).read_text())
+        self.assertIn('src/thing.py', data['selected_paths_sha256'])
+        self.assertIn('README.md', data['selected_paths_sha256'])
+        self.assertEqual(before, git(self.repo, 'status', '--porcelain=v1'))
+        self.assertFalse((self.out / 'repo-backup.json').exists())
+
     def test_snapshot_includes_uncommitted_code_without_touching_checkout(self):
         (self.repo/'src'/'thing.py').write_text('x=2\n')
         (self.repo/'scripts').mkdir()
