@@ -178,7 +178,7 @@ def catalog_indices(openjobs: list, boards: list) -> tuple[dict, dict]:
             "registry": "OpenJobs",
             "name": str(record["name"]),
             "website": clean_url(record.get("website")),
-            "urls": [u for u in record.get("ats_links", [])
+            "urls": [u for u in (record.get("ats_links") or [])
                      if isinstance(u, str) and clean_url(u)],
         }
         by_name.setdefault(key_of(item["name"]), []).append(item)
@@ -329,11 +329,12 @@ def _site_identity_verified(row: dict, records: list[dict],
 def _collect_site_links(row: dict, records: list[dict],
                         get: Callable[[str], Page],
                         approved: dict[str, str],
-                        search_results: list[str]) -> tuple[list[str], bool, str]:
+                        search_results: list[str]) -> tuple[list[str], bool, str, list[str]]:
     site = website(row)
     if not site:
-        return [], False, "NO_COMPANY_WEBSITE"
+        return [], False, "NO_COMPANY_WEBSITE", []
     links: set[str] = set()
+    captures: set[str] = set()
     heading = ""
     attempts = [site]
     # A search result on the corporate hostname can reveal a hidden career landing page.
@@ -349,11 +350,13 @@ def _collect_site_links(row: dict, records: list[dict],
             continue
         if response.status != 200 or host(response.url) != host(site):
             continue
+        captures.add("site-html-sha256:" + hashlib.sha256(
+            response.body.encode("utf-8")).hexdigest())
         parsed, page_heading = parse_links(response)
         heading += " " + page_heading
         links.update(parsed)
     verified, reason = _site_identity_verified(row, records, approved, heading)
-    return sorted(links), verified, reason
+    return sorted(links), verified, reason, sorted(captures)
 
 
 def _factory_e2e(row: dict, candidate: dict, catalog: dict,
@@ -381,10 +384,7 @@ def _factory_e2e(row: dict, candidate: dict, catalog: dict,
             "company_key": str(row["company_key"]).casefold(),
             "origin_url": board,
             "source_type": "employer_origin_ats_backed_career_site",
-            "evidence_ids": [
-                "verified-official-link:" + hashlib.sha256(
-                    (str(row["company_key"]) + board).encode()).hexdigest()
-            ],
+            "evidence_ids": candidate.get("evidence_ids", []),
             "fingerprint_tags": list(tags),
             "market_sensor_only": False,
         }
@@ -450,10 +450,10 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
                     "search_discovered": False,
                 })
                 entry["search_discovered"] = True
-        official_links, site_ok, site_reason = (
+        official_links, site_ok, site_reason, site_captures = (
             _collect_site_links(row, matches, get,
                                 approved_websites or {}, search_hits)
-            if get is not None else ([], False, "NOT_CHECKED_OFFLINE")
+            if get is not None else ([], False, "NOT_CHECKED_OFFLINE", [])
         )
         for link in official_links:
             canonical = board_url(link)
@@ -469,9 +469,17 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
             entry["discovered_on_official_site"] = True
         verified = []
         for entry in candidates.values():
+            ownership_links = [link for link in official_links
+                               if related(entry["board_url"], link)]
             entry["ownership_verified"] = bool(
-                site_ok and any(related(entry["board_url"], link)
-                                for link in official_links)
+                site_ok and entry["family"] != "generic" and ownership_links
+            )
+            entry["ownership_link_urls"] = ownership_links
+            entry["evidence_ids"] = (
+                ["official-career-link-sha256:" + hashlib.sha256(
+                    link.encode("utf-8")).hexdigest() for link in ownership_links]
+                + site_captures
+                if entry["ownership_verified"] else []
             )
             if entry["ownership_verified"]:
                 verified.append(entry)
