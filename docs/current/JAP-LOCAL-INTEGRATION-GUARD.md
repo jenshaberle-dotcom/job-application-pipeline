@@ -4,7 +4,7 @@ Standalone, local Python 3.12+ tool for **JAP Classic + JAP Runtime**, designed 
 
 ## Design
 
-The existing JAP Classic and Runtime checkouts remain the sources of truth. `audit` is read-only. `backup` creates one **orphan, code/docs/tests-only snapshot branch** in each GitHub repository; the snapshots contain the safe contents of tracked and unignored new source files, including uncommitted file edits. They do **not** carry the entire Git history or cover runtime databases, generated crawl data, candidate personal records or credentials. The GitHub repository might be public, so reviewing the files and backup scope before approval is essential. If source text contains apparent token/private-key patterns, backup stops before pushing. A successful push must be verified by matching the remote SHA.
+The existing JAP Classic and Runtime checkouts remain the sources of truth. `audit` is read-only. `plan` lists candidate file paths and SHA-256 checksums for operator review without networking. `backup` creates one **orphan, code/docs/tests-only snapshot branch** in each GitHub repository; the snapshots contain the safe contents of tracked and unignored new source files, including uncommitted file edits. They do **not** carry the entire Git history or cover runtime databases, generated crawl data, candidate personal records or credentials. The GitHub repository might be public, so reviewing the files and backup scope before approval is essential. If source text contains apparent token/private-key patterns, backup stops before pushing. A successful push must be verified by matching the remote SHA.
 
 `prepare` first performs both backups, then creates a new **local integration worktree** from the current JAP Classic HEAD. It fetches and merges the isolated Hannover Profile Market PoC into that separate worktree and runs three existing test modules. It does not change the original working tree. On a conflict or test failure it refuses to mark the integration as eligible for application. A passing integration receives a local `integration-receipt.json` with exact branch + commit SHA and test status.
 
@@ -23,7 +23,16 @@ python3.12 local_jap_guard.py \
 
 The `--classic` and `--runtime` paths must point to the **repository root**. Both repositories must have a GitHub `origin` that matches `jenshaberle-dotcom/job-application-pipeline` or `jenshaberle-dotcom/job-pipeline-runtime` respectively. For WSL, use Linux paths such as `/home/user/...` or `/mnt/c/...`, not Windows-style `C:\...` paths.
 
-Before remote backup, review the tool's `SAFE_DIRS`, `BAN_DIRS`, `SAFE_SUFFIX` and `SENSITIVE` rules. The default scope is source, docs, tests, examples and safe configuration text. Git-ignored data and runtime databases are intentionally not included.
+Before remote backup, run the no-network preview and review its path list:
+
+```bash
+python3.12 local_jap_guard.py \
+  --classic "$HOME/path/to/job-application-pipeline" \
+  --runtime "$HOME/path/to/job-pipeline-runtime" \
+  plan
+```
+
+Look at `~/jap-poc-guard/job-application-pipeline-plan.json` and `job-pipeline-runtime-plan.json`. No files are pushed by this command. Then review the tool's `SAFE_DIRS`, `BAN_DIRS`, `SAFE_SUFFIX` and `SENSITIVE` rules. The default scope is source, docs, tests, examples and safe configuration text. Git-ignored data and runtime databases are intentionally not included.
 
 ## One-command secure backup + staged PoC
 
