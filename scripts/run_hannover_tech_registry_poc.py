@@ -16,10 +16,24 @@ from urllib.parse import quote, urljoin, urlsplit
 import requests
 
 from src.connectors.hannover_tech_registry_poc import Page, analyze
+from src.search_intelligence.hannover_profile_market import PROFILE_SCHEMA
 
 
 def load(path: str):
     return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def load_expansion(path: str) -> dict:
+    """Directly import JSON seeds or a manually exported directory CSV."""
+    source = Path(path)
+    if source.suffix.lower() == ".csv":
+        with source.open(encoding="utf-8-sig", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        return {"schema_version": PROFILE_SCHEMA, "companies": rows}
+    payload = load(path)
+    if not isinstance(payload, dict):
+        raise ValueError("profile_market_seed_object_required")
+    return payload
 
 
 def public_https(url: str) -> None:
@@ -130,9 +144,11 @@ def emit(result: dict, output: Path) -> None:
         encoding="utf-8",
     )
     columns = (
-        "company_key", "company_name", "website", "registry_names",
-        "registry_matches", "registry_portal_candidates", "portal_candidates",
-        "verified_portals", "website_evidence", "search_attempted",
+        "company_key", "company_name", "website", "population_segment",
+        "sector_labels", "registry_names", "registry_matches",
+        "registry_portal_candidates", "portal_candidates",
+        "verified_portals", "target_role_jobs_observed",
+        "website_evidence", "search_attempted",
         "search_result_count", "status",
     )
     for filename, rows in (
@@ -157,6 +173,10 @@ def emit(result: dict, output: Path) -> None:
         f"- Hannover-TECH-Kohorte im Input: {result['full_cohort_size']}",
         f"- Tatsächlich ausgewertet: {total}",
         f"- Digest: {result['census_population_digest']}",
+        f"- Population: {result['scope']}",
+        f"- Alte TECH-Basis: {result['population_audit']['tech_baseline']}",
+        f"- Neu ergänzte Arbeitgeber: {result['population_audit']['new_profile_market_candidates']}",
+        f"- Rolle: Solution Architect / Lösungsarchitekt (zusätzlich zu bestehenden Profilen)",
         "",
         "| Messpunkt | Unternehmen | Anteil |",
         "|---|---:|---:|",
@@ -171,6 +191,8 @@ def emit(result: dict, output: Path) -> None:
         ("long_tail_registry_gap_closed", "Register-Long-Tail erfolgreich geschlossen"),
         ("factory_recipe_built", "Factory-Rezept erstellt"),
         ("factory_extracted", "Factory-Live/Replay-Extraktion erfolgreich"),
+        ("employers_with_target_role_jobs", "Arbeitgeber mit Titel-Treffern auf Zielrollen"),
+        ("target_role_jobs_observed", "Stellen mit Zielrollen-Titel-Treffern"),
         ("long_tail_registry_gap", "Ohne Registertreffer"),
         ("long_tail_portal_gap", "Ohne verifiziertes Portal"),
         ("long_tail_factory_gap", "Verifiziert, aber kein E2E-Extraktionserfolg"),
@@ -178,6 +200,21 @@ def emit(result: dict, output: Path) -> None:
         value = summary[key]
         lines.append(f"| {label} | {value if value is not None else 'n/a'} | "
                      f"{percentage(value, total) if value is not None else 'n/a'} |")
+    lines.extend([
+        "",
+        "## Abdeckung je Teilpopulation",
+        "",
+        "| Teilpopulation | Unternehmen | Registertreffer | Verifiziert | Extrahiert |",
+        "|---|---:|---:|---:|---:|",
+    ])
+    for segment, data in result["by_segment"].items():
+        verified = data["verified_portal"]
+        extracted = data["factory_extracted"]
+        lines.append(
+            f"| {segment} | {data['population']} | {data['register_company_match']} "
+            f"| {verified if verified is not None else 'n/a'} "
+            f"| {extracted if extracted is not None else 'n/a'} |"
+        )
     lines.extend([
         "",
         "## Grenzen",
@@ -209,6 +246,10 @@ def main() -> None:
     p.add_argument("--openjobs", required=True, help="OpenJobs companies_v2.json")
     p.add_argument("--boards", required=True, help="Job Board Directory JSON")
     p.add_argument("--catalog", default="contracts/connector-capability-catalog-v1.json")
+    p.add_argument(
+        "--expanded-companies",
+        help="Extra regional employer seeds (JSON or CSV): extends TECH baseline, never replaces it",
+    )
     p.add_argument("--output", default="runs/hannover-tech-registry-poc")
     p.add_argument("--approved-websites",
                    help="Optional operator-approved company_key to HTTPS website JSON")
@@ -232,6 +273,9 @@ def main() -> None:
         load(a.census), load(a.openjobs), load(a.boards), load(a.catalog),
         get=getter, approved_websites=approved,
         search=brave_search(key) if a.brave_search else None, limit=a.limit,
+        expanded_companies=(
+            load_expansion(a.expanded_companies) if a.expanded_companies else None
+        ),
     )
     result["evidence_mode"] = (
         "LIVE_PUBLIC_HTTP" if a.live else "OFFLINE_FIXTURE" if a.replay
