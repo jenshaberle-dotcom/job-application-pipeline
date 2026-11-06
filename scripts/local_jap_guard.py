@@ -197,6 +197,18 @@ def plan_snapshot(repo: Path, expected: str, output: Path) -> dict:
 def backup(repo: Path, expected: str, output: Path) -> dict:
     audit = audit_repo(repo)
     files, size = source_files(repo)
+    approved_plan = output / (expected.split("/")[1] + "-plan.json")
+    if not approved_plan.exists():
+        raise GateError("No reviewed file plan found. Run 'plan' before any backup")
+    proposed = json.loads(approved_plan.read_text(encoding="utf-8"))
+    current_hashes = {
+        relative.as_posix(): hashlib.sha256(content).hexdigest()
+        for relative, content in files
+    }
+    if (proposed.get("repository") != expected
+            or proposed.get("audit", {}).get("head") != audit["head"]
+            or proposed.get("selected_paths_sha256") != current_hashes):
+        raise GateError("Local source changed since 'plan'; review a fresh plan first")
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     branch = "backup/jap-host-source-" + timestamp + "-" + uuid4().hex[:8]
     manifest = {
