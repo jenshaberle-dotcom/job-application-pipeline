@@ -32,7 +32,7 @@ python3.12 local_jap_guard.py \
   plan
 ```
 
-Look at `~/jap-poc-guard/job-application-pipeline-plan.json` and `job-pipeline-runtime-plan.json`. No files are pushed by this command. Then review the tool's `SAFE_DIRS`, `BAN_DIRS`, `SAFE_SUFFIX` and `SENSITIVE` rules. The default scope is source, docs, tests, examples and safe configuration text. Git-ignored data and runtime databases are intentionally not included.
+Look at `~/jap-poc-guard/job-application-pipeline-plan.json` and `job-pipeline-runtime-plan.json`. No files are pushed by this command. **The following backup and prepare actions require a matching, unchanged plan for BOTH repositories; without it they stop.** Then review the tool's `SAFE_DIRS`, `BAN_DIRS`, `SAFE_SUFFIX` and `SENSITIVE` rules. The default scope is source, docs, tests, examples and safe configuration text. Git-ignored data and runtime databases are intentionally not included.
 
 ## One-command secure backup + staged PoC
 
@@ -95,6 +95,6 @@ The integration step's tests require the PoC's code and its Python dependencies.
 
 - No `git add .`, hard reset, `git clean`, force push, automatic merge to `main` or automatic alteration of active local files.
 - A GitHub push can fail due to credentials, protected branches or network connectivity; a failed backup blocks staging. If Classic succeeds but Runtime fails, the process is **partial**, and only the successful receipt should be trusted.
-- Source snapshots are **not** complete system backups. The secret detector is intentionally bounded and cannot certify absence of every kind of sensitive information. Do not use this tool to publish personal application records, production credentials, raw Gmail/ATS payloads, DB dumps or proprietary data. Review the snapshot scope before committing to a public remote.
+- If code changes after the preview, rerun `plan` and review the new manifest before `backup` or `prepare`. Source snapshots are **not** complete system backups. The secret detector is intentionally bounded and cannot certify absence of every kind of sensitive information. Do not use this tool to publish personal application records, production credentials, raw Gmail/ATS payloads, DB dumps or proprietary data. Review the snapshot scope before committing to a public remote.
 - `prepare` never overwrites or deletes local changes, even if the merge produces conflicts. `apply` requires explicit user approval after reviewing the output.
 - For sensitive or proprietary data, use an encrypted private backup destination instead of a public GitHub branch. Dataset backups require explicit review and are outside the default guard scope.
