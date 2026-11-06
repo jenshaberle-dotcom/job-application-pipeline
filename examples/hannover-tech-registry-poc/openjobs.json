@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Alpha Analytics",
+    "website": "https://alpha.example",
+    "ats_links": [
+      "https://boards.greenhouse.io/alphapoc"
+    ],
+    "industry_category": "tech"
+  },
+  {
+    "name": "Beta Robotics",
+    "website": "https://beta.example",
+    "ats_links": [],
+    "industry_category": "tech"
+  }
+]
