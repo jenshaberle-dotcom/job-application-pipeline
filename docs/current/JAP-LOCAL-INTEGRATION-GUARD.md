@@ -6,7 +6,7 @@ Standalone, local Python 3.12+ tool for **JAP Classic + JAP Runtime**, designed 
 
 The existing JAP Classic and Runtime checkouts remain the sources of truth. `audit` is read-only. `plan` lists candidate file paths and SHA-256 checksums for operator review without networking. `backup` creates one **orphan, code/docs/tests-only snapshot branch** in each GitHub repository; the snapshots contain the safe contents of tracked and unignored new source files, including uncommitted file edits. They do **not** carry the entire Git history or cover runtime databases, generated crawl data, candidate personal records or credentials. The GitHub repository might be public, so reviewing the files and backup scope before approval is essential. If source text contains apparent token/private-key patterns, backup stops before pushing. A successful push must be verified by matching the remote SHA.
 
-`prepare` first performs both backups, then creates a new **local integration worktree** from the current JAP Classic HEAD. It fetches and merges the isolated Hannover Profile Market PoC into that separate worktree and runs three existing test modules. It does not change the original working tree. On a conflict or test failure it refuses to mark the integration as eligible for application. A passing integration receives a local `integration-receipt.json` with exact branch + commit SHA and test status.
+`prepare` first performs both backups, then creates a new **local integration worktree** from the current JAP Classic HEAD. It overlays the *reviewed and backed-up current local source content* (including safe, not-yet-committed changes), commits that overlay in the isolated worktree, then merges the Hannover Profile Market PoC and runs three existing test modules. It does not change the original working tree. On a conflict or test failure it refuses to mark the integration as eligible for application. A passing integration receives a local `integration-receipt.json` with exact branch + commit SHA and test status.
 
 `apply` is an explicit optional operation. It requires a passing receipt, same source checkout, same original branch and HEAD, and a clean working tree. The update is `git merge --ff-only` of the tested local integration branch, not a direct merge into `main` or a remote push.
 
@@ -50,9 +50,10 @@ Expected sequence:
 1. Classic source-only snapshot branch pushed + exact remote SHA verified.
 2. Runtime source-only snapshot branch pushed + exact remote SHA verified.
 3. New local integration branch/worktree created from the Classic checkout's current HEAD.
-4. PoC merge performed only in that worktree.
-5. Existing Hannover registry, profile-expansion and role-staging tests run.
-6. Local receipt contains status `staged_tested_not_applied` only on test success.
+4. Reviewed local Classic source (including uncommitted code) staged and committed **only** in this worktree.
+5. PoC merge performed only in that worktree.
+6. Existing Hannover registry, profile-expansion and role-staging tests run.
+7. Local receipt contains status `staged_tested_not_applied` only on test success.
 
 Check `~/jap-poc-guard/integration-receipt.json`, `integration-tests.log`, and the `integration-*` worktree. If the tests fail, do **not** apply; inspect the log. No Docker, DB, RCC or scheduler writes are made by the guard.
 
@@ -79,7 +80,7 @@ python3.12 local_jap_guard.py \
   apply --confirm APPLY
 ```
 
-This updates the **local active branch** by verified fast-forward only. It does not push this integration to GitHub, modify Runtime, automatically register connectors or change production configurations. If Classic is still dirty, `apply` refuses; retain the staged worktree or manually commit/reconcile current changes before generating a fresh staged integration.
+This updates the **local active branch** by verified fast-forward only. It does not push this integration to GitHub, modify Runtime, automatically register connectors or change production configurations. If Classic is still dirty, `apply` refuses. The staged worktree already contains the reviewed local source changes. To make the active checkout clean, decide manually whether to preserve its remaining unstaged/ignored data in a *local-only* stash or another safe place; do not blindly reapply a stash containing code already included in the integration commit. Changing the original HEAD requires staging a fresh integration.
 
 ## Validation
 
