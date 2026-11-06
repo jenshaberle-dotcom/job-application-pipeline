@@ -1,0 +1,50 @@
+{
+  "schema_version": "jap.fresh_hannover_tech_sample.v1",
+  "note": "SYNTHETIC FIXTURE - NEVER REPORT AS REAL HANNOVER COVERAGE",
+  "candidates": [
+    {
+      "company_key": "alpha",
+      "company_name": "Alpha Analytics GmbH",
+      "website": "https://alpha.example",
+      "scope_memberships": [
+        {
+          "geography": "REGION_HANNOVER",
+          "cohort": "TECH"
+        }
+      ]
+    },
+    {
+      "company_key": "beta",
+      "company_name": "Beta Robotics GmbH",
+      "website": "https://beta.example",
+      "scope_memberships": [
+        {
+          "geography": "REGION_HANNOVER",
+          "cohort": "TECH"
+        }
+      ]
+    },
+    {
+      "company_key": "gamma",
+      "company_name": "Gamma Machines GmbH",
+      "website": "https://gamma.example",
+      "scope_memberships": [
+        {
+          "geography": "REGION_HANNOVER",
+          "cohort": "TECH"
+        }
+      ]
+    },
+    {
+      "company_key": "other",
+      "company_name": "Other Berlin GmbH",
+      "website": "https://other.example",
+      "scope_memberships": [
+        {
+          "geography": "BERLIN",
+          "cohort": "TECH"
+        }
+      ]
+    }
+  ]
+}
