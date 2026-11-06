@@ -226,3 +226,115 @@ It was authored remotely through GitHub; the author's environment had no local
 checkout or live database access to execute the suite or obtain the real Census
 artifact. Run the pytest command above before treating the demo as validated;
 then run with the real Census to obtain actual Hannover coverage figures.
+
+
+## Cross-sector Hannover PROFILE MARKET (additional scope, 2026-11-06)
+
+The initial 207 TECH candidates are **one input population**, not the total
+addressable regional employer market. The regional business-location overview
+cites approximately 1,050 establishments in IT/communication alone. These are
+**establishments**, not the same counting unit as the 207 deduplicated
+Census employer candidates; do not divide these figures into a purported
+coverage rate. The regional employer population that might employ data,
+architecture, AI or product professionals is substantially wider:
+finance/insurance, public-sector IT, energy, engineering/automotive,
+logistics, health, research, commerce and consultancies.
+
+Source for context (not an importable company register):
+https://www.visit-hannover.com/Hannoverweb/Wirtschaftsstandort-Hannover/Branchen%C3%BCbersicht/Informationstechnologie
+
+### New command: cohort union without replacing the TECH baseline
+
+Add a documented, manually obtained employer listing to the **same** run.
+JSON must have schema_version "jap.hannover_profile_employer_seeds.v1"
+and a "companies" array; alternatively import a CSV with these columns:
+
+    company_name,geography,sector,website,source_name,source_url
+
+Every row needs the exact REGION_HANNOVER geography, a sector from the
+PROFILE_MARKET_SECTORS allow-list, the company name and an HTTPS source_url.
+A claimed corporate website is **only a candidate** until verified.
+An absent or unknown employer website is legitimate, but no ATS can be
+promoted solely from the employer name.
+
+Run the 12-company **illustrative**, explicitly non-exhaustive example:
+
+    python -m scripts.run_hannover_tech_registry_poc \
+      --census /ABSOLUTE/PATH/TO/ACTUAL_HANNOVER_CENSUS.json \
+      --openjobs runs/hannover-tech-registry-poc/inputs/openjobs.json \
+      --boards runs/hannover-tech-registry-poc/inputs/boards.json \
+      --expanded-companies \
+        examples/hannover-tech-registry-poc/profile-market-expansion-hannover-example.json \
+      --output runs/hannover-tech-registry-poc/cross-sector-registers
+
+This still only performs offline **registry matching**, not live evidence
+qualification. For the live pilot, use --live --limit 20, preserving a
+**PARTIAL** label. Remove --limit only after reviewing request volume and
+the source terms of use. The output includes "by_segment":
+TECH_BASELINE and PROFILE_MARKET_ADDITION, including their independent
+denominators and cross-sector matching/verification/extraction outcomes.
+The combined denominator is *the documented import union*, **not** the
+entire Hannover employer universe. Never report the illustrative seeds as
+a complete Census. A duplicate normalized company name is merged as a
+candidate with separate source-lineage records; identical websites alone
+never merge distinct companies, since group subsidiaries may share a site.
+
+Proposed regional source portfolio:
+- Regional company discovery: hannoverimpuls Unternehmensdatenbank,
+  source page https://www.wirtschaftsfoerderung-hannover.de/de/Microsites/Unternehmensdatenbank/UDatenbank_Start.php
+- Public major employers: IHK Hannover 2024/25 largest-employers index,
+  and sector-specific Visit Hannover industry pages.
+- Market demand / external employers: existing BA, StepStone and market
+  sensors supply **observations**, never automatic employer-source authority.
+- ATS candidates: OpenJobs + Job Board Directory, plus existing website links.
+  These registers do not establish full local employer population coverage.
+
+After freezing actual list exports with URL/timestamp/hash, measure **marginal
+coverage by source** (new unique companies, ATS candidates, verified employer
+sources, Factory recipe proofs, successfully extracted job metadata). Only
+the last stages can establish connector value. An employer with no current
+vacancy still belongs to the company population.
+
+### Solution Architect / Lösungsarchitekt target role
+
+This is an **additional** target-role family, not a replacement for Data
+Engineering, Product Ownership, Systems Engineering or AI/ML roles. Title
+signals include Solution(s) Architect, Lösungsarchitekt, IT-Architekt,
+Anwendungsarchitekt, Softwarearchitekt, AI/Cloud/Integration Architect
+and Enterprise Architect. Generic "Architekt" (buildings), sales consultant
+and unrelated "cloud engineer" titles are not automatically included.
+
+The PoC's lightweight title matcher is in
+src/search_intelligence/hannover_profile_market.py. Only **actual extracted
+job titles** create a target-role observation; it does not predict that a
+company has a suitable vacancy from its industry alone. Role classification
+is deliberately distinct from candidate-fit checks for hours, remote work,
+travel and qualifications. A title match is **not** a personal job fit score.
+
+The optional SQL seed in
+db/experiments/hannover_profile_solution_architecture_seed.sql
+adds terms to existing local BA, remote BA-review and StepStone geographic
+search profiles **as inactive**, without changing existing terms. It is
+outside the migration directory, does not run with schema migrations, and
+requires explicit operator approval before execution/activation.
+No current productive search profile has been changed by this branch.
+
+### New acceptance checks
+
+    python -m pytest -q \
+      tests/test_hannover_profile_market.py \
+      tests/test_hannover_tech_registry_poc.py
+
+Expected: the old TECH sample remains unchanged, the combined sample grows
+only for new named employers, source provenance is preserved, company aliases
+deduplicate by normalized name rather than a shared vendor domain, employers
+outside REGION_HANNOVER are rejected, and IT solution-architect titles match
+without including building architects or generic sales positions.
+
+### Coverage caveat
+
+Neither the example extension nor the 207 TECH candidates prove a complete
+Hannover addressable market. To claim regional completeness would require
+defining a universe and validating population coverage against independently
+obtained complete, authorized employer lists. Until then metrics are **observed
+coverage of imported cohorts**, with documented source incompleteness.
