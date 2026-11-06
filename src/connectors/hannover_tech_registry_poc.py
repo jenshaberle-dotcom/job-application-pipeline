@@ -406,24 +406,32 @@ def _factory_e2e(row: dict, candidate: dict, catalog: dict,
         if status != "qualified_inactive":
             return {"status": "FACTORY_GAP", "disposition": status,
                     "reason": result.get("reason")}
-        plan = ats_plan(result["recipe_id"], board, api, origins, fam)
-        # Use the actual existing recipe interpreter. A successful replay-free
-        # execution is a live SMOKE proof, not a formal runtime admission.
-        jobs = execute_plan(plan, lambda url: (
-            captured if url == api
-            else AcquisitionResponse(url, get(url).status, get(url).body)
-        ))
-        return {
-            "status": "EXTRACTION_PASS",
+        definition = {
             "recipe_id": result["recipe_id"],
             "definition_status": result["definition_status"],
             "definition_proof_id": result["qualification_proof_id"],
-            "job_count": len(jobs),
-            "job_sample": [{"title": job.title, "url": job.source_url}
-                           for job in jobs[:3]],
             "persistable_definition": result.get("persistable_definition"),
             "runtime_admitted": False,
             "production_activated": False,
+        }
+        try:
+            plan = ats_plan(result["recipe_id"], board, api, origins, fam)
+            # Real existing runtime interpreter, with no production admission.
+            def read_response(url: str) -> AcquisitionResponse:
+                if url == api:
+                    return captured
+                page = get(url)
+                return AcquisitionResponse(url, page.status, page.body)
+            jobs = execute_plan(plan, read_response)
+        except (OSError, ValueError, TypeError, KeyError, RuntimeError) as error:
+            return {**definition, "status": "EXTRACTION_GAP",
+                    "reason": type(error).__name__ + ":" + str(error)[:150]}
+        return {
+            **definition,
+            "status": "EXTRACTION_PASS",
+            "job_count": len(jobs),
+            "job_sample": [{"title": job.title, "url": job.source_url}
+                           for job in jobs[:3]],
         }
     except (OSError, ValueError, TypeError, KeyError, RuntimeError) as error:
         return {"status": "EXTRACTION_GAP", "reason": type(error).__name__ +
@@ -555,6 +563,15 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
             "registry_portal_candidate": count(lambda x: x["registry_portal_candidates"] > 0),
             "any_portal_candidate": count(lambda x: x["portal_candidates"] > 0),
             "verified_portal": count(lambda x: x["verified_portals"] > 0),
+            "verified_registry_portal": count(lambda x: any(
+                candidate["ownership_verified"] and candidate["registry_sources"]
+                for candidate in x["candidates"])),
+            "delta_verified_without_registry_portal": count(lambda x:
+                x["verified_portals"] > 0 and x["registry_portal_candidates"] == 0),
+            "long_tail_registry_gap_closed": count(lambda x:
+                x["registry_matches"] == 0 and x["verified_portals"] > 0),
+            "factory_recipe_built": count(lambda x: any(
+                f.get("recipe_id") for f in x["factory"])),
             "factory_extracted": count(
                 lambda x: any(f["status"] == "EXTRACTION_PASS" for f in x["factory"])),
             "long_tail_registry_gap": count(lambda x: x["registry_matches"] == 0),
