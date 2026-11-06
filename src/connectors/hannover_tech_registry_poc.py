@@ -113,6 +113,13 @@ def website(row: dict) -> str:
         url = clean_url(row.get(field))
         if url:
             return url
+    # Actual connector_mass_census emits a list named 'websites'.
+    # Never choose arbitrarily among several corporate domains.
+    raw = row.get("websites", [])
+    if isinstance(raw, list):
+        valid = sorted({value for item in raw if (value := clean_url(item))})
+        if len(valid) == 1:
+            return valid[0]
     return ""
 
 
@@ -332,7 +339,9 @@ def _collect_site_links(row: dict, records: list[dict],
                         search_results: list[str]) -> tuple[list[str], bool, str, list[str]]:
     site = website(row)
     if not site:
-        return [], False, "NO_COMPANY_WEBSITE", []
+        reason = ("AMBIGUOUS_CENSUS_WEBSITES" if len(row.get("websites", [])) > 1
+                  else "NO_COMPANY_WEBSITE")
+        return [], False, reason, []
     links: set[str] = set()
     captures: set[str] = set()
     heading = ""
