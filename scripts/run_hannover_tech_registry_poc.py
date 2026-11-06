@@ -132,7 +132,8 @@ def emit(result: dict, output: Path) -> None:
     columns = (
         "company_key", "company_name", "website", "registry_names",
         "registry_matches", "registry_portal_candidates", "portal_candidates",
-        "verified_portals", "website_evidence", "status",
+        "verified_portals", "website_evidence", "search_attempted",
+        "search_result_count", "status",
     )
     for filename, rows in (
         ("companies.csv", result["companies"]),
@@ -165,7 +166,11 @@ def emit(result: dict, output: Path) -> None:
         ("registry_portal_candidate", "Register liefert Portalkandidaten"),
         ("any_portal_candidate", "Irgendein Portalkandidat"),
         ("verified_portal", "Eigentümerbezug geprüft"),
-        ("factory_extracted", "Factory-Rezept und Extraktion"),
+        ("verified_registry_portal", "Davon verifizierte Register-Portale"),
+        ("delta_verified_without_registry_portal", "Neu: Portal außerhalb der Register"),
+        ("long_tail_registry_gap_closed", "Register-Long-Tail erfolgreich geschlossen"),
+        ("factory_recipe_built", "Factory-Rezept erstellt"),
+        ("factory_extracted", "Factory-Live/Replay-Extraktion erfolgreich"),
         ("long_tail_registry_gap", "Ohne Registertreffer"),
         ("long_tail_portal_gap", "Ohne verifiziertes Portal"),
         ("long_tail_factory_gap", "Verifiziert, aber kein E2E-Extraktionserfolg"),
