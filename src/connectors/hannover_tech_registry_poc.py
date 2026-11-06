@@ -449,8 +449,19 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
     for row in cohort:
         matches = matches_for(row, indices)
         candidates = candidate_set(matches)
+        # First inspect the corporate website. Pay for search only if still unresolved.
+        official_links, site_ok, site_reason, site_captures = (
+            _collect_site_links(row, matches, get,
+                                approved_websites or {}, [])
+            if get is not None else ([], False, "NOT_CHECKED_OFFLINE", [])
+        )
+        has_direct_origin = site_ok and any(
+            family(link) != "generic" for link in official_links
+        )
         search_hits: list[str] = []
-        if get is not None and search is not None:
+        search_attempted = False
+        if get is not None and search is not None and not has_direct_origin:
+            search_attempted = True
             search_hits = search(str(row["company_name"]))[:10]
             for link in search_hits:
                 canonical = board_url(link)
@@ -462,11 +473,15 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
                     "search_discovered": False,
                 })
                 entry["search_discovered"] = True
-        official_links, site_ok, site_reason, site_captures = (
-            _collect_site_links(row, matches, get,
-                                approved_websites or {}, search_hits)
-            if get is not None else ([], False, "NOT_CHECKED_OFFLINE", [])
-        )
+            # Search-supplied corporate pages remain discovery only until verified.
+            if any(host(x) == host(website(row)) for x in search_hits):
+                extra, extra_ok, extra_reason, extra_captures = _collect_site_links(
+                    row, matches, get, approved_websites or {}, search_hits
+                )
+                official_links = sorted(set(official_links + extra))
+                site_captures = sorted(set(site_captures + extra_captures))
+                if extra_ok:
+                    site_ok, site_reason = True, extra_reason
         for link in official_links:
             canonical = board_url(link)
             if not canonical:
@@ -519,6 +534,8 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
             "portal_candidates": len(candidates),
             "verified_portals": len(verified),
             "website_evidence": site_reason,
+            "search_attempted": search_attempted,
+            "search_result_count": len(search_hits),
             "status": status,
             "candidates": sorted(candidates.values(), key=lambda x: x["board_url"]),
             "factory": factory,
