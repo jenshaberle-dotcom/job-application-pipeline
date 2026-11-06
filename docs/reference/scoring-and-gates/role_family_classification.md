@@ -42,6 +42,7 @@ Proposed initial role families:
 | `data_engineering` | Data engineering, data platforms, pipelines, ETL/ELT, analytics engineering |
 | `data_analytics_bi` | BI, reporting, analytics, dashboards, business intelligence |
 | `data_science_ml` | Data science, machine learning, AI, model development |
+| `solution_architecture` | IT/Lösungsarchitektur, AI/Cloud/Integration Architect, anwendungsorientiertes Architekturdesign; Titel ist noch kein persönlicher Fit | 
 | `product_ownership` | Product Owner, Product Manager, product-focused platform ownership |
 | `requirements_engineering` | Requirements engineering, requirements management, business analysis |
 | `agile_coaching` | Scrum Master, Agile Coach, ways of working |
@@ -91,6 +92,7 @@ Example rules:
 | `data engineer`, `etl`, `pipeline`, `analytics engineer` | `data_engineering` |
 | `business intelligence`, `bi`, `reporting`, `dashboard` | `data_analytics_bi` |
 | `machine learning`, `ml engineer`, `data scientist`, `ai engineer` | `data_science_ml` |
+| `solution architect`, `lösungsarchitekt`, `it-architekt`, `cloud solution architect`, `integration architect` | `solution_architecture` |
 | `product owner`, `product manager` | `product_ownership` |
 | `requirements engineer`, `requirements manager`, `business analyst` | `requirements_engineering` |
 | `scrum master`, `agile coach`, `ways of working` | `agile_coaching` |
@@ -183,3 +185,12 @@ The project should treat role family classification as a separate semantic enric
 It should not be implemented as a simple dashboard-only view.
 
 A dashboard should consume classification results after they have been produced by a transparent and testable classification step.
+
+## Isolierter Hannover-PoC (2026-11-06)
+
+Die auf dem PoC-Branch implementierte Titelklassifikation in `src/search_intelligence/hannover_profile_market.py`
+ist ein **zusätzliches Discovery-Signal**. Sie ersetzt keine produktive Silver-Relevanzprüfung
+und keine Kandidaten-Fit-Entscheidung. Ein erkannter Titel darf keine Firmenidentität,
+Jobportal-Zugehörigkeit, Remote-Eignung, Reisebereitschaft oder 35-h-Eignung suggerieren.
+Der reguläre Einsatz in BA/StepStone-Sensoren ist nicht aktiviert; eine optionale,
+inaktive SQL-Vorlage liegt unter `db/experiments/hannover_profile_solution_architecture_seed.sql`.
