@@ -52,7 +52,7 @@ PROFILE_MARKET_SECTORS = (
     "ICT", "FINANCE_INSURANCE", "ENERGY", "AUTOMOTIVE", "ENGINEERING",
     "LOGISTICS", "HEALTH", "PUBLIC_ADMINISTRATION", "PUBLIC_IT",
     "SCIENCE_RESEARCH", "RETAIL_ECOMMERCE", "CONSULTING",
-    "INDUSTRIAL", "CREATIVE_DIGITAL", "OTHER",
+    "INDUSTRIAL", "CREATIVE_DIGITAL", "TRAVEL_TOURISM", "OTHER",
 )
 
 ROLE_PATTERNS = {
@@ -157,6 +157,7 @@ def expand_hannover_market(
     additions = 0
     overlapping = 0
     source_names: Counter[str] = Counter()
+    source_sectors: Counter[str] = Counter()
     seen_source_rows: set[tuple[str, str]] = set()
     for raw in expansion["companies"]:
         if not isinstance(raw, dict):
@@ -178,6 +179,7 @@ def expand_hannover_market(
             raise ValueError("duplicate_profile_market_seed_evidence")
         seen_source_rows.add(marker)
         source_names[source_name] += 1
+        source_sectors[sector] += 1
         existing = by_name.get(key)
         evidence = {
             "source_name": source_name, "source_url": source_url,
@@ -225,6 +227,7 @@ def expand_hannover_market(
         "expanded_total": len(result),
         "source_row_count": len(seen_source_rows),
         "source_rows_by_name": dict(sorted(source_names.items())),
+        "source_rows_by_sector": dict(sorted(source_sectors.items())),
         "denominator_is_full_region_employer_census": False,
         "target_role_families": {
             family: list(terms) for family, terms in PROFILE_TARGETS.items()
