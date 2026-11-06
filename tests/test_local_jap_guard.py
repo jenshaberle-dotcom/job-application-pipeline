@@ -61,6 +61,7 @@ class GateTests(unittest.TestCase):
         (self.repo/'data'/'private.json').write_text('{"email":"not-for-github"}')
         (self.repo/'.env').write_text('PRIVATE=foo')
         before = git(self.repo,'status','--porcelain=v1')
+        tool.plan_snapshot(self.repo,'test/repo',self.out)
         result = tool.backup(self.repo,'test/repo',self.out)
         after = git(self.repo,'status','--porcelain=v1')
         self.assertEqual(before,after)
@@ -75,10 +76,19 @@ class GateTests(unittest.TestCase):
         self.assertEqual(git(self.remote,'show',branch+':src/thing.py'),'x=2')
         self.assertEqual(len(git(self.remote,'rev-list','--all','--max-count=1').splitlines()),1)
 
+    def test_backup_refuses_missing_or_stale_review_plan(self):
+        with self.assertRaisesRegex(tool.GateError, 'Run \\'plan\\''):
+            tool.backup(self.repo, 'test/repo', self.out)
+        tool.plan_snapshot(self.repo, 'test/repo', self.out)
+        (self.repo/'src'/'thing.py').write_text('changed=1\\n')
+        with self.assertRaisesRegex(tool.GateError, 'changed since'):
+            tool.backup(self.repo, 'test/repo', self.out)
+        self.assertFalse((self.out/'repo-backup.json').exists())
+
     def test_secret_blocks_before_push(self):
         (self.repo/'src'/'secret.py').write_text('secret="ghp_'+ 'A'*35+'"\n')
         with self.assertRaisesRegex(tool.GateError,'NO PUSH'):
-            tool.backup(self.repo,'test/repo',self.out)
+            tool.plan_snapshot(self.repo,'test/repo',self.out)
         self.assertFalse((self.out/'repo-backup.json').exists())
 
     def test_stage_then_apply_isolated_and_ff_only(self):
