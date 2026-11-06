@@ -1,0 +1,12 @@
+[
+  {
+    "platform": "greenhouse",
+    "token": "alphapoc",
+    "company": "alphaanalytics",
+    "board_url": "https://boards.greenhouse.io/alphapoc",
+    "api_url": "https://boards-api.greenhouse.io/v1/boards/alphapoc/jobs",
+    "open_roles": 1,
+    "count_basis": "synthetic_fixture",
+    "region": "REGION_HANNOVER"
+  }
+]
