@@ -23,7 +23,8 @@ terms(search_term) AS (
         ('IT-Architekt'),
         ('Anwendungsarchitekt'),
         ('Softwarearchitekt'),
-        ('Enterprise Architect')
+        ('Enterprise Architect'),
+        ('Technical Architect')
 )
 INSERT INTO search_terms (search_profile_id, search_term, is_active)
 SELECT sp.id, terms.search_term, FALSE
