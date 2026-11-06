@@ -64,7 +64,7 @@ Fictional Beta Robotics has a matching register record without an ATS board;
 Gamma Machines is unmatched. A Berlin-only company is excluded.
 
 Expected sample metrics: 3 Hannover TECH rows, 2 register matches,
-1 registry portal candidate, 1 verified portal and 1 extracted job in the
+1 registry portal candidate, 1 verified portal, 1 inactive Factory recipe and 1 extracted job in the
 synthetic replay. The sample does **not** establish live performance.
 
 ## 3. Real Hannover TECH coverage measurement
@@ -73,7 +73,9 @@ synthetic replay. The sample does **not** establish live performance.
 
 Use the actual accepted or freshly qualified Census JSON export containing
 the **candidates** array, company_key, company_name, TECH and region membership
-(either scope_memberships pairs or geographies / cohorts), and employer website.
+(either scope_memberships pairs or geographies / cohorts), and employer websites
+(in the actual multi-region Census, the field is a **websites array**). Multiple
+ambiguous corporate domains deliberately remain unresolved.
 Do not create names from domain fragments. Do not use the rejected October
 421-candidate parser artifact. Do not replace missing source records with a
 manual list and label them "Census".
@@ -179,8 +181,14 @@ Distinct denominators and gaps:
 - registry_portal_candidate: company has an ATS URL in matched registers.
 - verified_portal: confirmed corporate identity + observed link from that site
   to the exact career board tenant; search ranking alone never suffices.
-- factory_extracted: existing Factory recipe qualified as definition-only,
-  followed by successful extraction using the existing interpreter.
+- verified_registry_portal: confirmed portal with a corresponding register board.
+- delta_verified_without_registry_portal: additional official portals not in a
+  matched register; this is the discovery gain after register lookup.
+- long_tail_registry_gap_closed: no register company match, but a source was
+  subsequently verified via official website evidence.
+- factory_recipe_built: definition proof produced using JAP's actual catalog.
+- factory_extracted: definition followed by a successful extraction smoke test
+  using JAP's actual interpreter.
 - long_tail_registry_gap: not found in either register.
 - long_tail_portal_gap: no verified source **after evidence inspection**.
 - long_tail_factory_gap: source verified, but no successful Factory extraction.
@@ -210,3 +218,11 @@ DNS answers, but does not offer a full browser sandbox, DNS-rebinding-resistant
 transport, robots/ToS policy engine or secret-management facility. Treat it as
 operator-invoked research code, never as an autonomous broad crawler.
 
+
+### Verification status of this branch
+
+The commit includes a deterministic offline pytest suite and replay fixture.
+It was authored remotely through GitHub; the author's environment had no local
+checkout or live database access to execute the suite or obtain the real Census
+artifact. Run the pytest command above before treating the demo as validated;
+then run with the real Census to obtain actual Hannover coverage figures.
