@@ -58,6 +58,10 @@ def test_synthetic_replay_covers_registry_to_factory_to_job_metadata():
         "registry_portal_candidate": 1,
         "any_portal_candidate": 1,
         "verified_portal": 1,
+        "verified_registry_portal": 1,
+        "delta_verified_without_registry_portal": 0,
+        "long_tail_registry_gap_closed": 0,
+        "factory_recipe_built": 1,
         "factory_extracted": 1,
         "long_tail_registry_gap": 1,
         "long_tail_portal_gap": 2,
@@ -71,6 +75,7 @@ def test_synthetic_replay_covers_registry_to_factory_to_job_metadata():
     extraction = alpha["factory"][0]
     assert extraction["status"] == "EXTRACTION_PASS"
     assert extraction["definition_status"] == "PASS"
+    assert len(alpha["candidates"][0]["evidence_ids"]) >= 2
     assert len(extraction["recipe_id"]) == 64
     assert extraction["job_count"] == 1
     assert extraction["job_sample"][0]["title"] == "Data Engineer"
