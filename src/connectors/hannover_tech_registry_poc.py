@@ -277,6 +277,9 @@ def related(candidate: str, observed_link: str) -> bool:
     b = urlsplit(clean_url(observed_link))
     if not a.hostname or not b.hostname or a.hostname != b.hostname:
         return False
+    if family(candidate) != "generic" and a.path in ("", "/"):
+        # An ATS vendor root is never evidence for a specific tenant.
+        return False
     prefix = a.path.rstrip("/")
     return b.path == prefix or b.path.startswith(prefix + "/")
 
