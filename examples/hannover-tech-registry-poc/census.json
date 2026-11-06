@@ -5,45 +5,53 @@
     {
       "company_key": "alpha",
       "company_name": "Alpha Analytics GmbH",
-      "website": "https://alpha.example",
       "scope_memberships": [
         {
           "geography": "REGION_HANNOVER",
           "cohort": "TECH"
         }
+      ],
+      "websites": [
+        "https://alpha.example"
       ]
     },
     {
       "company_key": "beta",
       "company_name": "Beta Robotics GmbH",
-      "website": "https://beta.example",
       "scope_memberships": [
         {
           "geography": "REGION_HANNOVER",
           "cohort": "TECH"
         }
+      ],
+      "websites": [
+        "https://beta.example"
       ]
     },
     {
       "company_key": "gamma",
       "company_name": "Gamma Machines GmbH",
-      "website": "https://gamma.example",
       "scope_memberships": [
         {
           "geography": "REGION_HANNOVER",
           "cohort": "TECH"
         }
+      ],
+      "websites": [
+        "https://gamma.example"
       ]
     },
     {
       "company_key": "other",
       "company_name": "Other Berlin GmbH",
-      "website": "https://other.example",
       "scope_memberships": [
         {
           "geography": "BERLIN",
           "cohort": "TECH"
         }
+      ],
+      "websites": [
+        "https://other.example"
       ]
     }
   ]
