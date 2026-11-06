@@ -15,6 +15,9 @@ from typing import Callable
 from urllib.parse import urljoin, urlsplit
 
 from src.connectors.aggressive_factory import advance_candidate
+from src.search_intelligence.hannover_profile_market import (
+    PROFILE_TARGETS, ROLE_SCHEMA, expand_hannover_market, title_role_families,
+)
 from src.connectors.connector_extraction import (
     AcquisitionResponse,
     ats_plan,
@@ -430,8 +433,18 @@ def _factory_e2e(row: dict, candidate: dict, catalog: dict,
             **definition,
             "status": "EXTRACTION_PASS",
             "job_count": len(jobs),
-            "job_sample": [{"title": job.title, "url": job.source_url}
-                           for job in jobs[:3]],
+            "target_role_job_count": sum(bool(title_role_families(job.title))
+                                         for job in jobs),
+            "target_role_family_counts": {
+                family: sum(family in title_role_families(job.title)
+                            for job in jobs)
+                for family in PROFILE_TARGETS
+            },
+            "job_sample": [
+                {"title": job.title, "url": job.source_url,
+                 "target_role_families": list(title_role_families(job.title))}
+                for job in jobs[:3]
+            ],
         }
     except (OSError, ValueError, TypeError, KeyError, RuntimeError) as error:
         return {"status": "EXTRACTION_GAP", "reason": type(error).__name__ +
@@ -442,10 +455,25 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
             *, get: Callable[[str], Page] | None = None,
             approved_websites: dict[str, str] | None = None,
             search: Callable[[str], list[str]] | None = None,
-            limit: int = 0) -> dict:
+            limit: int = 0, expanded_companies: dict | None = None) -> dict:
     if not isinstance(openjobs, list) or not isinstance(boards, list):
         raise ValueError("registry_json_arrays_required")
-    cohort = population(census)
+    baseline = population(census)
+    if expanded_companies is not None:
+        cohort, audit = expand_hannover_market(baseline, expanded_companies)
+    else:
+        cohort = baseline
+        audit = {
+            "tech_baseline": len(baseline),
+            "new_profile_market_candidates": 0,
+            "overlapping_source_records": 0,
+            "expanded_total": len(baseline),
+            "denominator_is_full_region_employer_census": False,
+            "target_role_families": {
+                family: list(terms) for family, terms in PROFILE_TARGETS.items()
+            },
+            "target_role_family_schema": ROLE_SCHEMA,
+        }
     full_count = len(cohort)
     if limit:
         if limit < 1:
@@ -537,6 +565,9 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
             "company_key": str(row["company_key"]),
             "company_name": str(row["company_name"]),
             "website": website(row),
+            "population_segment": row.get("poc_population_segment", "TECH_BASELINE"),
+            "sector_labels": row.get("poc_sector_labels", []),
+            "expansion_source_records": row.get("poc_source_records", []),
             "registry_matches": len(matches),
             "registry_names": registry_names,
             "registry_portal_candidates": sum(
@@ -554,7 +585,9 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
         return sum(bool(predicate(item)) for item in rows)
     return {
         "schema_version": SCHEMA,
-        "scope": "REGION_HANNOVER:TECH",
+        "scope": ("REGION_HANNOVER:PROFILE_MARKET"
+                  if expanded_companies is not None else "REGION_HANNOVER:TECH"),
+        "population_audit": audit,
         "census_population_digest": digest,
         "registries": {
             "openjobs_count": len(openjobs),
@@ -584,6 +617,11 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
                 f.get("recipe_id") for f in x["factory"])),
             "factory_extracted": count(
                 lambda x: any(f["status"] == "EXTRACTION_PASS" for f in x["factory"])),
+            "employers_with_target_role_jobs": count(lambda x: any(
+                f.get("target_role_job_count", 0) > 0 for f in x["factory"])),
+            "target_role_jobs_observed": sum(
+                f.get("target_role_job_count", 0)
+                for x in rows for f in x["factory"]),
             "long_tail_registry_gap": count(lambda x: x["registry_matches"] == 0),
             "long_tail_portal_gap": (count(lambda x: x["verified_portals"] == 0)
                                      if get is not None else None),
@@ -591,6 +629,24 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
                 lambda x: x["verified_portals"] > 0 and not any(
                     f["status"] == "EXTRACTION_PASS" for f in x["factory"]))
                 if get is not None else None),
+        },
+        "by_segment": {
+            segment: {
+                "population": len(members),
+                "register_company_match": sum(
+                    m["registry_matches"] > 0 for m in members),
+                "verified_portal": (sum(m["verified_portals"] > 0 for m in members)
+                                    if get is not None else None),
+                "factory_extracted": (sum(
+                    any(f["status"] == "EXTRACTION_PASS" for f in m["factory"])
+                    for m in members) if get is not None else None),
+                "employers_with_target_role_jobs": sum(
+                    any(f.get("target_role_job_count", 0) > 0 for f in m["factory"])
+                    for m in members),
+            }
+            for segment in ("TECH_BASELINE", "PROFILE_MARKET_ADDITION")
+            if (members := [row for row in rows
+                            if row["population_segment"] == segment])
         },
         "companies": rows,
     }
