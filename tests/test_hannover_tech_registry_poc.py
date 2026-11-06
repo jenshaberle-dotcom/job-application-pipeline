@@ -63,6 +63,8 @@ def test_synthetic_replay_covers_registry_to_factory_to_job_metadata():
         "long_tail_registry_gap_closed": 0,
         "factory_recipe_built": 1,
         "factory_extracted": 1,
+        "employers_with_target_role_jobs": 1,
+        "target_role_jobs_observed": 1,
         "long_tail_registry_gap": 1,
         "long_tail_portal_gap": 2,
         "long_tail_factory_gap": 0,
