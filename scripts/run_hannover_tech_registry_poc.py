@@ -171,7 +171,8 @@ def emit(result: dict, output: Path) -> None:
         ("long_tail_factory_gap", "Verifiziert, aber kein E2E-Extraktionserfolg"),
     ):
         value = summary[key]
-        lines.append(f"| {label} | {value} | {percentage(value, total)} |")
+        lines.append(f"| {label} | {value if value is not None else 'n/a'} | "
+                     f"{percentage(value, total) if value is not None else 'n/a'} |")
     lines.extend([
         "",
         "## Grenzen",
