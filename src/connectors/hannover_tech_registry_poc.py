@@ -443,6 +443,8 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
             approved_websites: dict[str, str] | None = None,
             search: Callable[[str], list[str]] | None = None,
             limit: int = 0) -> dict:
+    if not isinstance(openjobs, list) or not isinstance(boards, list):
+        raise ValueError("registry_json_arrays_required")
     cohort = population(census)
     full_count = len(cohort)
     if limit:
@@ -554,6 +556,14 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
         "schema_version": SCHEMA,
         "scope": "REGION_HANNOVER:TECH",
         "census_population_digest": digest,
+        "registries": {
+            "openjobs_count": len(openjobs),
+            "openjobs_digest": hashlib.sha256(
+                json.dumps(openjobs, sort_keys=True).encode()).hexdigest(),
+            "job_board_directory_count": len(boards),
+            "job_board_directory_digest": hashlib.sha256(
+                json.dumps(boards, sort_keys=True).encode()).hexdigest(),
+        },
         "sampled": len(cohort) != full_count,
         "full_cohort_size": full_count,
         "live_evidence_checked": get is not None,
