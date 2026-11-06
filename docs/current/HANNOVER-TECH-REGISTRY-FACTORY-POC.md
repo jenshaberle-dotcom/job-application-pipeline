@@ -173,7 +173,9 @@ Outputs are always local under --output:
   company-site links, Factory decisions and up to 3 extracted job examples.
 - report.md: rollup rates and first 30 unresolved company names.
 - companies.csv: one row per employer for diff/quality review.
-- long_tail.csv: unresolved or not-yet-verified sources.
+- registry_gap.csv: all imported employers with no matched company directory.
+- long_tail.csv: unverified portals after a live/replay check; empty for
+  registry-only runs because portal verification has not yet been measured.
 
 Distinct denominators and gaps:
 
@@ -257,7 +259,7 @@ A claimed corporate website is **only a candidate** until verified.
 An absent or unknown employer website is legitimate, but no ATS can be
 promoted solely from the employer name.
 
-Run the 12-company **illustrative**, explicitly non-exhaustive example:
+Run the 13-company **illustrative**, explicitly non-exhaustive example:
 
     python -m scripts.run_hannover_tech_registry_poc \
       --census /ABSOLUTE/PATH/TO/ACTUAL_HANNOVER_CENSUS.json \
@@ -338,3 +340,17 @@ Hannover addressable market. To claim regional completeness would require
 defining a universe and validating population coverage against independently
 obtained complete, authorized employer lists. Until then metrics are **observed
 coverage of imported cohorts**, with documented source incompleteness.
+
+### Reference-source sanity check (not a coverage denominator)
+
+Visit Hannover publishes approximately 1,050 IT/communication **establishments**
+in the region; this is not the same unit as 207 company identities from the
+historical TECH experiment. The difference motivates broader source discovery,
+not a mathematically valid ratio. Likewise, publicly reported companies in
+finance, insurance, energy, logistics, health and education must not be counted
+as having appropriate jobs until independently observed vacancy records say so.
+
+For personal relevance, the existing downstream job-fit gates still need
+actual evidence on remote/hybrid work, workplace/commute, working hours,
+travel share, role content and qualifications. This PoC intentionally stops
+at job-metadata extraction and role-title discovery signals.
