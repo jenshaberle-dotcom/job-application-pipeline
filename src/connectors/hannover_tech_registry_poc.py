@@ -575,6 +575,8 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
             "portal_candidates": len(candidates),
             "verified_portals": len(verified),
             "website_evidence": site_reason,
+            "target_role_jobs_observed": sum(
+                f.get("target_role_job_count", 0) for f in factory),
             "search_attempted": search_attempted,
             "search_result_count": len(search_hits),
             "status": status,
