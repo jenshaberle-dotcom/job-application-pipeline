@@ -347,7 +347,7 @@ def _collect_site_links(row: dict, records: list[dict],
             response = get(url)
         except (OSError, ValueError, RuntimeError):
             continue
-        if response.status != 200:
+        if response.status != 200 or host(response.url) != host(site):
             continue
         parsed, page_heading = parse_links(response)
         heading += " " + page_heading
@@ -521,10 +521,12 @@ def analyze(census: dict, openjobs: list, boards: list, catalog: dict,
             "factory_extracted": count(
                 lambda x: any(f["status"] == "EXTRACTION_PASS" for f in x["factory"])),
             "long_tail_registry_gap": count(lambda x: x["registry_matches"] == 0),
-            "long_tail_portal_gap": count(lambda x: x["verified_portals"] == 0),
-            "long_tail_factory_gap": count(
+            "long_tail_portal_gap": (count(lambda x: x["verified_portals"] == 0)
+                                     if get is not None else None),
+            "long_tail_factory_gap": (count(
                 lambda x: x["verified_portals"] > 0 and not any(
-                    f["status"] == "EXTRACTION_PASS" for f in x["factory"])),
+                    f["status"] == "EXTRACTION_PASS" for f in x["factory"]))
+                if get is not None else None),
         },
         "companies": rows,
     }
