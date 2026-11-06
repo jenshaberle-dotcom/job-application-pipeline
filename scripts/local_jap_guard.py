@@ -251,6 +251,48 @@ def backup(repo: Path, expected: str, output: Path) -> dict:
     return receipt
 
 
+def overlay_uncommitted_source(classic: Path, worktree: Path, output: Path) -> dict:
+    """Replay reviewed current source bytes in stage worktree, never live checkout."""
+    files, scope = source_files(classic)
+    plan_path = output / "job-application-pipeline-plan.json"
+    if not plan_path.exists():
+        raise GateError("Missing reviewed Classic plan for integration overlay")
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    current_hashes = {
+        path.as_posix(): hashlib.sha256(body).hexdigest()
+        for path, body in files
+    }
+    if plan.get("selected_paths_sha256") != current_hashes:
+        raise GateError("Classic source changed since reviewed snapshot: stage aborted")
+    selected = set(current_hashes)
+    for relative, body in files:
+        destination = worktree / relative
+        if destination.is_symlink() or not destination.resolve().is_relative_to(worktree):
+            raise GateError("Unsafe target in integration worktree")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(body)
+        # Honor executable files (launch scripts etc.) without copying ownership.
+        destination.chmod((classic / relative).stat().st_mode & 0o777)
+    for path in git(classic, "ls-files", "--cached", "-z").split("\x00"):
+        if not path:
+            continue
+        relative = Path(path)
+        original = classic / relative
+        destination = worktree / relative
+        if (is_safe(relative) and not original.exists()
+                and not destination.is_symlink() and destination.is_file()
+                and destination.resolve().is_relative_to(worktree)):
+            destination.unlink()
+    git(worktree, "add", "--all", "--force")
+    changed = bool(git(worktree, "status", "--porcelain=v1"))
+    if changed:
+        git(worktree, "-c", "user.name=JAP PoC Integration", "-c",
+            "user.email=jap-integration@localhost", "commit", "-qm",
+            "Stage reviewed local source files from active Classic checkout")
+    return {"overlay_created": changed, "selected_files": scope["eligible"],
+            "overlay_sha": git(worktree, "rev-parse", "HEAD") if changed else None}
+
+
 def stage_poc(classic: Path, output: Path) -> dict:
     baseline = audit_repo(classic)
     classic_receipt = output / "job-application-pipeline-backup.json"
@@ -265,10 +307,12 @@ def stage_poc(classic: Path, output: Path) -> dict:
     branch = "integration/hannover-profile-poc-" + slug
     worktree = output / ("integration-" + slug)
     git(classic, "worktree", "add", "-b", branch, str(worktree), baseline["head"])
+    overlay = overlay_uncommitted_source(classic, worktree, output)
     receipt = {"status": "not_validated", "source_path": str(classic),
                "base_branch": baseline["branch"], "base_sha": baseline["head"],
                "integration_branch": branch, "worktree_path": str(worktree),
-               "poc_ref": POC, "integration_sha": None, "tests_passed": False}
+               "poc_ref": POC, "integration_sha": None, "tests_passed": False,
+               "local_source_overlay": overlay}
     try:
         git(worktree, "merge", "--no-ff", "--no-commit", "refs/remotes/origin/" + POC)
     except GateError as exc:
