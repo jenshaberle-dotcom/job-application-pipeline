@@ -136,3 +136,39 @@ zufällig nur den alphabetisch ersten Firmen.
 Pilotdaten reichen nicht für einen statistisch engen Nachweis von 98 %
 Precision. Die 30 Firmen sind ein Machbarkeits- und Fehleranalyseversuch;
 für ein Produktions-Gate ist ein größerer blind geprüfter Holdout nötig.
+
+
+## Standalone UI and repository hygiene companion
+
+The separate **JAP_Browser_Scout_Standalone.zip** distributed with the
+experiment contains a local-only HTTP dashboard (Python 3.12+, no extra
+dependencies for synthetic demo), company/source/job cards, browser evidence,
+Factory status, baseline-delta metrics and JSON export. It is a companion
+artifact, **not** automatically installed in this repository.
+
+After extracting the ZIP:
+
+    cd JAP_Browser_Scout_Standalone
+    ./run.sh
+
+Open http://127.0.0.1:8765 and choose the explicitly labeled synthetic demo.
+
+For a real browser experiment, activate the Python environment of the
+*separate* experiment checkout and start:
+
+    python server.py --repo /ABSOLUTE/PATH/TO/jap-browser-agent-poc
+
+Never put API keys in UI fields; the runner reads OPENAI_API_KEY and
+BRAVE_API_KEY from the host process environment. No databases or productive
+sources are changed.
+
+The ZIP includes a Git hygiene script which is read-only by default and
+only allows reviewed, unchanged, **already merged** non-open-PR remote refs
+to be deleted. That is distinct from user-unpublished source backup; do
+not substitute it for the JAP Local Safety Guard.
+
+For the full 2026-11-08 branch/PR inventory and consolidation blockers,
+see docs/current/BRANCH_CONSOLIDATION_AUDIT_20261108.md. Both Classic and
+Runtime already have delete_branch_on_merge=true. The sole-main/sole-experiment
+branch target is **not completed** until divergent work is qualified and
+consolidated; no high-risk branch deletes or mass merges were performed.
