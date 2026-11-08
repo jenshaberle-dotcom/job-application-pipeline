@@ -28,6 +28,8 @@ from src.search_intelligence.human_browser_discovery import (
     Company, Observation, verify_portal,
 )
 from src.connectors.hannover_tech_registry_poc import population, website
+from src.search_intelligence.hannover_profile_market import expand_hannover_market
+from scripts.run_hannover_tech_registry_poc import load_expansion
 
 MAX_SEARCHES = 2
 MAX_PAGE_VISITS = 8
@@ -343,8 +345,14 @@ def read_baseline(path: str) -> dict[str, bool]:
 def input_companies(args) -> list[Company]:
     if args.census:
         raw = json.loads(Path(args.census).read_text(encoding="utf-8"))
+        rows = population(raw)
+        if args.expanded_companies:
+            rows, _audit = expand_hannover_market(
+                rows, load_expansion(args.expanded_companies))
         return [Company(str(row["company_key"]), str(row["company_name"]),
-                        website(row)) for row in population(raw)]
+                        website(row)) for row in rows]
+    if args.expanded_companies:
+        raise ValueError("--expanded-companies requires --census")
     if not args.company:
         raise ValueError("company_name_or_census_required")
     key = args.company_key or hashlib.sha256(args.company.encode()).hexdigest()[:16]
@@ -357,6 +365,8 @@ def main() -> None:
     p.add_argument("--company-key")
     p.add_argument("--website", help="Known employer website; may need confirmation")
     p.add_argument("--census", help="Actual Hannover TECH Census JSON")
+    p.add_argument("--expanded-companies",
+                   help="Cross-sector Hannover employer seed JSON/CSV; keeps original TECH baseline")
     p.add_argument("--limit", type=int, default=5, help="Explicit cap; 5 by default")
     p.add_argument("--model", default="gpt-5.4-mini")
     p.add_argument("--catalog", default="contracts/connector-capability-catalog-v1.json")
