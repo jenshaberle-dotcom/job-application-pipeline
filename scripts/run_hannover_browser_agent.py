@@ -328,10 +328,6 @@ def scout_chatgpt_plan(company: Company, search: SearchProvider,
                         output_detail = getattr(info, "output_tokens_details", None)
                         usage["cached_input_tokens"] += getattr(input_detail, "cached_tokens", 0) or 0
                         usage["reasoning_output_tokens"] += getattr(output_detail, "reasoning_tokens", 0) or 0
-            record_usage_event("response_completed", model,
-                input_tokens=response.usage.input_tokens or 0,
-                output_tokens=response.usage.output_tokens or 0,
-                cached_input_tokens=getattr(input_detail, "cached_tokens", 0) or 0)
                         record_usage_event("response_completed", model,
                             input_tokens=info.input_tokens or 0,
                             output_tokens=info.output_tokens or 0,
@@ -429,6 +425,10 @@ def scout(company: Company, search: SearchProvider, browser: BrowserSession,
             output_detail = getattr(response.usage, "output_tokens_details", None)
             usage["cached_input_tokens"] += getattr(input_detail, "cached_tokens", 0) or 0
             usage["reasoning_output_tokens"] += getattr(output_detail, "reasoning_tokens", 0) or 0
+            record_usage_event("response_completed", model,
+                input_tokens=response.usage.input_tokens or 0,
+                output_tokens=response.usage.output_tokens or 0,
+                cached_input_tokens=getattr(input_detail, "cached_tokens", 0) or 0)
         items.extend(response.output)
         calls = [v for v in response.output if v.type == "function_call"]
         if not calls:
