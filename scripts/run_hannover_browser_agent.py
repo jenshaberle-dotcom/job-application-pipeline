@@ -247,8 +247,124 @@ PROMPT = (
 )
 
 
+
+def scout_chatgpt_plan(company: Company, search: SearchProvider,
+                       browser: BrowserSession, model: str) -> dict:
+    """OAuth plan Responses: streaming JSON decisions; browser actions run locally."""
+    from openai import OpenAI
+    access = os.environ.get("JAP_SIWC_ACCESS_TOKEN", "")
+    if not access:
+        raise ValueError("ChatGPT plan OAuth token not available")
+    client = OpenAI(api_key=access, base_url="https://api.openai.com/v1",
+                    max_retries=0)
+    if company.known_website:
+        browser.allowed.add(company.known_website)
+    instructions = PROMPT + (
+        "\nReply with exactly one JSON object, no prose, each turn: "
+        '{"action":"search_web","query":"..."}, '
+        '{"action":"open_page","url":"..."}, '
+        '{"action":"nominate_portal","url":"...","reason":"..."}, '
+        'or {"action":"finish"}. '
+        "Nominate only URLs previously observed; no invented slugs or URLs. "
+        "Local tools act on decisions; model text is NEVER validation."
+    )
+    events: list[dict] = []
+    nominations: list[str] = []
+    trace: list[dict] = []
+    usage = {"input_tokens": 0, "output_tokens": 0}
+    for _ in range(MAX_MODEL_STEPS):
+        context = {
+            "company": company.name, "known_website": company.known_website,
+            "location": company.location,
+            "searches_remaining": MAX_SEARCHES - search.count,
+            "pages_remaining": MAX_PAGE_VISITS - len(browser.visited),
+            "nominations_remaining": MAX_NOMINATIONS - len(nominations),
+            "prior_actions_and_observations": events[-6:],
+        }
+        parts = []
+        completed = False
+        with client.responses.create(
+            model=model, instructions=instructions,
+            input=[{"role": "user",
+                    "content": json.dumps(context, ensure_ascii=False)}],
+            store=False, stream=True,
+        ) as stream:
+            for event in stream:
+                if event.type == "response.output_text.delta":
+                    parts.append(event.delta)
+                elif event.type == "response.failed":
+                    code = getattr(getattr(event.response, "error", None),
+                                   "code", "unknown")
+                    raise RuntimeError("ChatGPT plan response failed: " + str(code))
+                elif event.type == "response.incomplete":
+                    raise RuntimeError("ChatGPT plan response incomplete")
+                elif event.type == "response.completed":
+                    completed = True
+                    info = getattr(event.response, "usage", None)
+                    if info:
+                        usage["input_tokens"] += info.input_tokens or 0
+                        usage["output_tokens"] += info.output_tokens or 0
+        if not completed:
+            raise RuntimeError("ChatGPT plan stream ended without response.completed")
+        raw = "".join(parts).strip()
+        if raw.startswith(chr(96)*3):
+            raw = raw.split("\n", 1)[-1].rsplit(chr(96)*3, 1)[0].strip()
+        try:
+            decision = json.loads(raw)
+            if not isinstance(decision, dict):
+                raise ValueError("not_object")
+        except (ValueError, TypeError):
+            events.append({"invalid_action": "model_did_not_return_JSON"})
+            continue
+        action = str(decision.get("action", ""))
+        outcome: dict
+        if action == "search_web":
+            outcome = search.search(str(decision.get("query", "")))
+            browser.allow_search(outcome)
+        elif action == "open_page":
+            outcome = browser.inspect(str(decision.get("url", "")))
+        elif action == "nominate_portal":
+            url = str(decision.get("url", ""))
+            try:
+                require_public_https(url, resolve_dns=False)
+                if url.rstrip("/") not in {
+                        x.rstrip("/") for x in browser.allowed
+                }:
+                    raise ValueError("not_observed")
+                if len(nominations) >= MAX_NOMINATIONS:
+                    raise ValueError("nomination_budget_exhausted")
+                if url not in nominations:
+                    nominations.append(url)
+                outcome = {"status": "nomination_recorded_unverified",
+                           "url": url}
+            except (ValueError, OSError) as exc:
+                outcome = {"error": type(exc).__name__}
+        elif action == "finish":
+            break
+        else:
+            outcome = {"error": "unknown_or_unauthorized_action"}
+        trace.append({"tool": action, "input": {
+            "url": str(decision.get("url", ""))[:1000],
+            "query": str(decision.get("query", ""))[:160]},
+            "result": {k: v for k, v in outcome.items()
+                       if k not in {"page_text", "links"}}})
+        events.append({"action": action, "result": {
+            **outcome,
+            "page_text": str(outcome.get("page_text", ""))[:2000],
+            "links": outcome.get("links", [])[:30],
+        }})
+        if len(nominations) >= MAX_NOMINATIONS:
+            break
+    return {"candidates": nominations, "trace": trace,
+            "search_queries": search.queries, "model_usage": usage,
+            "visited_urls": browser.visited,
+            "denied_browser_requests": browser.denied_requests}
+
+
 def scout(company: Company, search: SearchProvider, browser: BrowserSession,
-          model: str) -> dict:
+          model: str, auth: str = "api-key") -> dict:
+    if auth == "chatgpt-plan":
+        return scout_chatgpt_plan(company, search, browser, model)
     from openai import OpenAI
     client = OpenAI()
     if company.known_website:
@@ -369,6 +485,7 @@ def main() -> None:
                    help="Cross-sector Hannover employer seed JSON/CSV; keeps original TECH baseline")
     p.add_argument("--limit", type=int, default=5, help="Explicit cap; 5 by default")
     p.add_argument("--model", default="gpt-5.4-mini")
+    p.add_argument("--auth", choices=("api-key", "chatgpt-plan"), default="api-key")
     p.add_argument("--catalog", default="contracts/connector-capability-catalog-v1.json")
     p.add_argument("--baseline-report",
                    help="Previously verified registry PoC JSON or reviewed CSV: company_key,verified_active")
@@ -378,8 +495,12 @@ def main() -> None:
     args = p.parse_args()
     if args.limit < 1 or args.limit > 30:
         p.error("--limit must be 1..30")
-    if not os.environ.get("OPENAI_API_KEY") or not os.environ.get("BRAVE_API_KEY"):
-        p.error("OPENAI_API_KEY and BRAVE_API_KEY are required; do not commit them")
+    if not os.environ.get("BRAVE_API_KEY"):
+        p.error("BRAVE_API_KEY required for Search API")
+    if args.auth == "api-key" and not os.environ.get("OPENAI_API_KEY"):
+        p.error("OPENAI_API_KEY required in separate API key mode")
+    if args.auth == "chatgpt-plan" and not os.environ.get("JAP_SIWC_ACCESS_TOKEN"):
+        p.error("ChatGPT OAuth plan token missing; use local standalone sign-in")
     companies = input_companies(args)
     baseline = {}
     if args.only_unresolved and not args.baseline_report:
@@ -405,7 +526,7 @@ def main() -> None:
         browser = BrowserSession()
         try:
             found = scout(company, SearchProvider(os.environ["BRAVE_API_KEY"]),
-                          browser, args.model)
+                          browser, args.model, auth=args.auth)
             validations = []
             for candidate in found["candidates"]:
                 try:
@@ -431,6 +552,7 @@ def main() -> None:
         (output / "report.json").write_text(json.dumps({
             "schema_version": "jap.hannover_human_browser_agent_poc.v1",
             "mode": "LIVE_PUBLIC_SEARCH_BROWSER",
+            "authentication": "CHATGPT_PLAN_OAUTH" if args.auth == "chatgpt-plan" else "OPENAI_API_KEY",
             "model": args.model, "companies": rows,
             "summary": {
                 "evaluated": len(rows),
