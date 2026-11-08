@@ -118,6 +118,7 @@ def valid_jobposting_for(company: Company, observation: Observation) -> list[dic
         title = str(job.get("title") or "").strip()
         description = str(job.get("description") or "").strip()
         organization = job.get("hiringOrganization")
+        same_as = organization.get("sameAs", "") if isinstance(organization, dict) else ""
         if isinstance(organization, dict):
             organization = organization.get("name")
         if not isinstance(organization, str):
@@ -129,7 +130,8 @@ def valid_jobposting_for(company: Company, observation: Observation) -> list[dic
                 company.name, organization)):
             continue
         matches.append({"title": title, "url": job_url,
-                        "hiring_organization": organization})
+                        "hiring_organization": organization,
+                        "hiring_organization_same_as": same_as})
     return matches
 
 
@@ -215,7 +217,7 @@ def verify_portal(company: Company, candidate: str, observations: list[Observati
     # At least one real job record is necessary for 'active'; an HTTP 200 does not count.
     if not job_evidence:
         return {
-            "status": "OFFICIAL_NO_JOB_PROOF" if official else "UNRESOLVED",
+            "status": "SOURCE_VERIFIED_JOB_UNPROVEN" if official else "UNRESOLVED",
             "origin_url": canonical, "provider": provider, "job_count": 0,
             "ownership_evidence": official, "error": error,
             "factory_status": "NOT_ATTEMPTED",
@@ -223,10 +225,20 @@ def verify_portal(company: Company, candidate: str, observations: list[Observati
 
     # A JobPosting hiringOrganization matching the requested employer is an
     # additional identity proof. A vendor API inventory alone is insufficient.
-    job_org_proven = any("hiring_organization" in item for item in job_evidence)
-    if not official and not job_org_proven:
+    corroborated_hiring_org = False
+    if company.known_website:
+        try:
+            expected = origin(company.known_website)
+            corroborated_hiring_org = any(
+                item.get("hiring_organization_same_as")
+                and origin(item["hiring_organization_same_as"]) == expected
+                for item in job_evidence if "hiring_organization_same_as" in item
+            )
+        except (ValueError, TypeError):
+            corroborated_hiring_org = False
+    if not official and not corroborated_hiring_org:
         return {
-            "status": "JOB_FOUND_OWNERSHIP_UNVERIFIED",
+            "status": "JOB_FOUND_EMPLOYER_CLAIM_UNCORROBORATED",
             "origin_url": canonical, "provider": provider,
             "job_count": len(job_evidence), "job_sample": job_evidence[:3],
             "factory_status": "NOT_ATTEMPTED",
@@ -237,7 +249,7 @@ def verify_portal(company: Company, candidate: str, observations: list[Observati
             entry, sort_keys=True).encode()).hexdigest()
         for entry in official
     ]
-    if job_org_proven:
+    if corroborated_hiring_org:
         evidence_ids.append("jobposting-employer:" + hashlib.sha256(json.dumps(
             job_evidence, sort_keys=True).encode()).hexdigest())
     result = {
