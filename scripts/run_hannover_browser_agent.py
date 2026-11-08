@@ -35,7 +35,7 @@ MAX_NOMINATIONS = 4
 MAX_LINKS = 45
 
 
-def require_public_https(url: str) -> str:
+def require_public_https(url: str, *, resolve_dns: bool = True) -> str:
     if not isinstance(url, str) or len(url) > 2000:
         raise ValueError("invalid_https_url")
     p = urlsplit(url)
@@ -45,6 +45,10 @@ def require_public_https(url: str) -> str:
     if p.hostname == "localhost" or p.hostname.endswith(
             (".local", ".internal", ".test", ".example", ".localhost")):
         raise ValueError("blocked_hostname")
+    if not resolve_dns:
+        if p.hostname.replace(".", "").isdigit():
+            raise ValueError("numeric_hostname_unapproved")
+        return url
     ips = socket.getaddrinfo(p.hostname, 443, type=socket.SOCK_STREAM)
     if not ips or any(not ipaddress.ip_address(x[4][0]).is_global for x in ips):
         raise ValueError("nonpublic_destination")
@@ -177,7 +181,7 @@ class BrowserSession:
             for link in links:
                 link_url = str(link.get("url", ""))
                 try:
-                    require_public_https(link_url)
+                    require_public_https(link_url, resolve_dns=False)
                 except (OSError, ValueError):
                     continue
                 normalized.append(link_url)
@@ -325,6 +329,10 @@ def main() -> None:
     p.add_argument("--limit", type=int, default=5, help="Explicit cap; 5 by default")
     p.add_argument("--model", default="gpt-5.4-mini")
     p.add_argument("--catalog", default="contracts/connector-capability-catalog-v1.json")
+    p.add_argument("--baseline-report",
+                   help="Previously LIVE-verified registry PoC JSON for exact-company A/B comparison")
+    p.add_argument("--only-unresolved", action="store_true",
+                   help="Only Census companies unverified in the baseline (requires --baseline-report)")
     p.add_argument("--output", default="runs/hannover-browser-agent-experiment")
     args = p.parse_args()
     if args.limit < 1 or args.limit > 30:
@@ -332,6 +340,20 @@ def main() -> None:
     if not os.environ.get("OPENAI_API_KEY") or not os.environ.get("BRAVE_API_KEY"):
         p.error("OPENAI_API_KEY and BRAVE_API_KEY are required; do not commit them")
     companies = input_companies(args)
+    baseline = {}
+    if args.only_unresolved and not args.baseline_report:
+        p.error("--only-unresolved requires --baseline-report")
+    if args.baseline_report:
+        previous = json.loads(Path(args.baseline_report).read_text(encoding="utf-8"))
+        if previous.get("live_evidence_checked") is not True:
+            p.error("Baseline must be a verified live/replay run, not registry-only")
+        baseline = {str(x["company_key"]): bool(x.get("verified_portals", 0))
+                    for x in previous.get("companies", [])}
+        if args.only_unresolved:
+            companies = [c for c in companies
+                         if c.key in baseline and baseline[c.key] is False]
+        else:
+            companies = [c for c in companies if c.key in baseline]
     catalog = json.loads(Path(args.catalog).read_text(encoding="utf-8"))
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
@@ -363,14 +385,27 @@ def main() -> None:
             "has_factory_definition": any(
                 item.get("factory_status") == "qualified_inactive"
                 for item in validations),
+            "baseline_verified": baseline.get(company.key),
         })
         (output / "report.json").write_text(json.dumps({
             "schema_version": "jap.hannover_human_browser_agent_poc.v1",
             "mode": "LIVE_PUBLIC_SEARCH_BROWSER",
             "model": args.model, "companies": rows,
-            "summary": {"evaluated": len(rows),
-                        "verified_active": sum(x["has_verified_active_portal"] for x in rows),
-                        "factory_definition": sum(x["has_factory_definition"] for x in rows)},
+            "summary": {
+                "evaluated": len(rows),
+                "verified_active": sum(x["has_verified_active_portal"] for x in rows),
+                "factory_definition": sum(x["has_factory_definition"] for x in rows),
+                "baseline_verified": sum(x["baseline_verified"] is True for x in rows),
+                "browser_new_verified": sum(
+                    x["has_verified_active_portal"] and x["baseline_verified"] is False
+                    for x in rows),
+                "browser_unresolved": sum(not x["has_verified_active_portal"] for x in rows),
+                "search_requests": sum(len(x["browser_scout"]["search_queries"]) for x in rows),
+                "model_input_tokens": sum(
+                    x["browser_scout"]["model_usage"]["input_tokens"] for x in rows),
+                "model_output_tokens": sum(
+                    x["browser_scout"]["model_usage"]["output_tokens"] for x in rows),
+            },
         }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"{company.name}: "
               f"{[x['status'] for x in validations]} "
