@@ -116,3 +116,25 @@ def test_self_declared_employer_without_independent_site_evidence_is_not_verifie
 def test_legal_name_normalization_excludes_unrelated_titles():
     assert matching_employer("ACME Systems GmbH", "ACME Systems") is True
     assert matching_employer("ACME Systems GmbH", "Other Systems AG") is False
+
+
+def test_baseline_csv_only_accepts_explicit_company_truth(tmp_path):
+    import pytest
+    from scripts.run_hannover_browser_agent import read_baseline
+    path = tmp_path / "baseline.csv"
+    path.write_text("company_key,verified_active\nacme,1\nbeta,false\n",
+                    encoding="utf-8")
+    assert read_baseline(str(path)) == {"acme": True, "beta": False}
+    path.write_text("company_key,verified_active\nacme,\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="requires_company_key"):
+        read_baseline(str(path))
+
+
+def test_browser_only_allows_observed_public_https_url_shape_without_dns():
+    import pytest
+    from scripts.run_hannover_browser_agent import require_public_https
+    assert require_public_https("https://jobs.example.org/123", resolve_dns=False)
+    with pytest.raises(ValueError):
+        require_public_https("http://jobs.example.org")
+    with pytest.raises(ValueError):
+        require_public_https("https://127.0.0.1/private", resolve_dns=False)
