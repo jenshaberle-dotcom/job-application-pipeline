@@ -248,6 +248,21 @@ PROMPT = (
 
 
 
+def record_usage_event(event: str, model: str, **usage) -> None:
+    """Optional local per-candidate usage ledger; no page text or credentials."""
+    location = os.environ.get("JAP_USAGE_LEDGER", "")
+    if not location:
+        return
+    file = Path(location)
+    if not file.is_absolute() or file.is_symlink() or not file.parent.is_dir():
+        return
+    data = {"event": event, "model": model, **usage}
+    try:
+        with file.open("a", encoding="utf-8") as stream:
+            stream.write(json.dumps(data, sort_keys=True) + "\n")
+    except OSError:
+        return
+
 def scout_chatgpt_plan(company: Company, search: SearchProvider,
                        browser: BrowserSession, model: str) -> dict:
     """OAuth plan Responses: streaming JSON decisions; browser actions run locally."""
