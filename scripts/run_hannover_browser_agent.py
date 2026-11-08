@@ -301,6 +301,7 @@ def scout_chatgpt_plan(company: Company, search: SearchProvider,
         parts = []
         completed = False
         model_calls += 1
+        record_usage_event("request_started", model)
         with client.responses.create(
             model=model, instructions=instructions,
             input=[{"role": "user",
@@ -313,6 +314,7 @@ def scout_chatgpt_plan(company: Company, search: SearchProvider,
                 elif event.type == "response.failed":
                     code = getattr(getattr(event.response, "error", None),
                                    "code", "unknown")
+                    record_usage_event("response_failed", model, error_code=str(code))
                     raise RuntimeError("ChatGPT plan response failed: " + str(code))
                 elif event.type == "response.incomplete":
                     raise RuntimeError("ChatGPT plan response incomplete")
@@ -326,6 +328,14 @@ def scout_chatgpt_plan(company: Company, search: SearchProvider,
                         output_detail = getattr(info, "output_tokens_details", None)
                         usage["cached_input_tokens"] += getattr(input_detail, "cached_tokens", 0) or 0
                         usage["reasoning_output_tokens"] += getattr(output_detail, "reasoning_tokens", 0) or 0
+            record_usage_event("response_completed", model,
+                input_tokens=response.usage.input_tokens or 0,
+                output_tokens=response.usage.output_tokens or 0,
+                cached_input_tokens=getattr(input_detail, "cached_tokens", 0) or 0)
+                        record_usage_event("response_completed", model,
+                            input_tokens=info.input_tokens or 0,
+                            output_tokens=info.output_tokens or 0,
+                            cached_input_tokens=getattr(input_detail, "cached_tokens", 0) or 0)
         if not completed:
             raise RuntimeError("ChatGPT plan stream ended without response.completed")
         raw = "".join(parts).strip()
@@ -407,6 +417,7 @@ def scout(company: Company, search: SearchProvider, browser: BrowserSession,
     model_calls = 0
     for _ in range(MAX_MODEL_STEPS):
         model_calls += 1
+        record_usage_event("request_started", model)
         response = client.responses.create(
             model=model, input=items, tools=TOOLS,
             max_output_tokens=1100, store=False,
