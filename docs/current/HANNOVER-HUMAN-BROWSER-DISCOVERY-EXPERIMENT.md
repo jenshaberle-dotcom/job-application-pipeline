@@ -194,3 +194,50 @@ optional cross-sector JSON/CSV path alongside the Census input.
 
 Before a fair A/B comparison, ensure baseline company keys and validation
 definitions match the exact experiment cohort.
+
+## ChatGPT-Gerätefreigabe für Standalone (SIWC OAuth)
+
+Die **separat bereitgestellte Standalone-Weboberfläche** unterstützt
+offizielles Sign in with ChatGPT (lokaler Open-Source-Flow),
+anstatt OPENAI_API_KEY als Pflichtfeld zu verlangen.
+Der Nutzer startet in der UI eine ausdrückliche Anmeldung, öffnet
+den OpenAI-Autorisierungslink im Systembrowser und bestätigt
+optional `chatgpt.tokens.use.direct` für die App.
+Der Callback läuft auf `http://127.0.0.1:<port>/auth/callback`,
+PKCE-S256, `state` und OIDC-`nonce` werden geprüft.
+Es werden nur vom Anbieter ausgegebene OAuth-Tokens genutzt,
+keine Passwörter, ChatGPT-Cookies oder Codex-CLI-Tokens.
+
+Tokens verbleiben ausschließlich auf dem lokalen Host in
+`~/.config/jap-browser-scout/` mit Dateirechten 0600.
+Die UI erhält nur Kontostatus und für das Konto verfügbare Modellnamen.
+Refresh-Tokens werden mit dem offiziellen Token-Endpunkt rotiert.
+Die Umsetzung verwendet `store=false`, `stream=true` und
+vollständige Input-Kontexte für jede Responses-Anfrage.
+Da der SIWC-Preview-Modus nicht alle Standard-Responses-Parameter
+unterstützt, verwendet der Browser-Agent im ChatGPT-Modus
+strukturierte JSON-Aktionsentscheidungen statt nicht unterstützter
+Tool-Parameter. Aktionen werden ausschließlich durch lokale,
+begrenzte Search- und Browserfunktionen ausgeführt.
+
+**Die Gerätefreigabe wird im Browser auf dem Host bestätigt, nicht
+direkt innerhalb einer bestehenden ChatGPT-Unterhaltung.**
+Beim WSL-Host muss `127.0.0.1` aus dem lokalen Desktopbrowser
+zur WSL-Instanz erreichbar sein. Anders als ein Gerätecode kann
+der Loopback-Callback nicht einfach von einem beliebigen Handy
+ausgelöst werden.
+
+**Weiterhin erforderlich:** Ein Suchprovider, in diesem Experiment
+BRAVE_API_KEY. Die Anmeldung mit ChatGPT ersetzt nur
+OPENAI_API_KEY, nicht den unabhängigen Web-Suchdienst.
+
+Offizielle Quellen:
+- https://developers.openai.com/siwc/token-sharing-open-source/sign-in
+- https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference
+- https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations
+- https://openai.com/policies/sign-in-with-chatgpt-terms/
+
+**Teststand:** OAuth-Vertrag, lokale sichere Speicherung und
+UI-Steuerung durch Offline-Tests geprüft; keine tatsächliche
+OAuth-Freigabe durch das Konto des Nutzers und kein Live-
+Browser-Agent-Durchlauf ausgeführt.
