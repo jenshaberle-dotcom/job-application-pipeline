@@ -160,7 +160,7 @@ class BrowserSession:
     def inspect(self, url: str) -> dict:
         if len(self.visited) >= MAX_PAGE_VISITS:
             return {"error": "page_budget_exhausted"}
-        if url not in self.allowed:
+        if url.rstrip("/") not in {x.rstrip("/") for x in self.allowed}:
             return {"error": "url_not_observed_in_search_or_page_links"}
         require_public_https(url)
         self.visited.append(url)
@@ -231,7 +231,9 @@ PROMPT = (
     "You are a read-only public employer career-source researcher. "
     "Behave like a skilled human: search Company + Jobs / Karriere, inspect "
     "relevant result pages, follow links to official career pages and real "
-    "job boards, refine the query once if necessary. You may ONLY nominate "
+    "job boards, inspect a concrete job-detail page when a generic "
+    "ATS is hard to identify, and refine the query once if necessary. "
+    "You may ONLY nominate "
     "URLs you have actually observed via a tool. Prefer official employer "
     "pages that link to their hiring system. Do not invent paths, slugs, or "
     "company subsidiaries. Avoid irrelevant name collisions and aggregators. "
@@ -285,7 +287,9 @@ def scout(company: Company, search: SearchProvider, browser: BrowserSession,
                 url = str(args.get("url", ""))
                 try:
                     require_public_https(url)
-                    if url not in browser.allowed:
+                    if url.rstrip("/") not in {
+                            x.rstrip("/") for x in browser.allowed
+                    }:
                         raise ValueError("not_observed")
                     if len(nominations) >= MAX_NOMINATIONS:
                         raise ValueError("candidate_budget_exhausted")
@@ -313,7 +317,7 @@ def input_companies(args) -> list[Company]:
     if args.census:
         raw = json.loads(Path(args.census).read_text(encoding="utf-8"))
         return [Company(str(row["company_key"]), str(row["company_name"]),
-                        website(row)) for row in population(raw)][:args.limit]
+                        website(row)) for row in population(raw)]
     if not args.company:
         raise ValueError("company_name_or_census_required")
     key = args.company_key or hashlib.sha256(args.company.encode()).hexdigest()[:16]
@@ -354,6 +358,7 @@ def main() -> None:
                          if c.key in baseline and baseline[c.key] is False]
         else:
             companies = [c for c in companies if c.key in baseline]
+    companies = companies[:args.limit]
     catalog = json.loads(Path(args.catalog).read_text(encoding="utf-8"))
     output = Path(args.output)
     output.mkdir(parents=True, exist_ok=True)
