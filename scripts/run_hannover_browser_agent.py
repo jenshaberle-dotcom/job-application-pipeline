@@ -387,7 +387,9 @@ def scout(company: Company, search: SearchProvider, browser: BrowserSession,
         )},
     ]
     nominations, trace = [], []
-    usage = {"input_tokens": 0, "output_tokens": 0}
+    usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0,
+             "reasoning_output_tokens": 0}
+    model_calls = 0
     for _ in range(MAX_MODEL_STEPS):
         model_calls += 1
         response = client.responses.create(
