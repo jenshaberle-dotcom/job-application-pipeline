@@ -109,3 +109,30 @@ geprüften Positiv- und Negativbeispielen.
 Stand: Alle Dateien sind remote gesichert. Eine echte Browser-/Modell-
 Ausführung auf dem Nutzer-Host ist noch nicht erfolgt. Die Offline-Tests
 müssen zunächst lokal ausgeführt werden.
+
+## Alte 20-%-Baseline aus dem lokalen JAP übernehmen
+
+Wenn der alte Finder keinen kompatiblen PoC-Report erzeugt, stattdessen
+prüfbar eine CSV mit genau zwei Pflichtspalten exportieren:
+
+    company_key,verified_active
+    acme,1
+    beta,0
+
+Die Werte 1/0 dürfen nicht bloß HTTP-200-Erreichbarkeit ausdrücken, sondern
+müssen den gleichen überprüften Arbeitgeber-/Jobquellenstandard repräsentieren.
+Unbekannt bleibt unbekannt und darf nicht zu 0 umgedeutet werden.
+
+    python -m scripts.run_hannover_browser_agent \\
+      --census /ABSOLUTER/PFAD/hannover-census.json \\
+      --baseline-report /ABSOLUTER/PFAD/old_finder_verified.csv \\
+      --only-unresolved --limit 20 \\
+      --output runs/human-browser-long-tail
+
+Wichtig: Die Filterung nach nicht verifizierten Firmen findet statt, BEVOR
+--limit angewandt wird. So startet der Agent auf echten Fehlfällen, nicht
+zufällig nur den alphabetisch ersten Firmen.
+
+Pilotdaten reichen nicht für einen statistisch engen Nachweis von 98 %
+Precision. Die 30 Firmen sind ein Machbarkeits- und Fehleranalyseversuch;
+für ein Produktions-Gate ist ein größerer blind geprüfter Holdout nötig.
