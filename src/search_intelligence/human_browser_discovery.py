@@ -17,7 +17,7 @@ from src.connectors.aggressive_factory import advance_candidate
 from src.connectors.connector_extraction import (
     AcquisitionResponse, ats_plan, execute_plan, fingerprint_saved_responses,
 )
-from src.connectors.hannover_tech_registry_poc import api_for, board_url, family, related
+from src.connectors.hannover_tech_registry_poc import api_for, board_url, family, related, host
 
 MAX_PAGE_BYTES = 2_000_000
 
@@ -141,12 +141,12 @@ def official_link_evidence(company: Company, candidate: str,
     if not company.known_website:
         return []
     try:
-        official_host = urlsplit(origin(company.known_website)).hostname
+        official_host = host(origin(company.known_website))
     except ValueError:
         return []
     proof = []
     for observation in observations:
-        if urlsplit(observation.url).hostname != official_host:
+        if host(observation.url) != official_host:
             continue
         if not matching_employer(
             company.name, f"{observation.title} {observation.text_excerpt[:600]}"
@@ -231,7 +231,7 @@ def verify_portal(company: Company, candidate: str, observations: list[Observati
             expected = origin(company.known_website)
             corroborated_hiring_org = any(
                 item.get("hiring_organization_same_as")
-                and origin(item["hiring_organization_same_as"]) == expected
+                and host(origin(item["hiring_organization_same_as"])) == host(expected)
                 for item in job_evidence if "hiring_organization_same_as" in item
             )
         except (ValueError, TypeError):
