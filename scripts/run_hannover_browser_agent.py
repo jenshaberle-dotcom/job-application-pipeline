@@ -271,7 +271,9 @@ def scout_chatgpt_plan(company: Company, search: SearchProvider,
     events: list[dict] = []
     nominations: list[str] = []
     trace: list[dict] = []
-    usage = {"input_tokens": 0, "output_tokens": 0}
+    usage = {"input_tokens": 0, "output_tokens": 0, "cached_input_tokens": 0,
+             "reasoning_output_tokens": 0}
+    model_calls = 0
     for _ in range(MAX_MODEL_STEPS):
         context = {
             "company": company.name, "known_website": company.known_website,
@@ -283,6 +285,7 @@ def scout_chatgpt_plan(company: Company, search: SearchProvider,
         }
         parts = []
         completed = False
+        model_calls += 1
         with client.responses.create(
             model=model, instructions=instructions,
             input=[{"role": "user",
@@ -304,6 +307,10 @@ def scout_chatgpt_plan(company: Company, search: SearchProvider,
                     if info:
                         usage["input_tokens"] += info.input_tokens or 0
                         usage["output_tokens"] += info.output_tokens or 0
+                        input_detail = getattr(info, "input_tokens_details", None)
+                        output_detail = getattr(info, "output_tokens_details", None)
+                        usage["cached_input_tokens"] += getattr(input_detail, "cached_tokens", 0) or 0
+                        usage["reasoning_output_tokens"] += getattr(output_detail, "reasoning_tokens", 0) or 0
         if not completed:
             raise RuntimeError("ChatGPT plan stream ended without response.completed")
         raw = "".join(parts).strip()
@@ -356,7 +363,8 @@ def scout_chatgpt_plan(company: Company, search: SearchProvider,
         if len(nominations) >= MAX_NOMINATIONS:
             break
     return {"candidates": nominations, "trace": trace,
-            "search_queries": search.queries, "model_usage": usage,
+            "search_queries": search.queries, "model_calls": model_calls,
+            "model_usage": usage,
             "visited_urls": browser.visited,
             "denied_browser_requests": browser.denied_requests}
 
@@ -381,6 +389,7 @@ def scout(company: Company, search: SearchProvider, browser: BrowserSession,
     nominations, trace = [], []
     usage = {"input_tokens": 0, "output_tokens": 0}
     for _ in range(MAX_MODEL_STEPS):
+        model_calls += 1
         response = client.responses.create(
             model=model, input=items, tools=TOOLS,
             max_output_tokens=1100, store=False,
@@ -388,6 +397,10 @@ def scout(company: Company, search: SearchProvider, browser: BrowserSession,
         if response.usage:
             usage["input_tokens"] += response.usage.input_tokens
             usage["output_tokens"] += response.usage.output_tokens
+            input_detail = getattr(response.usage, "input_tokens_details", None)
+            output_detail = getattr(response.usage, "output_tokens_details", None)
+            usage["cached_input_tokens"] += getattr(input_detail, "cached_tokens", 0) or 0
+            usage["reasoning_output_tokens"] += getattr(output_detail, "reasoning_tokens", 0) or 0
         items.extend(response.output)
         calls = [v for v in response.output if v.type == "function_call"]
         if not calls:
@@ -427,7 +440,8 @@ def scout(company: Company, search: SearchProvider, browser: BrowserSession,
         if len(nominations) >= MAX_NOMINATIONS:
             break
     return {"candidates": nominations, "trace": trace,
-            "search_queries": search.queries, "model_usage": usage,
+            "search_queries": search.queries, "model_calls": model_calls,
+            "model_usage": usage,
             "visited_urls": browser.visited,
             "denied_browser_requests": browser.denied_requests}
 
@@ -564,6 +578,7 @@ def main() -> None:
                     for x in rows),
                 "browser_unresolved": sum(not x["has_verified_active_portal"] for x in rows),
                 "search_requests": sum(len(x["browser_scout"]["search_queries"]) for x in rows),
+                "model_requests": sum(x["browser_scout"].get("model_calls", 0) for x in rows),
                 "model_input_tokens": sum(
                     x["browser_scout"]["model_usage"]["input_tokens"] for x in rows),
                 "model_output_tokens": sum(
