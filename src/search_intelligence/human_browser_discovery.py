@@ -98,6 +98,8 @@ def jobposting_nodes(document: str) -> list[dict]:
             type_values = item.get("@type", [])
             if isinstance(type_values, str):
                 type_values = [type_values]
+            if not isinstance(type_values, list):
+                type_values = []
             if any(str(x).split("/")[-1].casefold() == "jobposting"
                    for x in type_values):
                 result.append(item)
@@ -119,6 +121,8 @@ def valid_jobposting_for(company: Company, observation: Observation) -> list[dic
         description = str(job.get("description") or "").strip()
         organization = job.get("hiringOrganization")
         same_as = organization.get("sameAs", "") if isinstance(organization, dict) else ""
+        if not isinstance(same_as, str):
+            same_as = ""
         if isinstance(organization, dict):
             organization = organization.get("name")
         if not isinstance(organization, str):
@@ -230,7 +234,8 @@ def verify_portal(company: Company, candidate: str, observations: list[Observati
         try:
             expected = origin(company.known_website)
             corroborated_hiring_org = any(
-                item.get("hiring_organization_same_as")
+                isinstance(item.get("hiring_organization_same_as"), str)
+                and item["hiring_organization_same_as"].startswith("https://")
                 and host(origin(item["hiring_organization_same_as"])) == host(expected)
                 for item in job_evidence if "hiring_organization_same_as" in item
             )
