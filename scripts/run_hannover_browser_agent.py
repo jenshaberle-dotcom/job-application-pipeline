@@ -11,6 +11,7 @@ Install only in a separate PoC worktree:
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import ipaddress
 import json
@@ -313,6 +314,32 @@ def scout(company: Company, search: SearchProvider, browser: BrowserSession,
             "denied_browser_requests": browser.denied_requests}
 
 
+def read_baseline(path: str) -> dict[str, bool]:
+    """Explicit per-company historical verification; never infer missing=false."""
+    source = Path(path)
+    if source.suffix.lower() == ".csv":
+        with source.open(encoding="utf-8-sig", newline="") as stream:
+            records = list(csv.DictReader(stream))
+        result = {}
+        for row in records:
+            key = str(row.get("company_key") or "")
+            proof = str(row.get("verified_active") or "").strip().lower()
+            if not key or proof not in {"true", "false", "1", "0"}:
+                raise ValueError("baseline_csv_requires_company_key_and_verified_active")
+            if key in result:
+                raise ValueError("duplicate_baseline_company_key")
+            result[key] = proof in {"true", "1"}
+        return result
+    data = json.loads(source.read_text(encoding="utf-8"))
+    if data.get("live_evidence_checked") is not True:
+        raise ValueError("baseline_json_must_contain_live_evidence")
+    rows = data.get("companies", [])
+    if not isinstance(rows, list):
+        raise ValueError("baseline_companies_list_required")
+    return {str(row["company_key"]): bool(row.get("verified_portals", 0))
+            for row in rows}
+
+
 def input_companies(args) -> list[Company]:
     if args.census:
         raw = json.loads(Path(args.census).read_text(encoding="utf-8"))
@@ -334,7 +361,7 @@ def main() -> None:
     p.add_argument("--model", default="gpt-5.4-mini")
     p.add_argument("--catalog", default="contracts/connector-capability-catalog-v1.json")
     p.add_argument("--baseline-report",
-                   help="Previously LIVE-verified registry PoC JSON for exact-company A/B comparison")
+                   help="Previously verified registry PoC JSON or reviewed CSV: company_key,verified_active")
     p.add_argument("--only-unresolved", action="store_true",
                    help="Only Census companies unverified in the baseline (requires --baseline-report)")
     p.add_argument("--output", default="runs/hannover-browser-agent-experiment")
@@ -348,11 +375,10 @@ def main() -> None:
     if args.only_unresolved and not args.baseline_report:
         p.error("--only-unresolved requires --baseline-report")
     if args.baseline_report:
-        previous = json.loads(Path(args.baseline_report).read_text(encoding="utf-8"))
-        if previous.get("live_evidence_checked") is not True:
-            p.error("Baseline must be a verified live/replay run, not registry-only")
-        baseline = {str(x["company_key"]): bool(x.get("verified_portals", 0))
-                    for x in previous.get("companies", [])}
+        try:
+            baseline = read_baseline(args.baseline_report)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            p.error(f"Invalid baseline: {exc}")
         if args.only_unresolved:
             companies = [c for c in companies
                          if c.key in baseline and baseline[c.key] is False]
