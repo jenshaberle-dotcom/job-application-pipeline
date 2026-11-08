@@ -172,3 +172,25 @@ see docs/current/BRANCH_CONSOLIDATION_AUDIT_20261108.md. Both Classic and
 Runtime already have delete_branch_on_merge=true. The sole-main/sole-experiment
 branch target is **not completed** until divergent work is qualified and
 consolidated; no high-risk branch deletes or mass merges were performed.
+
+## Cross-sector Solution Architect cohort through Browser Scout
+
+Optional --expanded-companies accepts the same sourced JSON/CSV employer seeds
+as the Hannover Registry PoC. The old TECH Census remains the frozen baseline,
+while a second profile-market segment adds cross-sector companies without
+declaring them to have current jobs.
+
+    python -m scripts.run_hannover_browser_agent \
+      --census /ABSOLUTE/PATH/TO/HANNOVER_CENSUS.json \
+      --expanded-companies \
+        examples/hannover-tech-registry-poc/profile-market-expansion-hannover-example.json \
+      --limit 10 \
+      --output runs/browser-expanded-role-market
+
+The illustrative expansion is not a complete regional market census.
+Solution Architect / Lösungsarchitekt is an additional role-family signal,
+not proof of a suitable vacancy. The standalone UI supports the same
+optional cross-sector JSON/CSV path alongside the Census input.
+
+Before a fair A/B comparison, ensure baseline company keys and validation
+definitions match the exact experiment cohort.
