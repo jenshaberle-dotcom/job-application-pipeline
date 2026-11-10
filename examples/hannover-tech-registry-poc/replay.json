@@ -1,0 +1,14 @@
+{
+  "https://alpha.example/": {
+    "status": 200,
+    "body": "<html><head><title>Alpha Analytics</title></head><body><a href='https://boards.greenhouse.io/alphapoc/jobs/99'>Open roles</a></body></html>"
+  },
+  "https://beta.example/": {
+    "status": 200,
+    "body": "<html><head><title>Beta Robotics</title></head><body><a href='/about'>About us</a></body></html>"
+  },
+  "https://boards-api.greenhouse.io/v1/boards/alphapoc/jobs?content=true": {
+    "status": 200,
+    "body": "{\"jobs\":[{\"id\":99,\"title\":\"Data Engineer\",\"content\":\"Build data pipelines\",\"absolute_url\":\"https://boards.greenhouse.io/alphapoc/jobs/99\",\"location\":{\"name\":\"Hannover\"}}]}"
+  }
+}

@@ -50,3 +50,9 @@ python scripts/check_classic_documentation_truth.py
 
 Database reference: [schema](reference/database/schema_overview.md),
 [relationships](reference/database/schema_relationships.md).
+
+## URL-Finder integration (2026-11-07)
+
+- [Source comparison and decisions](current/URLFINDER-SOURCE-INTEGRATION.md)
+- [arc42 supplement](current/urlfinder-factory-arc42.md)
+- [Hannover registry PoC](current/HANNOVER-TECH-REGISTRY-FACTORY-POC.md)

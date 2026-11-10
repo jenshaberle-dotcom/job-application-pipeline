@@ -66,3 +66,12 @@ git log --oneline -5
 Do not use manual `<PR_NUMBER>` placeholders in merge blocks. Do not introduce
 surprise workflow variants across chats or repository docs. Use direct repository/PR/check inspection for continuation; historical chat or export summaries are hints only. Avoid `set -euo pipefail` in user-pasted
 operational blocks when a recoverable CLI error could close the terminal.
+
+## Reconciling maintenance sources
+
+Use the [exact integration review](../current/URLFINDER-SOURCE-INTEGRATION.md).
+Compare main, branch and local package manifests before creating a reviewed
+file-level result. Verify unchanged remote tips, preserve real Git ancestry,
+obey branch protection and verify remote contents after publication. A clean
+checkout does not prove maintenance code is in Git. Never publish raw responses
+or credentials as a source backup.

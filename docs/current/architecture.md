@@ -55,3 +55,11 @@ React or fallback assumptions into Classic as Cloud implementation facts. Cloud 
 deployment and migration require current Cloud evidence and operator acceptance.
 
 See [ADR-034](../decisions/adr/034_define_shared_jap_product_and_runtime_coexistence.md).
+
+## URL-Finder source reconciliation
+
+The reviewed candidate shares URL/ATS evidence rules under `src/connectors/portal_discovery/`
+and reuses the repository compiler. JAP owns evidence and extraction; RCC owns
+execution. See the [arc42 supplement](urlfinder-factory-arc42.md) and
+[exact source review](URLFINDER-SOURCE-INTEGRATION.md). This is not deployment
+or daily delivery acceptance; Classic GUI changes are outside this integration.

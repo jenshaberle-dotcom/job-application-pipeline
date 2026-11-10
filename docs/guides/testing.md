@@ -38,3 +38,10 @@ Use local fixtures for parser/connector unit tests. Separate tests from live acq
 private database inspection, provider calls and productive apply. A full local test pass is
 repository evidence, not proof of live source coverage, Top 5, installed update recovery or
 RCC fleet operation.
+
+## URL-Finder integration regression checks
+
+Run `python -m pytest -q tests/test_hannover_tech_registry_poc.py tests/test_hannover_profile_market.py tests/test_hannover_solution_architecture_staging.py tests/portal_discovery`.
+These are offline tests. Stored field replay additionally checks exact outcomes
+without fresh HTTP calls. Neither test mode establishes live 90% coverage or
+production daily delivery. See [review](../current/URLFINDER-SOURCE-INTEGRATION.md).

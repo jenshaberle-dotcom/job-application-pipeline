@@ -80,7 +80,7 @@ class ConnectorFactoryCapability:
             raise ValueError("capability_roles_required")
         if self.priority < 0:
             raise ValueError("capability_priority_invalid")
-        if self.runtime_strategy not in {"UNIMPLEMENTED", "JSON_API", "JSONLD", "HTML_DETAIL"}:
+        if self.runtime_strategy not in {"UNIMPLEMENTED", "JSON_API", "JSONLD", "HTML_DETAIL", "XML_FEED"}:
             raise ValueError("capability_runtime_strategy_invalid")
 
 

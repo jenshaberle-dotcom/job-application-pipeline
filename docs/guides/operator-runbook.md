@@ -54,3 +54,10 @@ Preserve failure evidence and change a relevant precondition before retrying.
 
 PR merging uses the canonical workflow, which derives the PR identity from the branch;
 manual `<PR_NUMBER>` replacement is avoided. No ZIP/chat handoff is required to inspect a repo.
+
+## Source backup versus installed state
+
+Use [source reconciliation](../current/URLFINDER-SOURCE-INTEGRATION.md) to track
+what was reviewed and published. Source publication does not deploy immutable
+WSL services or refresh job observations. Daily admission remains independently
+controlled; failed or quarantined attempts must not be silently replayed.

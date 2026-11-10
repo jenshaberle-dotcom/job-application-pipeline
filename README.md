@@ -1,9 +1,10 @@
 # JAP Classic — Job Application Pipeline
 
 Status: Connector Factory development, benchmark and experiment lab for JAP Cloud.
-JAP Classic is no longer a product to preserve. The current lab execution contract and RCC gate
-are documented in [Multi-Region Connector Factory Lab](docs/current/HANNOVER-CONNECTOR-MASS-CENSUS.md).
-The desktop implementation below describes retained code, not an obligation to maintain it.
+The current operator priority is a usable Christina SOCIAL profile in the existing
+Classic GUI, alongside reusable Factory development. The lab execution contract and
+RCC gate remain documented in [Multi-Region Connector Factory Lab](docs/current/HANNOVER-CONNECTOR-MASS-CENSUS.md).
+See [source integration status](docs/current/URLFINDER-SOURCE-INTEGRATION.md); source publication is not daily-delivery acceptance.
 Project character: **A — Intent Locked**. Theme: **Deep Ocean / Search Intelligence**.
 
 ## Why this project exists
@@ -25,7 +26,7 @@ application preparation and tracking. Jens owns product intent.
 | CI and packaging | RCC General Pool; JAP declares demand and verifies exact assignment. |
 | Cloud direction | Cloud parity and verified migration, then one normal Cloud product path. |
 
-Desktop product version: **1.2.6**. Published packages are listed in
+Desktop product version: **1.2.6** in this repository (not proof of the installed operator build). Published packages are listed in
 [GitHub Releases](https://github.com/jenshaberle-dotcom/job-application-pipeline/releases).
 `windows/JAP.ControlCenter.Desktop/VERSION` defines the build version.
 The root `VERSION` and frontend package version identify other components; they are not

@@ -1,5 +1,8 @@
 # JAP Classic engineering re-entry
 
+2026-11-07 source integration: [review and remaining gates](URLFINDER-SOURCE-INTEGRATION.md).
+The inspection below is historical; it does not identify the currently installed desktop.
+
 Inspected: 2026-10-02. Repository ID: `1230805345`.
 Baseline before this documentation hardcut: `effe8cc7aafcc2e31a9c471e1eaf678f22b6d3f1`.
 This is a dated inspection record, not a lock on a moving `main`.

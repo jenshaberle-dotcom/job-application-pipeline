@@ -67,6 +67,8 @@ are used as active architecture anchors.
 
 | ADR-037 | Accepted by operator direction | Current | Connector fleet lifecycle contract; configuration is not live fleet closure proof. | `config/connector_fleet_policy.json`, `docs/current/architecture.md` |
 
+| ADR-038 | Proposed | Current | Source integration and evidence boundaries; production/user acceptance pending. | `docs/current/urlfinder-factory-arc42.md` |
+
 ## Immediate follow-up queue
 
 The table deliberately separates safe classification from editing every ADR.

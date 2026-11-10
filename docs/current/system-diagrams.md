@@ -85,3 +85,74 @@ flowchart TD
 
 JAP supplies requirements and exact product source; RCC chooses capacity and owns lifecycle.
 No fixed members, cardinality or hosted fallback are implied.
+
+## URL finder and factory integration
+
+C4 container and component views for the reviewed candidate. Dashed paths are
+not yet admitted production flows for these candidates.
+
+### Container view (C2)
+
+```mermaid
+flowchart LR
+  user["Jens / Christina\nNutzer und Abnahme"]
+  employers["Arbeitgeber-Websites und ATS\nExternes System: HTTPS / XML / JSON / HTML"]
+  providers["Tavily / Codex\nOptionale externe Eskalation, hier nicht aufgerufen"]
+  github["GitHub\nQuellcode, Review und Sicherung"]
+  rcc["RCC\nExternes Ausführungssystem: Aufträge, Leases, Isolation"]
+  subgraph jap["JAP – Container-Sicht, Integrationsentwurf"]
+    sensors["Sensor-/Census-Prozess\nPython: Arbeitgeber und beobachtete Metadaten"]
+    worker["URL-Finder / Factory-Prüfprozess\nPython: Identität, ATS-Inhalt, Rezepte"]
+    evidence[("Belegspeicher\nZeitstempel, Antwortinhalt, SHA-256")]
+    registry[("Kandidaten-/Rezeptkatalog\nFachliche Daten, Zulassung separat")]
+    db[("JAP PostgreSQL\nProduktstellen und Profile")]
+    api["JAP Reader/API\nPython: profilgebundene Anzeige"]
+    cc["Classic CC\nWindows / WebView2, GUI-Basis 1.2.7"]
+    delivery["Produktiver Connector-Worker\nGetrennt zuzulassende Runtime"]
+    sensors -->|"Arbeitgeber + Herkunft"| worker
+    worker -->|"Prüfbelege"| evidence
+    worker -->|"Noch inaktive Rezepte"| registry
+    registry -.->|"Qualifikation und Zulassung offen"| delivery
+    delivery -.->|"Produktive Übernahme offen"| db
+    db -->|"Begrenzte Leseprojektion"| api
+    api -->|"HTTP-Vertrag"| cc
+  end
+  user -->|"Profil / Review"| cc
+  worker -->|"Begrenzte öffentliche GETs"| employers
+  worker -.->|"Separate Budgetfreigabe"| providers
+  rcc -.->|"Geplante Ausführung zugelassener Rezepte"| delivery
+  github -.->|"Geprüfter Code; kein automatisches Deployment behauptet"| worker
+  user -->|"Aktueller Operator-Prüflauf, kein Broker-Dispatch"| worker
+```
+
+### URL-Finder/Factory components (C3)
+
+```mermaid
+flowchart LR
+  input["Sensor-/Census-Metadaten und Firmenverzeichnis\nExterne Eingaben zum Prüfprozess"]
+  source["Arbeitgeber / ATS\nExterne öffentliche Websites"]
+  store[("Belegspeicher\nOriginalantworten mit Beobachtungszeit")]
+  output[("Inaktiver Rezeptkatalog\nKeine Produktionsregistrierung")]
+  subgraph process["URL-Finder / Factory-Prüfprozess – C3-Komponentenentwurf"]
+    hints["Hinweisnormalisierung\ndirectory_match / family_contracts"]
+    transport["Begrenzter Lesetransport\nfield_transport / resume_transport"]
+    identity["Arbeitgeber- und Delegationsnachweis\nidentity_contract / field_html"]
+    parsers["ATS-Familienparser\nJOIN, Personio, Greenhouse, d.vinci, SmartRecruiters"]
+    classify["Konkrete Stellenprobe\nAllgemeine Bewerbung getrennt zählen"]
+    compiler["Generischer Factory-Compiler\njap_connector_factory / field_factory"]
+    metrics["Ergebnis und Herkunft\nFester Nenner, Lücken, Budgets, alte/neue Belege"]
+    hints --> transport
+    transport --> identity
+    identity -->|"Belegte Arbeitgeberzuordnung"| parsers
+    parsers --> classify
+    classify --> compiler
+    identity --> metrics
+    classify --> metrics
+    compiler --> metrics
+  end
+  input --> hints
+  transport -->|"HTTPS GET"| source
+  store -->|"Wiederverwendung; Zeit bleibt erhalten"| transport
+  transport -->|"Neue Antworten und Hashes"| store
+  compiler -->|"Rezept + Stellenprobe; noch nicht zugelassen"| output
+```
