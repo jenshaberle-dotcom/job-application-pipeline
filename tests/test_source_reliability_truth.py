@@ -53,9 +53,11 @@ def test_unimplemented_candidate_is_inventory_not_attention() -> None:
     source = _source(payload, source_name)
     assert source["connector"]["implementation_status"] == "not_implemented"
     assert source["current_blocker"] is None
-    assert source["next_action"].startswith("Known source candidate")
+    assert source["next_action"].startswith("Pre-connector candidate")
+    assert source["connector_disposition"]["status"] == "preconnector_evidence"
     assert payload["summary"]["attention_count"] == 0
-    assert payload["boundaries"]["not_implemented_is_inventory_not_attention"] is True
+    assert payload["boundaries"]["preconnector_unimplemented_is_inventory_not_attention"] is True
+    assert payload["boundaries"]["accepted_connector_candidate_requires_explicit_disposition"] is True
 
 
 def test_active_employer_origin_exposes_zero_latest_delivery() -> None:
