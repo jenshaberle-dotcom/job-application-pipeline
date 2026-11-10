@@ -48,20 +48,12 @@ jobs:
           if ($env:SOURCE_SHA -notmatch '^[0-9a-f]{40}$') { throw 'source SHA invalid' }
           if ((git rev-parse HEAD).Trim() -ne $env:SOURCE_SHA) { throw 'exact source mismatch' }
           if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 fleet baseline missing' }
-          if ((& node -p "process.versions.node.split('.')[0]").Trim() -ne '22') { throw 'Node 22 capability missing' }
-          if (-not ((& dotnet --list-sdks) -match '^8\.')) { throw '.NET 8 capability missing' }
           $contextFile = if ($env:RCC_RUNTIME_CONTEXT_FILE) { $env:RCC_RUNTIME_CONTEXT_FILE } else {
             Join-Path $env:USERPROFILE ".config\DeepOceanInfrastructure\RCC\runtime-contexts\$($env:RCC_REPOSITORY_ID)-$($env:RUNNER_NAME).json"
           }
           if (-not (Test-Path -LiteralPath $contextFile)) { throw "RCC runtime context missing: $contextFile" }
-          $context = Get-Content -LiteralPath $contextFile -Raw | ConvertFrom-Json
-          if ([int64]$context.RepositoryId -ne 1230805345) { throw 'runtime repository ID mismatch' }
-          if ([string]$context.Repository -ne $env:RCC_REPOSITORY) { throw 'runtime repository mismatch' }
-          if ([string]$context.RunnerName -ne $env:RUNNER_NAME) { throw 'runtime runner mismatch' }
-          if ([string]$context.Platform -ne 'windows') { throw 'runtime platform mismatch' }
-          if ([string]$context.Status -ne 'PASS') { throw 'runtime context is not PASS' }
-          $python = [string]$context.Interpreter
-          if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'qualified Python missing' }
+          $python = & ./scripts/resolve_rcc_windows_toolchain.ps1 -ContextFile $contextFile `
+            -Repository $env:RCC_REPOSITORY -Runner $env:RUNNER_NAME -SourceSha $env:SOURCE_SHA
           "JAP_PROOF_PYTHON=$python" >> $env:GITHUB_ENV
 
       - name: Prove source hardcut contract
